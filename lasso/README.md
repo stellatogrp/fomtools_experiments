@@ -76,6 +76,11 @@ Generated directories remain under ignored `out/`; the exact raw measurements,
 verification logs, hardware record, and optimization reports used below are
 checked into `results/paper_40x80/`.
 
+The separate 20,000-by-20,000 sparse scaling study is archived in
+[`results/sparse20k/`](results/sparse20k/). It uses the large-scale OpenMP and
+CUDA targets with the same ISTA/FISTA style and fixed-count measurement
+protocol.
+
 ## Hardware and software
 
 - Host: `della-l08g1`

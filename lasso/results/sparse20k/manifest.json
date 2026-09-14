@@ -1,0 +1,36 @@
+{
+  "experiment": "sparse_lasso_ista_fista_openmp_cuda",
+  "problem": {
+    "m": 20000,
+    "n": 20000,
+    "seed": 0,
+    "lambda": 0.02,
+    "iterations": 200,
+    "numeric_type": "float64",
+    "matrix": "eight seeded random permutations with seeded Gaussian values",
+    "step_size_bound": "1 / (||A||_1 * ||A||_infinity)"
+  },
+  "backends": {
+    "cpu": {
+      "version": "large_scale",
+      "backend": "openmp"
+    },
+    "gpu": {
+      "version": "large_scale",
+      "backend": "cuda"
+    }
+  },
+  "measurement": {
+    "interleaved_rounds": 3,
+    "generated_solves_per_round": 10,
+    "numpy_repetitions_per_round": 3,
+    "reported_statistic": "median of round-level per-solve values"
+  },
+  "verification_samples": 8,
+  "fomtools_commit": "ca3b8c2538a36abe28faf3025d20af4562aa0c49",
+  "slurm_job_id": "13843780",
+  "host": "della-l02g5",
+  "gpu": "NVIDIA A100 80GB PCIe",
+  "python": "3.14.6",
+  "cuda": "12.9.86"
+}

@@ -1,0 +1,15 @@
+ALGORITHM=paper_ista_sparse20k
+PROBLEM_DATA={'n': 20000, 'm': 20000, 'A_nnz': 159972, 'At_nnz': 1138372, 'Bt_nnz': 159972, 'lambda': 0.02, 'step_size': 0.039838935085394815, 'seed': 0}
+MATRIX name=t0_state shape=(20000, 20000) storage=csr nnz=1138372
+MATRIX name=t0_p_p0 shape=(20000, 20000) storage=csr nnz=159972
+MATRIX name=su_t_t0 shape=(20000, 20000) storage=csr nnz=20000
+SPEC_ROUNDTRIP_OK sparse_blocks=3
+ALGORITHM=paper_fista_sparse20k
+PROBLEM_DATA={'n': 20000, 'm': 20000, 'A_nnz': 159972, 'At_nnz': 1138372, 'Bt_nnz': 159972, 'lambda': 0.02, 'step_size': 0.039838935085394815, 'seed': 0}
+MATRIX name=t0_state shape=(20000, 40000) storage=csr nnz=1744403
+MATRIX name=t0_p_p0 shape=(20000, 20000) storage=csr nnz=159972
+MATRIX name=su_state shape=(40000, 40000) storage=csr nnz=20000
+MATRIX name=su_t_t0 shape=(40000, 20000) storage=csr nnz=20000
+MATRIX name=t0_state__d_gamma shape=(20000, 40000) storage=csr nnz=2276744
+SPEC_ROUNDTRIP_OK sparse_blocks=5
+INSPECTION_OK n=20000

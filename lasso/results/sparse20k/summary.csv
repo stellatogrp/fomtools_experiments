@@ -1,0 +1,3 @@
+algorithm,numpy_median_us,cpu_openmp_median_us,cuda_median_us
+ISTA,260543.474000,250458.694700,5448.601900
+FISTA,980284.507000,800844.218900,5575.184600
