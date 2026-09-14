@@ -1,0 +1,4 @@
+cc -O2 -Wall -Iinclude -Itest src/fom_solver.c src/fom_data.c src/fom_linsolve.c src/fom_ops.c test/verify_main.c -o verify_bin -lm
+./verify_bin
+worst max-abs error over 8 samples: 1.120e-11 (tol 1.000e-06)
+VERIFY OK

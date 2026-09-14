@@ -1,0 +1,3 @@
+della-l08g1
+Model name:                              AMD EPYC 7413 24-Core Processor
+GPU 0: NVIDIA A100-SXM4-80GB (UUID: GPU-52a6264f-8860-2d5f-57fa-5aa12ed4a0a5)

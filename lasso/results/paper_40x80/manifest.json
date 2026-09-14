@@ -1,0 +1,31 @@
+{
+  "experiment": "paper_lasso_ista_fista_cpu_cuda",
+  "problem": {
+    "m": 40,
+    "n": 80,
+    "seed": 0,
+    "lambda": 0.02,
+    "iterations": 200
+  },
+  "numeric_type": "float64",
+  "backends": {
+    "cpu": {
+      "version": "embedded",
+      "backend": "c"
+    },
+    "gpu": {
+      "version": "large_scale",
+      "backend": "cuda"
+    }
+  },
+  "measurement": {
+    "interleaved_rounds": 7,
+    "generated_solves_per_round": 5000,
+    "numpy_repetitions_per_round": 50,
+    "reported_statistic": "median of round-level per-solve values"
+  },
+  "verification_samples": 8,
+  "fomtools_commit": "b2127e772435d8311e8f10b0a71ba9cac0d01dbe",
+  "python": "3.14.6",
+  "cuda": "12.9"
+}
