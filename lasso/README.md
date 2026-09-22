@@ -14,9 +14,9 @@ constant across backends; only the emitted backend changes.
 
 Both studies solve
 
-```text
-minimize_z  0.5 ||A z - b||_2^2 + 0.02 ||z||_1.
-```
+$$
+\min_{z}\; \frac{1}{2}\lVert A z - b \rVert_2^2 + 0.02\lVert z \rVert_1.
+$$
 
 ## Results
 
@@ -87,13 +87,6 @@ The square sparse study additionally tuned the 20,000-element CUDA kernels and
 used direct block updates for the FISTA state. The rectangular study cached the
 previous `B*x` FISTA product on OpenMP, and fused CUDA accumulator clearing into
 the elementwise activation kernel.
-
-## Artifact contents
-
-Each result directory preserves the raw interleaved timing output, hardware and
-software metadata, final verification logs, Phase-B optimization reports,
-fixed-configuration manifest, and source scripts. Compiled binaries and
-temporary generated directories are excluded.
 
 All archived solvers passed their eight-sample generated-oracle verification
 checks with tolerance `1e-6`; exact error lines are retained in each
