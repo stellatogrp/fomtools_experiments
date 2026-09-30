@@ -26,18 +26,18 @@ def make_verifier(backend: str) -> Verifier:
                 method="mip", solver="gurobi", obbt_solver="gurobi", params={"OutputFlag": 0}
             )
         case "sdp":
-            # The default SDP relaxation is loose here and grows with K; the
-            # single PSD cone with RLT, ReLU-envelope, cross and triangle cuts
-            # is nearly exact and still solves in seconds at this size.
+            # The default SDP relaxation is loose here and grows with K. All the
+            # cuts, kept on the chordal (non-full) PSD cones so the relaxation
+            # can scale, make it nearly exact.
             return Verifier(
                 method="sdp",
                 solver="clarabel",
                 obbt_solver="gurobi",
-                full_psd_cone=True,
                 rlt_cuts=True,
+                triangle_cuts=True,
                 relu_envelope_cuts=True,
                 cross_cut=True,
-                triangle_cuts=True,
+                subgrad_mono_cut=True,
             )
         case "simulator":
             return Verifier(method="simulator", obbt_solver=None)

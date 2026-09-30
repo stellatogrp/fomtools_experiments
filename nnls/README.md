@@ -15,7 +15,7 @@ $$
 $$
 
 with parameter $x \in [0, 1]^5$, $z^0 = 0$ and $K = 1, \dots, 5$.
-$A = A_0 \operatorname{diag}(c) \in \mathbf{R}^{5 \times 3}$, where $A_0$ is
+$A = A_0 \mathbf{diag}(c) \in \mathbf{R}^{5 \times 3}$, where $A_0$ is
 Gaussian (seed 3) and $c$ is log-spaced with $c_{\max}/c_{\min} = 30$.
 This gives $\kappa(A^\top A) = 121.4$. The range is kept modest on purpose so
 the MIP and SDP solvers stay well conditioned.
@@ -28,7 +28,7 @@ the MIP and SDP solvers stay well conditioned.
 | Ruiz PGD | $\hat s^{k+1} = (\hat s^k - \hat t\hat A^\top(\hat A\hat s^k - x))_+$, $\hat A = AD$ | $\hat t = 1/\lambda_{\max}(\hat A^\top\hat A) = 0.701$ | $(1/\hat t) D^{-1}$ |
 
 - **How `D` is computed:** $D$ is symmetric Ruiz equilibration of $A^\top A$
-  (25 passes), giving $D = \operatorname{diag}(1.234, 0.370, 0.123)$ and
+  (25 passes), giving $D = \mathbf{diag}(1.234, 0.370, 0.123)$ and
   $\kappa(\hat A^\top\hat A) = 2.3$.
 - **Only columns are scaled:** the change of variables is $z = D\hat s$, and
   $\hat s \ge 0 \iff z \ge 0$. Rows are not scaled, because that would turn the
@@ -48,9 +48,11 @@ the MIP and SDP solvers stay well conditioned.
 ## Backends
 
 - **MIP:** Gurobi, with Gurobi OBBT.
-- **SDP:** Clarabel, with Gurobi OBBT, a single PSD cone, and RLT,
-  ReLU-envelope, cross and triangle cuts. The default SDP relaxation is loose
-  here and grows with $K$, so the extra cuts are needed.
+- **SDP:** Clarabel, with Gurobi OBBT and every cut enabled (RLT, triangle,
+  ReLU-envelope, cross, subgradient-monotonicity) on the default chordal PSD
+  cones. The full PSD cone is not used, since it does not scale. Without the
+  cuts the SDP bound is loose here and grows with $K$; the cross cuts do most
+  of the tightening.
 - **Simulator:** 10,000 uniform samples of $x$; the plot shows the per-$K$
   sample maximum.
 
@@ -60,9 +62,9 @@ the MIP and SDP solvers stay well conditioned.
 |---:|---:|---:|---:|---:|---:|---:|
 | 1 | 2.2900 | 2.2900 | 1.0118 | 2.2900 | 2.2900 | 1.0118 |
 | 2 | 0.9665 | 0.9665 | 0.8895 | 1.1233 | 1.1609 | 0.7841 |
-| 3 | 0.9571 | 0.9571 | 0.8806 | 0.5784 | 0.6048 | 0.2955 |
-| 4 | 0.9479 | 0.9479 | 0.8719 | 0.2744 | 0.2852 | 0.1412 |
-| 5 | 0.9388 | 0.9388 | 0.8633 | 0.1314 | 0.1359 | 0.0709 |
+| 3 | 0.9571 | 0.9574 | 0.8806 | 0.5784 | 0.6048 | 0.2955 |
+| 4 | 0.9479 | 0.9480 | 0.8719 | 0.2744 | 0.2852 | 0.1412 |
+| 5 | 0.9388 | 0.9389 | 0.8633 | 0.1314 | 0.1360 | 0.0709 |
 
 ![bounds](results/nnls_bounds.png)
 
@@ -70,14 +72,14 @@ the MIP and SDP solvers stay well conditioned.
   near 0.94. At $K = 5$ the certified worst case is 7x smaller.
 - **$K = 1$ is identical for both variants.** From $z^0 = 0$, the first
   unscaled residual is $(A^\top x)_+$ regardless of $D$.
-- **The SDP bound is exact (to solver tolerance) for PGD**, and within 3.5% of
-  the MIP bound for Ruiz PGD.
+- **The SDP bound is within 0.03% of the MIP bound for PGD**, and within 3.5%
+  for Ruiz PGD.
 
 ## Reproduce
 
 ```sh
 cd nnls
-../.venv/bin/python verify.py   # results/bounds.csv (about 10 s)
+../.venv/bin/python verify.py   # results/bounds.csv (about 15 s)
 ../.venv/bin/python check.py    # sanity checks
 ../.venv/bin/python plot.py     # results/nnls_bounds.{pdf,png}, results/nnls_bounds_wide.csv
 ```
