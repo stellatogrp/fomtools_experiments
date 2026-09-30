@@ -58,7 +58,7 @@ def run(problem: NNLSProblem, v: PGDVariant, backend: str, samples: np.ndarray) 
     rows = []
     for k in range(1, problem.K + 1):
         s[k] = vp.step.relu(s[k - 1] - v.t * v.A_hat.T @ (v.A_hat @ s[k - 1] - x))
-        vp.set_infinity_norm_objective([v.H @ (s[k] - s[k - 1])])
+        vp.set_objective_norm([v.H @ (s[k] - s[k - 1])], ord=np.inf)
         if backend == "simulator":
             continue
         start = time.perf_counter()
