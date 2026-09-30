@@ -19,9 +19,9 @@ import numpy as np  # noqa: E402
 RESULTS = Path(__file__).parent / "results"
 VARIANTS = {"unscaled": ("C0", "PGD"), "ruiz": ("C1", "Ruiz PGD")}
 BACKENDS = {
-    "mip": (dict(marker="o", linestyle="-"), "MIP"),
-    "sdp": (dict(linestyle="--"), "SDP"),
-    "simulator": (dict(marker="s", linestyle=":"), "sample max"),
+    "mip": (dict(marker="o", linestyle="-", ms=3), "MIP"),
+    "sdp": (dict(marker="x", linestyle="--", ms=6, zorder=3), "SDP"),
+    "simulator": (dict(marker="s", linestyle=":", ms=3), "sample max"),
 }
 
 
@@ -37,7 +37,7 @@ def main() -> None:
     for variant, (color, vlabel) in VARIANTS.items():
         for backend, (style, blabel) in BACKENDS.items():
             values = np.array([series[variant, backend][k] for k in ks])
-            ax.semilogy(ks, values, color=color, ms=3, label=f"{vlabel} {blabel}", **style)
+            ax.semilogy(ks, values, color=color, label=f"{vlabel} {blabel}", **style)
             columns.append(values)
             header.append(f"{variant}_{backend}")
     ax.set_xlabel("$K$")
