@@ -29,7 +29,7 @@ are set up as described in the [fomtools repository](https://github.com/stellato
 | folder | experiment |
 |---|---|
 | [`control/`](control/) | model predictive control of a quadcopter with generated C solvers |
-| [`lasso/`](lasso/) | ISTA and FISTA code generation for CPU and CUDA backends |
+| [`lasso/`](lasso/) | ISTA and FISTA: small-instance verification and code generation for CPU and CUDA backends |
 
 Each folder has its own README explaining how to reproduce its results. Generated
 outputs are written to untracked `out/` directories.

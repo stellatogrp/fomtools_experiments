@@ -59,10 +59,6 @@ class PortfolioProblem:
     def n(self) -> int:
         return int(self.mu.size)
 
-    # Every matrix below is sparse. fomtools' ``stack`` adds the coefficients of
-    # a leaf that appears in several components, and sparse + dense gives an
-    # ``np.matrix`` that breaks its bound propagation.
-
     @property
     def P(self) -> spa.csc_matrix:
         """Hessian in ``y = (z, tau)``."""

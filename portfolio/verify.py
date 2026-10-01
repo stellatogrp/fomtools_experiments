@@ -50,7 +50,6 @@ def run(
 ) -> list[dict]:
     n, K = problem.n, problem.K
     rho, sigma = problem.rho, problem.sigma
-    # All matrices are sparse to work around a fomtools stack() bug (see problem.py).
     B, M = problem.blocks, problem.M
     vp = make_verifier(backend)
 
