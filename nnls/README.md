@@ -66,6 +66,16 @@ the MIP and SDP solvers stay well conditioned.
 | 4 | 0.9479 | 0.9480 | 0.8719 | 0.2744 | 0.2852 | 0.1412 |
 | 5 | 0.9388 | 0.9389 | 0.8633 | 0.1314 | 0.1360 | 0.0709 |
 
+Solve times (one solve per $K$):
+
+| K | PGD MIP | PGD SDP | Ruiz MIP | Ruiz SDP |
+|---:|---:|---:|---:|---:|
+| 1 | 0.01 s | 0.51 s | 0.00 s | 0.43 s |
+| 2 | 0.01 s | 0.73 s | 0.01 s | 0.61 s |
+| 3 | 0.01 s | 0.97 s | 0.01 s | 1.09 s |
+| 4 | 0.01 s | 1.34 s | 0.01 s | 1.78 s |
+| 5 | 0.01 s | 1.95 s | 0.03 s | 2.44 s |
+
 ![bounds](results/nnls_bounds.png)
 
 - **The Ruiz bound drops about 2x per iteration**, while unscaled PGD stalls

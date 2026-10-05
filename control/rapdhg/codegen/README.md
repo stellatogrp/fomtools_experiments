@@ -10,14 +10,14 @@ with a method with no linear system in it.
 ## Running it
 
 ```
-python -m condensed.check_tilt                # which reference the bounded controller can fly
-python -m condensed.check_against_fomtools    # the controller is the recorded algorithm
-python -m condensed.tuning                    # the K and primal-weight sweep
-python -m condensed.generate --max-iters 512  # both C solvers (FOMTOOLS_CODEGEN_AGENT=1)
-python -m condensed.extend_tables             # lengthen the schedule tables, no agent
-python -m condensed.run_implementations       # the three arms at equal budgets
-python -m condensed.run_figures               # the same three on a non-repeating path
-python -m condensed.check_render              # the drawn quadcopter points where it accelerates
+python -m codegen.check_tilt                # which reference the bounded controller can fly
+python -m codegen.check_against_fomtools    # the controller is the recorded algorithm
+python -m codegen.tuning                    # the K and primal-weight sweep
+python -m codegen.generate --max-iters 512  # both C solvers (FOMTOOLS_CODEGEN_AGENT=1)
+python -m codegen.extend_tables             # lengthen the schedule tables, no agent
+python -m codegen.run_implementations       # the three arms at equal budgets
+python -m codegen.run_figures               # the same three on a non-repeating path
+python -m codegen.check_render              # the drawn quadcopter points where it accelerates
 ```
 
 Every flight starts on the reference, at its position and velocity at time
@@ -326,7 +326,7 @@ at every sampling instant.
 
 ## Checks
 
-`python -m condensed.check_against_fomtools`, at K = 64, w = 1:
+`python -m codegen.check_against_fomtools`, at K = 64, w = 1:
 
 | check | result |
 |---|---|

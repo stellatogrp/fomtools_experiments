@@ -87,6 +87,10 @@ def check_bounds(study: str) -> None:
             bound, sim = values[method, backend][k], values[method, "simulator"][k]
             assert np.isclose(sim, reference[k - 1], rtol=1e-5), (method, k, sim, reference)
             assert max(sampled[k - 1], sim) <= bound * (1 + TOL), (method, k, sampled, sim, bound)
+            if (method, "miqp") in values:
+                # The exact worst case sits between the samples and the SDP.
+                exact = values[method, "miqp"][k]
+                assert max(sampled[k - 1], sim) <= exact * (1 + TOL) <= bound * (1 + TOL) ** 2
     print(f"bounds ({study}): simulator matches NumPy, and sampled <= {backend} for every method and K")
 
 if __name__ == "__main__":

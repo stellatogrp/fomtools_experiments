@@ -17,20 +17,31 @@ import scipy.sparse as spa
 from fomtools.linearexpression import stack
 from fomtools.verifier import Verifier
 
-from problem import PortfolioProblem, make_problem, sample_box, sample_simplex
+from problem import (
+    PortfolioProblem,
+    balanced_warm_start,
+    make_problem,
+    sample_box,
+    sample_simplex,
+)
 
 RESULTS = Path(__file__).parent / "results"
 N_SAMPLES = 10_000
 PARAM_SETS = ("box", "simplex")
 # The SDP is left out for now; see the README.
 BACKENDS = ("mip", "simulator")
+# Relative MIP gap: Gurobi stops once the incumbent is within 5% of the best bound.
+MIP_GAP = 0.05
 
 
 def make_verifier(backend: str) -> Verifier:
     match backend:
         case "mip":
             return Verifier(
-                method="mip", solver="gurobi", obbt_solver="gurobi", params={"OutputFlag": 0}
+                method="mip",
+                solver="gurobi",
+                obbt_solver="gurobi",
+                params={"OutputFlag": 0, "MIPGap": MIP_GAP},
             )
         case "sdp":
             # RLT cuts only, on the default chordal PSD cones. With every cut on,
@@ -50,23 +61,24 @@ def run(
 ) -> list[dict]:
     n, K = problem.n, problem.K
     rho, sigma = problem.rho, problem.sigma
-    B, M = problem.blocks, problem.M
+    B = problem.blocks
     vp = make_verifier(backend)
+    s0_val = balanced_warm_start(problem)
 
     if backend == "simulator":
         # The simulator takes the parameter set through its samples.
         x = vp.add_param(n, samples=samples)
-        tau0 = vp.add_iterate(n, init=np.zeros(n))
+        s0 = vp.add_iterate(s0_val.size, init=s0_val)
     else:
         x = vp.add_param(n, lb=0.0, ub=problem.z_bar)
         if param_set == "simplex":
             vp.add_constraint(spa.csc_matrix(np.ones((1, n))) @ x == 1.0)
-        tau0 = vp.add_iterate(n, lb=0.0, ub=0.0)
+        s0 = vp.add_iterate(s0_val.size, lb=s0_val, ub=s0_val)
 
-    # Warm start at the current holdings: y^0 = (x, 0), v^0 = M y^0.
-    y0 = stack([x, tau0])
+    # Warm start at the primal-dual solution for the balanced portfolio x = 1/n,
+    # the same point for every parameter.
     s = vp.iterate_trajectory(K + 1)
-    s[0] = stack([y0, M @ y0])
+    s[0] = s0
 
     d = 2 * n
     rows = []
@@ -76,7 +88,7 @@ def run(
         v_sell, v_buy = v[1 + n : 1 + 2 * n], v[1 + 2 * n :]
 
         # w = projection of v onto [l(x), u(x)], block by block.
-        w_pos = vp.step.satlin(v_pos, l=np.zeros(n), u=np.full(n, problem.z_bar))
+        w_pos = vp.step.satlin(v_pos, l=np.zeros(n), u=problem.z_bar)
         w_sell = x - vp.step.relu(x - v_sell)  # min(v, x)
         w_buy = x + vp.step.relu(v_buy - x)  # max(v, x)
 
@@ -103,9 +115,12 @@ def run(
             continue
         start = time.perf_counter()
         value = vp.solve()
-        rows.append(dict(K=k, value=float(value), solve_time=time.perf_counter() - start))
+        elapsed = time.perf_counter() - start
+        # The VP maximizes, so Gurobi's best bound is an upper bound on the worst case.
+        bound = float(vp.canonicalizer._solved_copy["ObjBound"])
+        rows.append(dict(K=k, value=float(value), bound=bound, solve_time=elapsed))
         print(
-            f"    {backend} K={k}: {rows[-1]['value']:.4f} ({rows[-1]['solve_time']:.2f} s)",
+            f"    {backend} K={k}: incumbent {value:.4f}, bound {bound:.4f} ({elapsed:.2f} s)",
             flush=True,
         )
 
@@ -114,7 +129,12 @@ def run(
         residuals = np.asarray(vp.solve())
         elapsed = time.perf_counter() - start
         rows = [
-            dict(K=k, value=float(residuals[:, k - 1].max()), solve_time=elapsed)
+            dict(
+                K=k,
+                value=float(residuals[:, k - 1].max()),
+                bound=float("nan"),
+                solve_time=elapsed,
+            )
             for k in range(1, K + 1)
         ]
     return [dict(param_set=param_set, backend=backend, **row) for row in rows]
@@ -137,7 +157,7 @@ def main() -> None:
 
     RESULTS.mkdir(exist_ok=True)
     with open(RESULTS / "bounds.csv", "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["param_set", "backend", "K", "value", "solve_time"])
+        writer = csv.DictWriter(f, fieldnames=["param_set", "backend", "K", "value", "bound", "solve_time"])
         writer.writeheader()
         writer.writerows(rows)
 

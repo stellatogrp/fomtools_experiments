@@ -36,7 +36,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from condensed.mpc import RapdhgProblem
+from codegen.mpc import RapdhgProblem
 
 #: Names of the schedule tables, in the order the recording declares them.
 SCHEDULES = ("taux", "tth", "tau", "eta", "g1", "g2", "d1", "d2", "m1", "m2")

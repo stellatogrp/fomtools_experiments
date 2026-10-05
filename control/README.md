@@ -23,13 +23,13 @@ short path shim in each study package rather than an environment variable:
 
 ```
 cd osqp   && python -m condensed.run_implementations
-cd rapdhg && python -m condensed.run_implementations
+cd rapdhg && python -m codegen.run_implementations
 ```
 
 Both studies build their program from `common/condensed_qp.py`: the same plant,
 cost, reference, and move blocking. The `rapdhg` study additionally bounds the
 two tilt angles at 30 degrees, the state constraint the OSQP example carries;
-`rapdhg/condensed/README.md` says why, and what a bound like that costs a
+`rapdhg/codegen/README.md` says why, and what a bound like that costs a
 first-order method.
 
 ## What the two studies say together
@@ -37,7 +37,7 @@ first-order method.
 | study | iteration is | emission | optimization |
 |---|---|---:|---:|
 | `osqp/condensed` | a linear solve | 2.1x | **1.08x** |
-| `rapdhg/condensed` | matrix-vector products | 4.6x | **19.9x** |
+| `rapdhg/codegen` | matrix-vector products | 4.6x | **19.9x** |
 
 The `osqp` study found a ceiling and identified it: 91% of the emitted runtime
 sat inside `fom_lin_solve_t1` in `fom_linsolve.c`, one of the deterministic files

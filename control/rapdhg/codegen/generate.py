@@ -12,19 +12,19 @@ coefficients are tables sized at generation time, so ``--max-iters`` is a
 ceiling on every flight; ``common.study`` refuses to fly past it rather than let
 the emitted accessor clamp and freeze the schedule.
 
-    python -m condensed.generate            # generate whatever is missing
-    python -m condensed.generate --force    # regenerate both from scratch
+    python -m codegen.generate            # generate whatever is missing
+    python -m codegen.generate --force    # regenerate both from scratch
 
 Needs ``FOMTOOLS_CODEGEN_AGENT=1``.  Afterwards
-``python -m condensed.run_implementations`` flies them.
+``python -m codegen.run_implementations`` flies them.
 """
 
 from __future__ import annotations
 
 import argparse
 
+from codegen.study import MAX_ITERS, build
 from common import study as pipeline
-from condensed.study import MAX_ITERS, build
 
 
 def main() -> None:

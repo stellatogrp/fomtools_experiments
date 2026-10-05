@@ -11,9 +11,9 @@ exactly the ones ``run_implementations`` uses, so the panels are comparable; onl
 the reference differs.  Output names carry the reference, so nothing here
 overwrites the reported results.
 
-    python -m condensed.run_figures                       # quasi-periodic, 63 us
-    python -m condensed.run_figures --budget 100
-    python -m condensed.run_figures --reference figure8
+    python -m codegen.run_figures                       # quasi-periodic, 63 us
+    python -m codegen.run_figures --budget 100
+    python -m codegen.run_figures --reference figure8
 
 Writes ``figures_<reference>_flight.pdf``, ``figures_<reference>_error.pdf``, and
 ``figures_<reference>.gif`` to ``out/``.
@@ -23,11 +23,11 @@ from __future__ import annotations
 
 import argparse
 
+from codegen.study import REFERENCE_PERIOD, build
 from common import plots
 from common import study as pipeline
 from common.reference import bspline_waypoints, figure_eight, quasi_periodic
 from common.simulate import closed_loop
-from condensed.study import REFERENCE_PERIOD, build
 
 #: The reference paths this can draw on.  ``quasi`` is the default because it is
 #: the one the figure eight cannot show: an unrepeating path, so the tracking

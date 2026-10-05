@@ -6,13 +6,13 @@ from pathlib import Path
 
 import numpy as np
 
+from codegen import rapdhg, recording
+from codegen.controller import RapdhgController
+from codegen.mpc import build_mpc
 from common.quadcopter import N_INPUT, U_MAX, U_MIN
 from common.recording import ParameterBoxes, ScheduledRecording
 from common.reference import figure_eight
 from common.study import Study
-from condensed import rapdhg, recording
-from condensed.controller import RapdhgController
-from condensed.mpc import build_mpc
 
 OUT = Path(__file__).parent / "out"
 

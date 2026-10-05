@@ -22,6 +22,7 @@ METHODS = {"ista": ("C0", "ISTA"), "fista": ("C1", "FISTA")}
 BACKENDS = {
     "mip": (dict(marker="o", linestyle="-", ms=3), "MIP bound"),
     "sdp": (dict(marker="x", linestyle="--", ms=6, zorder=3), "SDP"),
+    "miqp": (dict(marker="o", linestyle="-", ms=3), "exact (MIQP)"),
     # Hollow and larger, so a sample max that sits on its MIP bound stays visible.
     "simulator": (dict(marker="s", linestyle=":", ms=7, mfc="none", mew=1.2), "sample max"),
 }

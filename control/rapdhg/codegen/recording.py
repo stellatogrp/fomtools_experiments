@@ -49,9 +49,9 @@ from typing import Any
 
 import numpy as np
 
+from codegen import rapdhg
+from codegen.mpc import RapdhgProblem
 from common.recording import ParameterBox, ParameterBoxes, box_around
-from condensed import rapdhg
-from condensed.mpc import RapdhgProblem
 
 #: Bound of the materializing saturation.  Large enough never to bind -- the
 #: iterates of this program live inside a thrust box of half-width 2.4 -- and
@@ -72,8 +72,8 @@ def parameter_boxes(
     rows of ``h`` never move, so that box is degenerate on them; the tilt rows
     follow the measured state, so on those it has width.
     """
+    from codegen.controller import RapdhgController
     from common.simulate import closed_loop
-    from condensed.controller import RapdhgController
 
     controller = RapdhgController(problem, ref, max_iterations=iterations)
     roll = closed_loop(controller, ref, iterations, duration=duration)
@@ -103,7 +103,7 @@ def make_build(problem: RapdhgProblem, boxes: ParameterBoxes) -> Callable[..., A
     values, and every coefficient block is fitted as an affine function of those
     scalars.  So each scalar has to enter the expressions below *linearly*: any
     product of two of the paper's coefficients is a separate table, computed in
-    :func:`condensed.rapdhg.schedule_tables`, never a product written here.
+    :func:`codegen.rapdhg.schedule_tables`, never a product written here.
     """
     from fomtools.codegen.extract_scheduled import Recording
     from fomtools.verifier import Verifier
@@ -159,7 +159,7 @@ def make_build(problem: RapdhgProblem, boxes: ParameterBoxes) -> Callable[..., A
 def schedules(problem: RapdhgProblem, max_iters: int) -> dict[str, np.ndarray]:
     """The tables the generated loop reads, one value per iteration.
 
-    The same tables :func:`condensed.rapdhg.solve` runs on, so the NumPy arm and
+    The same tables :func:`codegen.rapdhg.solve` runs on, so the NumPy arm and
     the generated arms are the same recurrence by construction rather than by
     inspection.
     """

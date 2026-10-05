@@ -2,10 +2,11 @@
 
 The problem is
 
-    minimize    (gamma/2) z' Sigma z - mu' z + kappa ||z - x||_1
+    minimize    (kappa/2) z' Sigma z - mu' z + lambd ||z - x||_1
     subject to  1' z = 1,  0 <= z <= z_bar,
 
-where the parameter ``x`` is the portfolio currently held. Last period's
+with risk aversion ``kappa``, transaction cost ``lambd``, and the vector
+``z_bar`` of position limits. The parameter ``x`` is the portfolio currently held. Last period's
 holdings were feasible for last period's problem, so ``x`` lies in the same set
 as ``z``: the capped simplex ``{x : 1'x = 1, 0 <= x <= z_bar}``.
 
@@ -22,24 +23,26 @@ Their projections are ``min(v, x) = x - relu(x - v)`` and
 ``max(v, x) = x + relu(v - x)``, so the ADMM iteration stays affine plus ReLU
 and saturation, with constant saturation bounds.
 
-ADMM is warm-started at the current holdings: ``z^0 = x``, ``tau^0 = 0`` and
-``v^0 = M y^0``, which is zero dual.
+ADMM is warm-started at the primal-dual solution of the problem for the balanced
+portfolio ``x = 1/n``, computed with CVXPY. The warm start is the same point for
+every parameter ``x``.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+import cvxpy as cp
 import numpy as np
 import scipy.sparse as spa
 import scipy.sparse.linalg  # noqa: F401
 
-N = 3
+N = 5
 K = 5
 SEED = 0
-GAMMA = 1.0
-KAPPA = 0.05
-Z_BAR = 0.6
+KAPPA = 1.0  # risk aversion
+LAMBD = 0.01  # transaction cost
+Z_BAR = 0.4 * np.ones(N)  # position limits
 RHO = 1.0
 SIGMA = 1e-4
 
@@ -48,9 +51,9 @@ SIGMA = 1e-4
 class PortfolioProblem:
     Sigma: np.ndarray
     mu: np.ndarray
-    gamma: float
     kappa: float
-    z_bar: float
+    lambd: float
+    z_bar: np.ndarray
     rho: float
     sigma: float
     K: int
@@ -62,11 +65,11 @@ class PortfolioProblem:
     @property
     def P(self) -> spa.csc_matrix:
         """Hessian in ``y = (z, tau)``."""
-        return spa.block_diag([self.gamma * self.Sigma, spa.csc_matrix((self.n, self.n))], "csc")
+        return spa.block_diag([self.kappa * self.Sigma, spa.csc_matrix((self.n, self.n))], "csc")
 
     @property
     def q(self) -> np.ndarray:
-        return np.concatenate([-self.mu, self.kappa * np.ones(self.n)])
+        return np.concatenate([-self.mu, self.lambd * np.ones(self.n)])
 
     @property
     def blocks(self) -> dict[str, spa.csc_matrix]:
@@ -104,8 +107,8 @@ def make_problem(seed: int = SEED) -> PortfolioProblem:
     return PortfolioProblem(
         Sigma=Sigma,
         mu=mu,
-        gamma=GAMMA,
         kappa=KAPPA,
+        lambd=LAMBD,
         z_bar=Z_BAR,
         rho=RHO,
         sigma=SIGMA,
@@ -113,10 +116,44 @@ def make_problem(seed: int = SEED) -> PortfolioProblem:
     )
 
 
+def balanced_warm_start(problem: PortfolioProblem) -> np.ndarray:
+    """ADMM state ``s^0 = (y, v)`` at the primal-dual solution for ``x = 1/n``.
+
+    The problem is solved with CVXPY in the epigraph form above. With ``w = M y``
+    and the dual ``dual`` of the rows ``l <= M y <= u`` (positive where the upper
+    bound binds), the ADMM fixed point has ``v = w + dual / rho``, since ADMM
+    recovers the dual as ``rho (v - w)``.
+    """
+    n = problem.n
+    x = np.ones(n) / n
+    z, tau = cp.Variable(n), cp.Variable(n)
+    budget = cp.sum(z) == 1
+    pos_lo, pos_hi = z >= 0, z <= problem.z_bar
+    sell, buy = z - tau <= x, z + tau >= x
+    objective = (
+        problem.kappa / 2 * cp.quad_form(z, problem.Sigma)
+        - problem.mu @ z
+        + problem.lambd * cp.sum(tau)
+    )
+    cp.Problem(cp.Minimize(objective), [budget, pos_lo, pos_hi, sell, buy]).solve(
+        solver="CLARABEL", tol_gap_abs=1e-12, tol_gap_rel=1e-12, tol_feas=1e-12
+    )
+    y = np.concatenate([z.value, tau.value])
+    dual_rest = np.concatenate(
+        [pos_hi.dual_value - pos_lo.dual_value, sell.dual_value, -buy.dual_value]
+    )
+    # Fix the sign of the budget multiplier through stationarity, P y + q + M' dual = 0,
+    # rather than relying on CVXPY's convention for equality duals.
+    nu = float(np.atleast_1d(budget.dual_value)[0])
+    candidates = [np.concatenate([[sgn * nu], dual_rest]) for sgn in (1.0, -1.0)]
+    dual = min(candidates, key=lambda d: np.abs(problem.P @ y + problem.q + problem.M.T @ d).max())
+    assert np.abs(problem.P @ y + problem.q + problem.M.T @ dual).max() < 1e-7
+    return np.concatenate([y, problem.M @ y + dual / problem.rho])
+
+
 def warm_start(problem: PortfolioProblem, X: np.ndarray) -> np.ndarray:
-    """Rows of ``s^0 = (x, 0, M (x, 0))`` for each row ``x`` of ``X``."""
-    y0 = np.hstack([X, np.zeros_like(X)])
-    return np.hstack([y0, y0 @ problem.M.T])
+    """Rows of the balanced warm start ``s^0``, one per row of ``X``."""
+    return np.tile(balanced_warm_start(problem), (X.shape[0], 1))
 
 
 def project(problem: PortfolioProblem, V: np.ndarray, X: np.ndarray) -> np.ndarray:

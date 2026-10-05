@@ -329,9 +329,11 @@ wheels = [
 name = "fomtools"
 source = { editable = "../fomtools" }
 dependencies = [
+    { name = "cvxpy" },
     { name = "gurobipy" },
     { name = "highspy" },
     { name = "numpy" },
+    { name = "pyyaml" },
     { name = "scipy" },
 ]
 
@@ -340,23 +342,20 @@ codegen = [
     { name = "claude-agent-sdk" },
     { name = "openai-codex" },
     { name = "pydantic" },
-    { name = "pyyaml" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "claude-agent-sdk", marker = "extra == 'codegen'" },
     { name = "cupy-cuda12x", marker = "extra == 'gpu'" },
-    { name = "cvxpy", marker = "extra == 'cvxpygen'" },
-    { name = "cvxpy", marker = "extra == 'dev'" },
-    { name = "cvxpy", marker = "extra == 'docs'" },
+    { name = "cvxpy" },
     { name = "cvxpygen", marker = "extra == 'cvxpygen'", specifier = ">=1.0,<2" },
     { name = "flax", marker = "extra == 'nn'" },
     { name = "gurobipy", specifier = ">=12.0.1" },
     { name = "highspy" },
     { name = "hydra-core", marker = "extra == 'dev'" },
     { name = "ipdb", marker = "extra == 'dev'" },
-    { name = "jax", marker = "extra == 'nn'" },
+    { name = "jax", marker = "extra == 'nn'", specifier = "<0.11.2" },
     { name = "marimo", marker = "extra == 'docs'" },
     { name = "matplotlib", marker = "extra == 'docs'" },
     { name = "mkdocs", marker = "extra == 'docs'" },
@@ -374,7 +373,7 @@ requires-dist = [
     { name = "pydantic", marker = "extra == 'docs'" },
     { name = "pymdown-extensions", marker = "extra == 'docs'" },
     { name = "pytest", marker = "extra == 'dev'" },
-    { name = "pyyaml", marker = "extra == 'codegen'" },
+    { name = "pyyaml" },
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "ruff-lsp", marker = "extra == 'dev'" },
     { name = "scipy" },

@@ -21,7 +21,7 @@ fail to improve monotonically as its budget grows.  A controller that tracks
 *worse* when given more time is unusable however good its asymptotics, so
 monotonicity is scored here alongside the error.
 
-    python -m condensed.tuning
+    python -m codegen.tuning
 
 The sweep averages over several reference trajectories.  The spread between the
 better configurations is a few percent, which one trajectory decides by chance,
@@ -45,11 +45,11 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
+from codegen.controller import RapdhgController  # noqa: E402
+from codegen.mpc import build_mpc  # noqa: E402
+from codegen.study import REFERENCE_PERIOD  # noqa: E402
 from common.reference import bspline_waypoints, figure_eight, quasi_periodic  # noqa: E402
 from common.simulate import closed_loop  # noqa: E402
-from condensed.controller import RapdhgController  # noqa: E402
-from condensed.mpc import build_mpc  # noqa: E402
-from condensed.study import REFERENCE_PERIOD  # noqa: E402
 
 OUT = Path(__file__).parent / "out"
 

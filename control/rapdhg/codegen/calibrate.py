@@ -5,8 +5,8 @@ iteration count in each implementation, and the iteration count is what the
 tracking error depends on, so until the cost of an iteration is known there is no
 principled budget to sweep.
 
-    python -m condensed.calibrate            # generate if needed, then measure
-    python -m condensed.calibrate --force    # regenerate from scratch
+    python -m codegen.calibrate            # generate if needed, then measure
+    python -m codegen.calibrate --force    # regenerate from scratch
 
 Needs ``FOMTOOLS_CODEGEN_AGENT=1`` the first time; afterwards the verified solver
 in ``out/codegen/emitted`` is reused.
@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import argparse
 
+from codegen.study import MAX_ITERS, build
 from common import study as pipeline
-from condensed.study import MAX_ITERS, build
 
 
 def main() -> None:

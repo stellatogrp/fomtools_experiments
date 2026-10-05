@@ -19,7 +19,8 @@ import numpy as np  # noqa: E402
 RESULTS = Path(__file__).parent / "results"
 PARAM_SETS = {"box": ("C0", "box"), "simplex": ("C1", "simplex")}
 BACKENDS = {
-    "mip": (dict(marker="o", linestyle="-", ms=3), "MIP"),
+    "mip_bound": (dict(marker="o", linestyle="-", ms=3), "MIP bound"),
+    "mip": (dict(marker=".", linestyle="--", ms=3, alpha=0.6), "MIP incumbent"),
     "sdp": (dict(marker="x", linestyle="--", ms=6, zorder=3), "SDP"),
     # Hollow and larger, so a sample max that sits on its MIP bound stays visible.
     "simulator": (dict(marker="s", linestyle=":", ms=7, mfc="none", mew=1.2), "sample max"),
@@ -30,7 +31,11 @@ def main() -> None:
     series = defaultdict(dict)
     with open(RESULTS / "bounds.csv") as f:
         for row in csv.DictReader(f):
-            series[row["param_set"], row["backend"]][int(row["K"])] = float(row["value"])
+            key, k = (row["param_set"], row["backend"]), int(row["K"])
+            series[key][k] = float(row["value"])
+            # The MIP stops at a relative gap, so its best bound is the certified worst case.
+            if row["backend"] == "mip" and row.get("bound") not in (None, "", "nan"):
+                series[row["param_set"], "mip_bound"][k] = float(row["bound"])
     ks = np.array(sorted(next(iter(series.values()))))
 
     fig, ax = plt.subplots(figsize=(5, 3.2))

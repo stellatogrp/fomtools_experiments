@@ -17,9 +17,9 @@ is matrix free: its iteration is matrix-vector products and vector arithmetic,
 with no linear solve, so none of it lands in the deterministic
 ``fom_linsolve.c`` that the optimization phase is not allowed to touch.
 
-    python -m condensed.run_implementations
+    python -m codegen.run_implementations
 
-Needs ``condensed.generate`` to have emitted both solvers.  Writes
+Needs ``codegen.generate`` to have emitted both solvers.  Writes
 ``implementations.csv``, ``implementations_budget.pdf``,
 ``implementations_flight.pdf``, ``implementations_error.pdf``, and
 ``implementations.gif`` to ``out/``.
@@ -27,8 +27,8 @@ Needs ``condensed.generate`` to have emitted both solvers.  Writes
 
 from __future__ import annotations
 
+from codegen.study import MAX_ITERS, build
 from common import study as pipeline
-from condensed.study import MAX_ITERS, build
 
 #: A conservative lower bound on what one iteration can cost in any arm, in
 #: microseconds.  Used only to keep the budget grid inside the schedule tables;

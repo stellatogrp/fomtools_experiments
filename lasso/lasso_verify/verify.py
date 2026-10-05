@@ -5,9 +5,10 @@ Two studies, each writing ``results/<study>_bounds.csv``:
 - ``milp``: ∞-norm, K = 1..10, Gurobi MIP against the sample max. ``value`` is
   Gurobi's best bound (``ObjBound``), a certified upper bound on the worst case
   at the 5% gap; the incumbent (``ObjVal``) is kept in ``objval``.
-- ``sdp``: 2-norm, K = 1..3, Clarabel SDP against the sample max. The SDP has
-  all five cuts, and every PSD cone is coupled into one cone over the whole
-  moment matrix, which Clarabel decomposes itself (see ``clarabel_dual.py``).
+- ``sdp``: 2-norm, K = 1..3, Clarabel SDP against the exact worst case (``miqp``,
+  Gurobi with ``NonConvex=2`` at a 1e-4 gap, best bound) and the sample max. The
+  SDP has all five cuts, and every PSD cone is coupled into one cone over the
+  whole moment matrix, which Clarabel decomposes itself (see ``clarabel_dual.py``).
   fomtools maximizes the squared 2-norm; ``value`` is its square root, and
   ``status`` is Clarabel's termination status.
 
@@ -32,7 +33,7 @@ RESULTS = Path(__file__).parent / "results"
 N_SAMPLES = 10_000
 STUDIES = {
     "milp": dict(backends=("mip", "simulator"), ord=np.inf, K=10),
-    "sdp": dict(backends=("sdp", "simulator"), ord=2, K=3),
+    "sdp": dict(backends=("sdp", "miqp", "simulator"), ord=2, K=3),
 }
 
 
@@ -44,6 +45,14 @@ def make_verifier(backend: str) -> Verifier:
                 solver="gurobi",
                 obbt_solver="gurobi",
                 params={"OutputFlag": 0, "MIPGap": 0.05},
+            )
+        case "miqp":
+            # Exact 2-norm worst case: maximizing a convex quadratic is nonconvex.
+            return Verifier(
+                method="mip",
+                solver="gurobi",
+                obbt_solver="gurobi",
+                params={"OutputFlag": 0, "MIPGap": 1e-4, "NonConvex": 2},
             )
         case "sdp":
             # All cuts on fomtools' chordal cut set (RLT only on cone-mates), then
@@ -103,9 +112,10 @@ def run(
         start = time.perf_counter()
         objval = vp.solve()
         elapsed = time.perf_counter() - start
-        if backend == "mip":
+        if backend in ("mip", "miqp"):
             # The best bound, not the incumbent, is the certified upper bound.
-            bound, psd_dim, status = vp.canonicalizer._solved_copy["ObjBound"], "", ""
+            bound = unsquare(vp.canonicalizer._solved_copy["ObjBound"])
+            objval, psd_dim, status = unsquare(objval), "", ""
         else:
             bound, objval = unsquare(objval), ""
             # Side of the single coupled moment matrix handed to Clarabel.

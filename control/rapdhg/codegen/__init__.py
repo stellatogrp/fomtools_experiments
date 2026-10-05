@@ -1,7 +1,7 @@
 """Put the shared ``common`` package on the path.
 
 Each study runs as a module from its own directory (``python -m
-condensed.generate`` from ``experiments/control/osqp``), which puts that
+codegen.generate`` from ``experiments/control/rapdhg``), which puts that
 directory on ``sys.path`` but not its parent, where the ``common`` package
 shared with the other studies lives.  Importing anything from this package runs
 this file first, so the shared modules resolve without an environment variable.

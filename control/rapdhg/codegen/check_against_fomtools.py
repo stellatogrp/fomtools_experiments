@@ -2,10 +2,10 @@
 
 Four things have to line up before any of the timings mean anything.
 
-1. The flat six-slot recurrence :func:`condensed.rapdhg.solve` runs is Algorithm
+1. The flat six-slot recurrence :func:`codegen.rapdhg.solve` runs is Algorithm
    1 of the paper.  It is not obviously so: the restart has been turned from a
    change of control flow into a coefficient that is nonzero every K-th
-   iteration.  :func:`condensed.rapdhg.solve_as_written` is the nested loop as
+   iteration.  :func:`codegen.rapdhg.solve_as_written` is the nested loop as
    the paper writes it, and the two are compared across restart boundaries.
 2. The recording extracts, and the extracted representation reproduces the
    recurrence.  ``common.study.check_recording`` does this.
@@ -17,17 +17,17 @@ Four things have to line up before any of the timings mean anything.
    reformulation of ``mpc.py`` as well as the iteration; and that solution
    respects the tilt rows, which checks the sign of the state constraint.
 
-    python -m condensed.check_against_fomtools
+    python -m codegen.check_against_fomtools
 """
 
 from __future__ import annotations
 
 import numpy as np
 
+from codegen import rapdhg
+from codegen.recording import MATERIALIZE_BOUND
+from codegen.study import OUT, build
 from common import study as pipeline
-from condensed import rapdhg
-from condensed.recording import MATERIALIZE_BOUND
-from condensed.study import OUT, build
 
 #: Horizon for the recording checks.  Several restart periods, so the schedule
 #: tables are exercised past their first cycle rather than only inside it.

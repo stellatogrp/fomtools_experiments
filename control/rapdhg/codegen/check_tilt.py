@@ -21,8 +21,8 @@ purpose.  Whenever the bound is active the multipliers on its rows are large
 thousand iterations however K and w are set; what the pre-check has to rule
 out is the path on which no count suffices, which is the 2.25 s one.
 
-    python -m condensed.check_tilt                 # about five minutes
-    python -m condensed.check_tilt --periods 3.0 3.5
+    python -m codegen.check_tilt                 # about five minutes
+    python -m codegen.check_tilt --periods 3.0 3.5
 
 Writes ``out/tilt_precheck.csv``.
 """
@@ -35,13 +35,13 @@ import time
 
 import numpy as np
 
+from codegen import rapdhg
+from codegen.controller import RapdhgController
+from codegen.mpc import build_mpc
+from codegen.study import OUT
 from common import reference
 from common.quadcopter import N_INPUT, TILT_LIMIT, U_MAX, U_MIN
 from common.simulate import Command, closed_loop
-from condensed import rapdhg
-from condensed.controller import RapdhgController
-from condensed.mpc import build_mpc
-from condensed.study import OUT
 
 PERIODS = (3.0, 3.5, 4.0)
 ITERATIONS = (6, 26, 469, 2048)

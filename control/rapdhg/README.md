@@ -27,7 +27,7 @@ nothing left in `fom_linsolve.c` for the runtime to hide in.
 | | multiply-adds per iteration | NumPy | emitted C | optimized C | emission | optimization |
 |---|---:|---:|---:|---:|---:|---:|
 | `osqp/condensed` (ADMM) | 2000 | 6.06 us | 2.88 us | 2.67 us | 2.1x | **1.08x** |
-| `rapdhg/condensed` | 4240 | 13.26 us | 2.87 us | 0.144 us | 4.6x | **19.9x** |
+| `rapdhg/codegen` | 4240 | 13.26 us | 2.87 us | 0.144 us | 4.6x | **19.9x** |
 
 The optimization phase went from 1.08x to 19.9x on the same plant, the same
 generator, and the same agent budget. The only thing that changed is whether
@@ -40,7 +40,7 @@ not the agent and not the generator; it was that 91% of the runtime sat in a
 file the agent is not allowed to edit. Remove the linear solve and the whole
 iteration moves into `src/fom_solver.c`, where it can be worked on.
 
-The gain is not free, and the honest accounting is in `condensed/README.md`:
+The gain is not free, and the honest accounting is in `codegen/README.md`:
 rAPDHG needs more iterations than ADMM for the same accuracy, a good part of
 the 19.9x is dispatch overhead that phase A carries and phase B removes, and
 this run's agent reassociated the arithmetic where the earlier one kept it bit
@@ -66,14 +66,14 @@ iteration at once.
 The plant, the cost, the reference, the move blocking, and the sampling period
 are shared with the `osqp` study through `../common/condensed_qp.py`; the tilt
 bound is an opt-in of that module which the `osqp` study does not take, so it
-still generates from the published unbounded program. `condensed/README.md`
+still generates from the published unbounded program. `codegen/README.md`
 says why the bound is there and what it costs a first-order method.
 
 ## Layout
 
 ```
 rapdhg/
-├── condensed/     the condensed formulation; see its README for the results
+├── codegen/       the generated controller on the condensed formulation; see its README
 │   ├── mpc.py                     the program in one-sided inequality form
 │   ├── rapdhg.py                  the iteration, both as the paper writes it
 │   │                              and as the flat recurrence that is recorded
@@ -89,6 +89,8 @@ rapdhg/
 │   ├── generate.py                both agent phases
 │   ├── calibrate.py               what one iteration costs, per implementation
 │   └── run_implementations.py     the three arms at equal wall-clock budgets
+├── verify/        a small instance of the same controller, verified with the MIP
+│   └── verify.py                  T = 4 or 5, restart period 4, MIP and simulator
 └── README.md
 ```
 
@@ -97,13 +99,14 @@ The plant, the simulator, the plots, and the code-generation pipeline live one
 level up in `../common`, shared with the `osqp` study.
 
 ```
-python -m condensed.check_tilt                # which reference the bounded controller can fly
-python -m condensed.tuning                    # choose the restart period and primal weight
-python -m condensed.check_against_fomtools    # the controller is the recorded algorithm
-python -m condensed.generate --max-iters 512  # both C solvers (needs FOMTOOLS_CODEGEN_AGENT=1)
-python -m condensed.extend_tables             # lengthen the schedule tables, no agent
-python -m condensed.run_implementations       # the three arms at equal wall-clock budgets
-python -m condensed.run_figures               # the same three on a non-repeating path
+python -m codegen.check_tilt                # which reference the bounded controller can fly
+python -m codegen.tuning                    # choose the restart period and primal weight
+python -m codegen.check_against_fomtools    # the controller is the recorded algorithm
+python -m codegen.generate --max-iters 512  # both C solvers (needs FOMTOOLS_CODEGEN_AGENT=1)
+python -m codegen.extend_tables             # lengthen the schedule tables, no agent
+python -m codegen.run_implementations       # the three arms at equal wall-clock budgets
+python -m codegen.run_figures               # the same three on a non-repeating path
+python -m verify.verify --T 5 --K 12         # the small verified instance
 ```
 
 Two reference trajectories are used, both at a 4.0 s period. The **figure
@@ -115,7 +118,7 @@ and slowly fills a box instead of retracing one curve. The period is set by the
 tilt bound: at the original 2.25 s the paths ask for 40 to 75 degrees of tilt,
 which a 30-degree vehicle cannot deliver and a first-order solver cannot even
 be made to refuse within a controller's budget; at 4.0 s the demand peaks at
-the limit. `condensed/README.md` gives both paths in closed form and the
+the limit. `codegen/README.md` gives both paths in closed form and the
 measurements behind the period.
 
 ## Why there is no `uncondensed/`

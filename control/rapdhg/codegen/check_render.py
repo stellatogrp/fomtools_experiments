@@ -17,7 +17,7 @@ for contrast.
 The second is mechanical: a short animation is written and read back, and its
 frame count, frame delay, and frame sizes are what was asked for.
 
-    python -m condensed.check_render
+    python -m codegen.check_render
 """
 
 from __future__ import annotations
@@ -28,11 +28,11 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
+from codegen.controller import build
 from common import plots, reference
 from common.quadcopter import ATT, VEL
 from common.quadcopter_render import euler_to_R
 from common.simulate import closed_loop
-from condensed.controller import build
 
 GRAVITY = 9.81
 ITERATIONS = 26

@@ -62,25 +62,43 @@ with parameter $x$, $\lambda = 0.1$ and $K = 1, \dots, 10$.
   the cuts on its chordal cut set. `clarabel_dual.py` then couples every PSD
   cone into one cone over the whole moment matrix, and solves the dual so that
   Clarabel's own chordal decomposition can split it. This is the same patch as
-  in the portfolio experiment; fomtools is unchanged. fomtools maximizes the
-  squared 2-norm, and the tables report its square root.
+  in the portfolio experiment. The results need fomtools with the soft-threshold
+  hull rows (branch `vr/tightening`, see below). fomtools maximizes the squared
+  2-norm, and the tables report its square root.
+- **Exact (MIQP):** the 2-norm worst case from Gurobi (`NonConvex=2`, 1e-4 gap,
+  best bound), as the reference for the SDP.
 
 ## Results
 
 ### MILP (∞-norm, K = 1..10)
 
-| K | ISTA MIP bound | ISTA sample max | FISTA MIP bound | FISTA sample max | ISTA MIP time | FISTA MIP time |
-|---:|---:|---:|---:|---:|---:|---:|
-| 1 | 0.6218 | 0.5751 | 0.6218 | 0.5751 | 0.01 s | 0.01 s |
-| 2 | 0.3017 | 0.2827 | 0.3017 | 0.2827 | 0.02 s | 0.02 s |
-| 3 | 0.2262 | 0.2155 | 0.2085 | 0.1984 | 0.04 s | 0.05 s |
-| 4 | 0.1993 | 0.1878 | 0.1823 | 0.1700 | 0.12 s | 0.07 s |
-| 5 | 0.1843 | 0.1716 | 0.1604 | 0.1471 | 0.25 s | 0.29 s |
-| 6 | 0.1798 | 0.1607 | 0.1347 | 0.1244 | 0.51 s | 0.97 s |
-| 7 | 0.1660 | 0.1464 | 0.1177 | 0.1051 | 0.32 s | 2.71 s |
-| 8 | 0.1555 | 0.1346 | 0.1036 | 0.0923 | 0.57 s | 14.26 s |
-| 9 | 0.1418 | 0.1251 | 0.1059 | 0.0827 | 1.42 s | 34.21 s |
-| 10 | 0.1296 | 0.1173 | 0.1119 | 0.0950 | 2.22 s | 62.42 s |
+| K | ISTA MIP bound | ISTA sample max | FISTA MIP bound | FISTA sample max |
+|---:|---:|---:|---:|---:|
+| 1 | 0.6218 | 0.5751 | 0.6218 | 0.5751 |
+| 2 | 0.3017 | 0.2827 | 0.3017 | 0.2827 |
+| 3 | 0.2262 | 0.2155 | 0.2085 | 0.1984 |
+| 4 | 0.1993 | 0.1878 | 0.1823 | 0.1700 |
+| 5 | 0.1843 | 0.1716 | 0.1604 | 0.1471 |
+| 6 | 0.1798 | 0.1607 | 0.1347 | 0.1244 |
+| 7 | 0.1660 | 0.1464 | 0.1177 | 0.1051 |
+| 8 | 0.1555 | 0.1346 | 0.1036 | 0.0923 |
+| 9 | 0.1418 | 0.1251 | 0.1059 | 0.0827 |
+| 10 | 0.1296 | 0.1173 | 0.1119 | 0.0950 |
+
+Solve times (one MIP per $K$):
+
+| K | ISTA MIP | FISTA MIP |
+|---:|---:|---:|
+| 1 | 0.01 s | 0.01 s |
+| 2 | 0.02 s | 0.02 s |
+| 3 | 0.04 s | 0.05 s |
+| 4 | 0.12 s | 0.07 s |
+| 5 | 0.25 s | 0.29 s |
+| 6 | 0.51 s | 0.97 s |
+| 7 | 0.32 s | 2.71 s |
+| 8 | 0.57 s | 14.3 s |
+| 9 | 1.42 s | 34.2 s |
+| 10 | 2.22 s | 62.4 s |
 
 - **FISTA pulls ahead from K = 3.** At K = 8 its certified bound is 33% below ISTA's (0.104 vs 0.156).
 - **FISTA is not monotone.** Its bound rises after K = 8, and so does its incumbent: 0.099, 0.101, 0.107 for K = 8, 9, 10. Its sample max rises at K = 10. ISTA decreases at every K.
@@ -91,24 +109,35 @@ with parameter $x$, $\lambda = 0.1$ and $K = 1, \dots, 10$.
 
 ### SDP (2-norm, K = 1..3)
 
-| K | moment matrix | entries used (ISTA / FISTA) | ISTA SDP | ISTA sample max | FISTA SDP | FISTA sample max | ISTA time | FISTA time |
-|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 1 | 24 × 24 | 285 / 285 of 300 | 1.5453 | 0.8362 | 1.5453 | 0.8362 | 0.21 s | 0.21 s |
-| 2 | 39 × 39 | 665 / 715 of 780 | 1.1383 | 0.3161 | 1.1383 | 0.3161 | 1.1 s | 1.4 s |
-| 3 | 54 × 54 | 1,245 / 1,295 of 1,485 | 0.9340 | 0.2630 | 0.9106 | 0.2521 | 1.9 s | 2.3 s |
+| K | moment matrix | ISTA SDP | ISTA exact | ISTA sample max | FISTA SDP | FISTA exact | FISTA sample max |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 24 × 24 | 0.8718 | 0.8649 | 0.8362 | 0.8718 | 0.8649 | 0.8362 |
+| 2 | 39 × 39 | 0.3400 | 0.3362 | 0.3161 | 0.3400 | 0.3362 | 0.3161 |
+| 3 | 54 × 54 | 0.2769 | 0.2719 | 0.2630 | 0.2693 | 0.2649 | 0.2521 |
 
-- **The cuts halve the bound at K = 1** (3.23 without them, 1.55 with them),
-  and the bound now falls with K instead of growing.
-- **It is still loose.** It is 1.8x the sample max at K = 1 and 3.6x at K = 3.
-  In the ∞-norm, the MIP incumbents are only 8–12% above the sample max, so
-  most of this gap is likely the relaxation, not the sampling. There is no
-  2-norm MIP to confirm this.
-- **The pattern is nearly dense.** At K = 3, 84–87% of the moment-matrix entries
-  are used, so Clarabel's decomposition has little to split.
-- **Every solve ended "AlmostSolved"**, meaning reduced accuracy (the `status`
-  column of `results/sdp_bounds.csv`). A certified bound would need a
-  feasibility check or a certified dual bound.
-- **The whole study takes about 8 s** at a peak of about 200 MB.
+Solve times (one solve per $K$):
+
+| K | ISTA SDP | ISTA exact | FISTA SDP | FISTA exact |
+|---:|---:|---:|---:|---:|
+| 1 | 0.57 s | 0.10 s | 0.59 s | 0.10 s |
+| 2 | 3.74 s | 10.1 s | 4.77 s | 9.80 s |
+| 3 | 3.34 s | 55.9 s | 3.93 s | 159.7 s |
+
+- **The SDP is within 2% of the exact worst case** at every $K$ (0.8%, 1.1%,
+  1.8% for ISTA), and it is much cheaper: at $K = 3$ the exact MIQP is 17x
+  (ISTA) and 40x (FISTA) slower.
+- **This needs the soft-threshold hull rows in fomtools.** The SDP writes
+  $\mathrm{soft}(v) = \mathrm{relu}(v - \lambda) - \mathrm{relu}(-v - \lambda)$,
+  and before the fix nothing tied the two pieces back to $v$. In particular,
+  nothing said that $v - \mathrm{soft}(v) = \mathrm{clip}(v, -\lambda, \lambda)$
+  stays in $[-\lambda, \lambda]$. The SDP was then 1.55, 1.14, 0.93 for ISTA
+  (1.8x–3.4x the exact value).
+  - **The fix:** fomtools now registers the convex hull of $v \mapsto
+    \mathrm{soft}(v)$ over the input bounds: the two lines and two chords. The
+    inequality cuts multiply its rows by each other and by the bounds of $x$.
+- **Every solve from $K = 2$ ended "AlmostSolved"**, meaning reduced accuracy
+  (the `status` column of `results/sdp_bounds.csv`). The values are still at
+  least the exact MIQP value.
 
 ![sdp](results/lasso_sdp.png)
 
@@ -117,7 +146,7 @@ with parameter $x$, $\lambda = 0.1$ and $K = 1, \dots, 10$.
 ```sh
 cd lasso/lasso_verify
 ../../.venv/bin/python verify.py milp   # results/milp_bounds.csv (about 2 min)
-../../.venv/bin/python verify.py sdp    # results/sdp_bounds.csv (about 8 s)
+../../.venv/bin/python verify.py sdp    # results/sdp_bounds.csv (about 4 min, mostly the exact MIQP)
 ../../.venv/bin/python check.py         # sanity checks
 ../../.venv/bin/python plot.py          # results/lasso_{milp,sdp}.{pdf,png} and *_wide.csv
 ```
@@ -127,4 +156,5 @@ cd lasso/lasso_verify
   values are compared rather than $u$, because the minimizer need not be unique.
 - $H(s^k - s^{k-1})$ equals the KKT residual computed directly from $u^k$.
 - The simulator matches the NumPy reference, and sampled residual ≤ MIP or SDP
-  bound for every study, method and $K$.
+  bound for every study, method and $K$. In the SDP study it also checks
+  sampled ≤ exact (MIQP) ≤ SDP.

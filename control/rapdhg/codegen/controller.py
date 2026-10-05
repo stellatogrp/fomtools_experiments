@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import numpy as np
 
+from codegen import rapdhg
+from codegen.mpc import RapdhgProblem, build_mpc
 from common.quadcopter import N_INPUT
 from common.reference import Reference
 from common.simulate import Command
-from condensed import rapdhg
-from condensed.mpc import RapdhgProblem, build_mpc
 
 
 class RapdhgController:
