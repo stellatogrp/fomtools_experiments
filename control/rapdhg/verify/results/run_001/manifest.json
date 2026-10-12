@@ -1,0 +1,28 @@
+{
+  "experiment": "rapdhg",
+  "run_id": "run_001",
+  "created_utc": "2026-10-10T05:16:59+00:00",
+  "label": "15x20 / n10 / 10x15 / h5",
+  "overrides": [
+    "experiment=rapdhg",
+    "experiment.problem.horizon=5",
+    "label=15x20 / n10 / 10x15 / h5"
+  ],
+  "variants": [
+    "R12",
+    "R6",
+    "pdhg"
+  ],
+  "code": {
+    "source": "sync.sh",
+    "fomtools_experiments": {
+      "commit": "e2872955b0803dc116477b3c116620413352c811",
+      "dirty": true
+    },
+    "fomtools": {
+      "commit": "bea6e3eb929f7ebc2cc0f7f00927d4836bc78e73",
+      "dirty": false
+    },
+    "synced_utc": "2026-10-10T05:13:49+00:00"
+  }
+}

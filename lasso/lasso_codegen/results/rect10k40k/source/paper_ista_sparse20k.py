@@ -4,7 +4,6 @@ import os
 
 import numpy as np
 import scipy.sparse as spa
-
 from fomtools.verifier import Verifier
 
 

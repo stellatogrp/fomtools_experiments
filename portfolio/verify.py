@@ -3,11 +3,13 @@
 The two parameter sets are the capped simplex ``{1'x = 1, 0 <= x <= z_bar}``
 and its bounding box ``[0, z_bar]^n``. They differ by one ``add_constraint``
 call. Runs every (set, backend) pair over K = 1..5 and writes
-``results/bounds.csv``.
+``results/bounds.csv``. With ``--samples N`` only the simulator runs, with ``N``
+samples per set, and writes ``results/bounds_sim<N>.csv``.
 """
 
 from __future__ import annotations
 
+import argparse
 import csv
 import time
 from pathlib import Path
@@ -71,6 +73,9 @@ def run(
         s0 = vp.add_iterate(s0_val.size, init=s0_val)
     else:
         x = vp.add_param(n, lb=0.0, ub=problem.z_bar)
+        if backend == "mip":
+            # The worst sample at each K is given to Gurobi as a MIP start.
+            vp.set_start_samples({x: samples})
         if param_set == "simplex":
             vp.add_constraint(spa.csc_matrix(np.ones((1, n))) @ x == 1.0)
         s0 = vp.add_iterate(s0_val.size, lb=s0_val, ub=s0_val)
@@ -141,22 +146,29 @@ def run(
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--samples", type=int, default=None, help="simulator only, N samples per set")
+    args = parser.parse_args()
+    n_samples = args.samples or N_SAMPLES
+    backends = ("simulator",) if args.samples else BACKENDS
+
     problem = make_problem()
     rng = np.random.default_rng(0)
     samples = {
-        "box": sample_box(problem, N_SAMPLES, rng),
-        "simplex": sample_simplex(problem, N_SAMPLES, rng),
+        "box": sample_box(problem, n_samples, rng),
+        "simplex": sample_simplex(problem, n_samples, rng),
     }
     rows = []
     for param_set in PARAM_SETS:
         print(param_set)
-        for backend in BACKENDS:
+        for backend in backends:
             new = run(problem, param_set, backend, samples[param_set])
             print(f"  {backend:9s}", " ".join(f"{r['value']:.4f}" for r in new), flush=True)
             rows += new
 
     RESULTS.mkdir(exist_ok=True)
-    with open(RESULTS / "bounds.csv", "w", newline="") as f:
+    name = f"bounds_sim{args.samples}" if args.samples else "bounds"
+    with open(RESULTS / f"{name}.csv", "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["param_set", "backend", "K", "value", "bound", "solve_time"])
         writer.writeheader()
         writer.writerows(rows)

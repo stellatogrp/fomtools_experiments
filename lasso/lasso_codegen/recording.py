@@ -5,8 +5,7 @@ from __future__ import annotations
 import numpy as np
 from fomtools.codegen.extract_scheduled import Recording
 from fomtools.verifier import Verifier
-
-from lasso.problem import LassoProblem
+from lasso_codegen.problem import LassoProblem
 
 
 def record_ista(problem: LassoProblem, *, check_iterations: int = 3) -> dict:

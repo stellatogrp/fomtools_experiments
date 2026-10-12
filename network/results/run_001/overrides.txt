@@ -1,0 +1,3 @@
+experiment.problem.ns=10
+experiment.problem.nd=15
+label=15x20 / n10 / 10x15 / h5

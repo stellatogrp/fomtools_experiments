@@ -21,7 +21,7 @@ RESULTS = Path(__file__).parent / "results"
 METHODS = {"": "PDHG", "_momentum": "Momentum PDHG"}
 SCALINGS = {"unscaled": ("C0", "unscaled"), "ruiz": ("C1", "Ruiz")}
 BACKENDS = {
-    "mip": (dict(marker="o", linestyle="-", ms=3), "MIP"),
+    "mip_bound": (dict(marker="o", linestyle="-", ms=3), "MIP bound"),
     "simulator": (dict(marker="s", linestyle=":", ms=3), "sample max"),
 }
 
@@ -31,6 +31,9 @@ def main() -> None:
     with open(RESULTS / "bounds_mipinf.csv") as f:
         for row in csv.DictReader(f):
             series[row["variant"], row["backend"]][int(row["K"])] = float(row["value"])
+            # The MIP stops at a relative gap, so its best bound is the certified worst case.
+            if row["backend"] == "mip":
+                series[row["variant"], "mip_bound"][int(row["K"])] = float(row["bound"])
     ks = np.array(sorted(next(iter(series.values()))))
 
     fig, axes = plt.subplots(1, 2, figsize=(8, 3.2), sharey=True)

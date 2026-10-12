@@ -1,0 +1,4 @@
+experiment.problem.n=10
+experiment.problem.drift=0.15
+experiment.problem.z_bar=0.3
+label=lasso 10x15 / portfolio n10 drift0.15 zbar0.3

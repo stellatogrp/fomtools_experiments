@@ -1,0 +1,21 @@
+# rAPDHG with two restart periods against plain PDHG on the condensed quadcopter
+# MPC (paper Sec. 6.5; control/rapdhg/verify). Defaults are the paper's instance.
+name: rapdhg
+dir: control/rapdhg/verify
+variants: [R12, R6, pdhg]
+# Each variant: the method and its restart period (ignored by plain PDHG).
+methods:
+  R12: {method: rapdhg, restart: 12}
+  R6: {method: rapdhg, restart: 6}
+  pdhg: {method: pdhg, restart: 12}
+problem:
+  dt: 0.1
+  horizon: 5           # predicted states; 4 inputs each, so 4 * horizon variables
+  block: 1
+  primal_weight: 1.0
+  param_coords: [0, 1, 5]      # pitch-like angle, roll-like angle, altitude
+  tilt_range_deg: 20.0
+  altitude_range: 0.5
+  ruiz: false
+  ruiz_iters: 30
+  step_scale: 1.0

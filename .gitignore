@@ -5,3 +5,18 @@ __pycache__/
 .venv/
 .ruff_cache/
 .DS_Store
+
+# Cluster pipeline
+.sync_target
+.code_state.json
+slurm/submissions.log
+**/results/run_*/slurm/
+**/results/run_000_smoke/
+slurm/
+setup_env.sh
+sync.sh
+README_cluster.md
+diagnostics/
+uv.lock
+gurobi_logs/
+*.npz

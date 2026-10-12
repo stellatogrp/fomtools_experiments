@@ -1,0 +1,123 @@
+{
+  "experiment": "network",
+  "variant": "ruiz",
+  "started_utc": "2026-10-10T05:17:27+00:00",
+  "finished_utc": "2026-10-10T05:40:32+00:00",
+  "stop_reason": "k_max",
+  "environment": {
+    "host": "node4408",
+    "platform": "Linux-4.18.0-553.147.1.el8_10.x86_64-x86_64-with-glibc2.28",
+    "python": "3.13.16",
+    "cpu_count": 192,
+    "slurm": {
+      "SLURM_JOB_ID": "25470310",
+      "SLURM_ARRAY_JOB_ID": "25470295",
+      "SLURM_ARRAY_TASK_ID": "1",
+      "SLURM_JOB_NAME": "fom-network-run_001",
+      "SLURM_JOB_PARTITION": "ou_sloan_batch",
+      "SLURM_JOB_NODELIST": "node4408",
+      "SLURM_CPUS_PER_TASK": "16",
+      "SLURM_CPUS_ON_NODE": "16",
+      "SLURM_MEM_PER_NODE": "32768"
+    },
+    "grb_license_file": "/orcd/software/community/001/pkg/gurobi/gurobi.lic",
+    "numpy_version": "2.5.3",
+    "scipy_version": "1.18.1",
+    "gurobipy_version": "13.0.3",
+    "fomtools_version": "0.1.dev0",
+    "hydra_version": "1.3.7",
+    "cvxpy_version": "1.9.3",
+    "clarabel_version": "0.11.1",
+    "gurobi_version": "13.0.3"
+  },
+  "code": {
+    "source": "sync.sh",
+    "fomtools_experiments": {
+      "commit": "e2872955b0803dc116477b3c116620413352c811",
+      "dirty": true
+    },
+    "fomtools": {
+      "commit": "bea6e3eb929f7ebc2cc0f7f00927d4836bc78e73",
+      "dirty": false
+    },
+    "synced_utc": "2026-10-10T05:13:49+00:00"
+  },
+  "config": {
+    "experiment": {
+      "name": "network",
+      "dir": "network",
+      "variants": [
+        "unscaled",
+        "ruiz",
+        "unscaled_momentum",
+        "ruiz_momentum"
+      ],
+      "problem": {
+        "ns": 10,
+        "nd": 15,
+        "seed": 20,
+        "gain_spread": 100.0,
+        "cost_range": [
+          1.0,
+          10.0
+        ],
+        "capacity_range": [
+          2.0,
+          6.0
+        ],
+        "supply": 10.0,
+        "x_lb": -6.0,
+        "x_ub": -4.0,
+        "ruiz_iters": 30,
+        "eta_scale": 0.5
+      }
+    },
+    "solver": {
+      "mip_gap": 0.05,
+      "time_limit": 3600,
+      "mip_focus": 2,
+      "threads": 16,
+      "seed": 0,
+      "obbt_solver": "gurobi",
+      "tighten_objective_bounds": null,
+      "convex_hull_cuts": false,
+      "cut_rounds": 1,
+      "save_logs": true,
+      "extra_params": {},
+      "obbt_params": {}
+    },
+    "schedule": {
+      "k_max": 200,
+      "budget_hours": 20.0,
+      "build_margin_min": 10,
+      "sequential_warm_start": true,
+      "sample_start": true,
+      "n_start_samples": 10000,
+      "start_samples_seed": 0,
+      "run_mip": true
+    },
+    "simulator": {
+      "enabled": true,
+      "n_samples": 1000,
+      "seed": 0,
+      "k_max": 200,
+      "cross_check": true
+    },
+    "cluster": {
+      "cpus": 16,
+      "mem": "32G",
+      "time": null,
+      "slack_min": 30,
+      "partition": "ou_sloan_batch",
+      "mail": "vranjan1@mit.edu",
+      "mail_type": "FAIL,TIME_LIMIT"
+    },
+    "run_dir": "/nfs/sloanlab007/projects/pdopt_proj/vranjan/fomtools_experiments/network/results/run_001",
+    "variant": null,
+    "variant_index": 1,
+    "label": "15x20 / n10 / 10x15 / h5"
+  },
+  "k_in_progress": null,
+  "last_k": 200,
+  "wall_hours": 0.3853840952449375
+}

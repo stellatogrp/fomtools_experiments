@@ -12,10 +12,9 @@ from fomtools.codegen import Backend, CodegenConfig, TerminationSpec, Version
 from fomtools.codegen.generate import extract_fom_ir
 from fomtools.codegen.harness import representative_params
 from fomtools.codegen.oracle import ReferenceOracle
-
-from lasso.problem import build_problem, solve_fista, solve_ista
-from lasso.recording import record_fista, record_ista
-from lasso.summarize import main as summarize
+from lasso_codegen.problem import build_problem, solve_fista, solve_ista
+from lasso_codegen.recording import record_fista, record_ista
+from lasso_codegen.summarize import main as summarize
 
 ROOT = Path(__file__).parent
 RESULTS = ROOT / "results" / "paper_40x80"
@@ -90,7 +89,7 @@ def _check_summary() -> None:
         previous = sys.argv
         try:
             sys.argv = [
-                "lasso.summarize",
+                "lasso_codegen.summarize",
                 str(RESULTS / "paper_final_compute_7rounds.txt"),
                 "--output",
                 str(output),

@@ -10,9 +10,8 @@ from pathlib import Path
 from fomtools.codegen import Backend, CodegenConfig, TerminationSpec, Version
 from fomtools.codegen.generate import extract_fom_ir
 from fomtools.codegen.harness import representative_params, time_python_oracle
-
-from lasso.problem import build_problem
-from lasso.recording import record_fista, record_ista
+from lasso_codegen.problem import build_problem
+from lasso_codegen.recording import record_fista, record_ista
 
 ROOT = Path(__file__).parent
 CODEGEN = ROOT / "out" / "codegen"

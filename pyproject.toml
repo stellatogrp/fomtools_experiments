@@ -5,7 +5,9 @@ description = "Experiments for the FOMTools paper"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "fomtools[codegen]",
+    "fomtools[codegen,gurobi]",
+    "hydra-core>=1.3",
+    "omegaconf>=2.3",
     "clarabel",
     "cvxpy",
     "imageio",
@@ -32,7 +34,7 @@ extend-exclude = ["**/out/"]
 # Each control study runs as a module from its own directory and imports the
 # `common` package one level up. Both roots have to be first-party or import
 # sorting splits them into separate blocks.
-src = ["control", "control/osqp", "control/rapdhg", "lasso", "nnls", "portfolio"]
+src = [".", "control", "control/osqp", "control/rapdhg", "lasso", "lasso/lasso_verify", "nnls", "portfolio"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]

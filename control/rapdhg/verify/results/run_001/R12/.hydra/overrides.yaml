@@ -1,0 +1,5 @@
+- experiment=rapdhg
+- run_dir=/nfs/sloanlab007/projects/pdopt_proj/vranjan/fomtools_experiments/control/rapdhg/verify/results/run_001
+- variant_index=0
+- experiment.problem.horizon=5
+- label=15x20 / n10 / 10x15 / h5

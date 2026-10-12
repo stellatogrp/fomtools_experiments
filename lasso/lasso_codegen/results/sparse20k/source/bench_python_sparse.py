@@ -10,7 +10,6 @@ from fomtools.codegen.generate import extract_fom_ir
 from fomtools.codegen.harness import representative_params
 from fomtools.codegen.oracle import ReferenceOracle
 
-
 parser = argparse.ArgumentParser()
 parser.add_argument("algorithm", choices=("ista", "fista"))
 parser.add_argument("--reps", type=int, default=3)

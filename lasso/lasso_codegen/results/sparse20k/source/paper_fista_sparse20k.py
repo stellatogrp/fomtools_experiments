@@ -4,7 +4,6 @@ import os
 
 import numpy as np
 import scipy.sparse as spa
-
 from fomtools.codegen.extract_scheduled import Recording
 from fomtools.verifier import Verifier
 

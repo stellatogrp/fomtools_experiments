@@ -2,7 +2,7 @@
 
 Run from the repository root:
 
-    FOMTOOLS_CODEGEN_BACKEND=codex python -m lasso.generate
+    FOMTOOLS_CODEGEN_BACKEND=codex python -m lasso_codegen.generate
 
 Generated artifacts are written beneath ``lasso/out/`` and are intentionally
 untracked. Each optimized directory retains ``OPTIMIZATIONS.md`` and the full
@@ -17,9 +17,8 @@ from pathlib import Path
 
 from fomtools.codegen import Backend, CodegenConfig, TerminationSpec, Version
 from fomtools.codegen.generate import generate_code
-
-from lasso.problem import build_problem
-from lasso.recording import record_fista, record_ista
+from lasso_codegen.problem import build_problem
+from lasso_codegen.recording import record_fista, record_ista
 
 OUT = Path(__file__).parent / "out" / "codegen"
 

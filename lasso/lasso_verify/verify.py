@@ -12,7 +12,9 @@ Two studies, each writing ``results/<study>_bounds.csv``:
   fomtools maximizes the squared 2-norm; ``value`` is its square root, and
   ``status`` is Clarabel's termination status.
 
-Run ``python verify.py [milp|sdp]``; with no argument both studies run.
+Run ``python verify.py [milp|sdp]``; with no argument both studies run. With
+``--samples N`` only the simulator runs, with the first ``N`` of the default
+samples, and writes ``results/<study>_sim<N>.csv``.
 """
 
 from __future__ import annotations
@@ -92,6 +94,9 @@ def run(
         u0 = vp.add_iterate(problem.n, init=problem.s0)
     else:
         x = vp.add_param(problem.p, lb=problem.x_lb, ub=problem.x_ub)
+        if backend in ("mip", "miqp") and samples is not None:
+            # The worst sample at each K is given to Gurobi as a MIP start.
+            vp.set_start_samples({x: samples})
         u0 = vp.add_iterate(problem.n, lb=problem.s0, ub=problem.s0)
 
     u = vp.iterate_trajectory(K + 1)
@@ -155,19 +160,23 @@ def run(
     return [dict(method=method, backend=backend, **row) for row in rows]
 
 
-def run_study(problem: LassoProblem, study: str, samples: np.ndarray) -> None:
+def run_study(
+    problem: LassoProblem, study: str, samples: np.ndarray, sim_only: bool = False
+) -> None:
     spec = STUDIES[study]
     print(f"== {study}: ord={spec['ord']}, K=1..{spec['K']}")
+    backends = ("simulator",) if sim_only else spec["backends"]
+    name = f"{study}_sim{len(samples)}" if sim_only else f"{study}_bounds"
     rows = []
     for method in METHODS:
         print(method)
-        for backend in spec["backends"]:
+        for backend in backends:
             new = run(problem, method, backend, samples, spec["K"], spec["ord"])
             print(f"  {backend:9s}", " ".join(f"{r['value']:.4f}" for r in new), flush=True)
             rows += new
 
     RESULTS.mkdir(exist_ok=True)
-    with open(RESULTS / f"{study}_bounds.csv", "w", newline="") as f:
+    with open(RESULTS / f"{name}.csv", "w", newline="") as f:
         fields = ["method", "backend", "K", "value", "objval", "psd_dim", "status", "solve_time"]
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
@@ -177,6 +186,7 @@ def run_study(problem: LassoProblem, study: str, samples: np.ndarray) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("study", nargs="?", choices=(*STUDIES, "all"), default="all")
+    parser.add_argument("--samples", type=int, default=None, help="simulator only, first N samples")
     args = parser.parse_args()
 
     problem = make_problem()
@@ -185,8 +195,11 @@ def main() -> None:
     samples = np.random.default_rng(0).uniform(
         problem.x_lb, problem.x_ub, size=(N_SAMPLES, problem.p)
     )
+    if args.samples:
+        # The same seed draws the same leading rows, so this is a subset of the default samples.
+        samples = samples[: args.samples]
     for study in STUDIES if args.study == "all" else (args.study,):
-        run_study(problem, study, samples)
+        run_study(problem, study, samples, sim_only=bool(args.samples))
 
 
 if __name__ == "__main__":

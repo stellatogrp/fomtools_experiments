@@ -1,0 +1,15 @@
+# The main MIP solve, at every K.
+mip_gap: 0.05            # relative gap: stop once the incumbent is within 5% of the bound
+time_limit: 3600         # seconds per K (Gurobi TimeLimit)
+mip_focus: 2             # also fomtools' GurobiSolver default; recorded explicitly here
+threads: ${cluster.cpus}
+seed: 0
+obbt_solver: gurobi
+# null tightens the objective's big-M bounds whenever an OBBT solver is attached
+# (the fomtools default); false keeps the interval bounds.
+tighten_objective_bounds: null
+convex_hull_cuts: false
+cut_rounds: 1
+save_logs: true          # full Gurobi log per K in <variant>/gurobi_logs/K###.log
+extra_params: {}         # any other Gurobi parameter, applied at construction
+obbt_params: {}          # extra parameters for the OBBT LPs

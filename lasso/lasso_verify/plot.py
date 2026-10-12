@@ -2,11 +2,14 @@
 
 For each study (``milp``, ``sdp``) writes ``results/lasso_<study>.{pdf,png}``
 and a wide CSV ``results/lasso_<study>_wide.csv`` (one column per series) for
-pgfplots.
+pgfplots. With ``--sim-samples N``, the sample max from ``results/<study>_sim<N>.csv``
+(written by ``verify.py --samples N``) is added as a dashed line and as the
+columns ``<method>_simulator<N>``.
 """
 
 from __future__ import annotations
 
+import argparse
 import csv
 from collections import defaultdict
 from pathlib import Path
@@ -33,11 +36,17 @@ YLABELS = {
 }
 
 
-def plot_study(study: str) -> None:
+def plot_study(study: str, sim_samples: int | None = None) -> None:
     series = defaultdict(dict)
     with open(RESULTS / f"{study}_bounds.csv") as f:
         for row in csv.DictReader(f):
             series[row["method"], row["backend"]][int(row["K"])] = float(row["value"])
+    sim_path = RESULTS / f"{study}_sim{sim_samples}.csv"
+    if sim_samples and sim_path.exists():
+        with open(sim_path) as f:
+            for row in csv.DictReader(f):
+                key = (row["method"], f"simulator{sim_samples}")
+                series[key][int(row["K"])] = float(row["value"])
     ks = np.array(sorted(next(iter(series.values()))))
 
     fig, ax = plt.subplots(figsize=(5, 3.2))
@@ -50,6 +59,12 @@ def plot_study(study: str) -> None:
             ax.semilogy(ks, values, color=color, label=f"{mlabel} {blabel}", **style)
             columns.append(values)
             header.append(f"{method}_{backend}")
+        small = f"simulator{sim_samples}"
+        if (method, small) in series:
+            values = np.array([series[method, small][k] for k in ks])
+            ax.semilogy(ks, values, color=color, ls="--", lw=1.2, label=f"{mlabel} sample max, {sim_samples} samples")
+            columns.append(values)
+            header.append(f"{method}_{small}")
     ax.set_xlabel("$K$")
     ax.set_ylabel(YLABELS[study])
     ax.set_xticks(ks)
@@ -70,9 +85,12 @@ def plot_study(study: str) -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--sim-samples", type=int, default=None, help="dashed sample-max runs")
+    args = parser.parse_args()
     for study in YLABELS:
         if (RESULTS / f"{study}_bounds.csv").exists():
-            plot_study(study)
+            plot_study(study, args.sim_samples)
 
 
 if __name__ == "__main__":

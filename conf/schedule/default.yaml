@@ -1,0 +1,14 @@
+# The K loop: run K = 1, 2, ... until the next K at the full time limit would not
+# fit in the budget, or until k_max.
+k_max: 200
+budget_hours: 20.0
+# Reserved per K for model building, OBBT and tightening, which run outside
+# Gurobi's TimeLimit (on top of 1.5x the previous K's measured overhead).
+build_margin_min: 10
+# The sequential start (worst case at K-1 through step K) is fomtools' default
+# with warm_start=True on a single verifier; the sample-max start needs samples.
+sequential_warm_start: true
+sample_start: true
+n_start_samples: 10000
+start_samples_seed: 0
+run_mip: true

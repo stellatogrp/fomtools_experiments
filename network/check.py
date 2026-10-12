@@ -75,7 +75,9 @@ def check_bounds() -> None:
     values = defaultdict(dict)
     with open(path) as f:
         for row in csv.DictReader(f):
-            values[row["variant"], row["backend"]][int(row["K"])] = float(row["value"])
+            # The certified upper bound is the MIP's best bound; for the simulator, its sample max.
+            key = "bound" if row["backend"] == "mip" else "value"
+            values[row["variant"], row["backend"]][int(row["K"])] = float(row[key])
     X = np.random.default_rng(2).uniform(p.x_lb, p.x_ub, size=(10_000, p.nd))
     for eq, mom in VARIANTS:
         v = variant(p, eq, mom)

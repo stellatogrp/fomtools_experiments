@@ -1,0 +1,6 @@
+enabled: true
+n_samples: 1000
+seed: 0
+k_max: ${schedule.k_max}
+# Compare against each experiment's NumPy reference iteration where one exists.
+cross_check: true

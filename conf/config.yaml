@@ -1,0 +1,29 @@
+# Entry point for `python -m fomexp.run`. Every constant of a run lives in this
+# tree; override any of it on the command line, e.g.
+#
+#   python -m fomexp.run experiment=lasso experiment.problem.m=30 solver.time_limit=600
+#
+# Each run gets its own numbered folder <experiment dir>/results/run_NNN, with
+# one subfolder per variant (see fomexp/run.py).
+defaults:
+  - experiment: portfolio
+  - solver: gurobi
+  - schedule: default
+  - simulator: default
+  - cluster: eosloan
+  - _self_
+
+# Set by fomexp.run / slurm/submit.sh; leave null to allocate the next run_NNN.
+run_dir: null
+# Select one variant by name or by index into experiment.variants; with neither,
+# fomexp.run runs every variant one after another (locally).
+variant: null
+variant_index: null
+# Free text stored in the run manifest.
+label: ""
+
+hydra:
+  job:
+    chdir: false
+  # hydra.run.dir is injected by fomexp.run as <run_dir>/<variant>.
+  output_subdir: .hydra

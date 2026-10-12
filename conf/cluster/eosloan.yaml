@@ -1,0 +1,10 @@
+# Slurm resources for one array task (one variant). Read by slurm/submit.sh.
+cpus: 16
+mem: 32G
+time: null               # null: schedule.budget_hours + slack_min, as HH:MM:SS
+slack_min: 30
+# The default partition (mit_normal) caps jobs at 12 h; this one allows 1 day.
+# (sched_mit_sloan_batch landed on node942, whose old libstdc++ cannot load NumPy.)
+partition: ou_sloan_batch
+mail: vranjan1@mit.edu
+mail_type: FAIL,TIME_LIMIT

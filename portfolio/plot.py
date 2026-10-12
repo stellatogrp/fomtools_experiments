@@ -2,10 +2,14 @@
 
 Writes ``results/portfolio_bounds.{pdf,png}`` and a wide CSV
 ``results/portfolio_bounds_wide.csv`` (one column per series) for pgfplots.
+With ``--sim-samples N``, the sample max from ``results/bounds_sim<N>.csv``
+(written by ``verify.py --samples N``) is added as a dashed line and as the
+columns ``<set>_simulator<N>``.
 """
 
 from __future__ import annotations
 
+import argparse
 import csv
 from collections import defaultdict
 from pathlib import Path
@@ -28,6 +32,18 @@ BACKENDS = {
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--sim-samples", type=int, default=None, help="dashed sample-max runs")
+    args = parser.parse_args()
+    small = f"simulator{args.sim_samples}"
+    styles = dict(BACKENDS)
+    if args.sim_samples:
+        styles[small] = (dict(linestyle="--", lw=1.2), f"sample max, {args.sim_samples} samples")
+        with open(RESULTS / f"bounds_sim{args.sim_samples}.csv") as f:
+            sim_rows = list(csv.DictReader(f))
+    else:
+        sim_rows = []
+
     series = defaultdict(dict)
     with open(RESULTS / "bounds.csv") as f:
         for row in csv.DictReader(f):
@@ -36,12 +52,14 @@ def main() -> None:
             # The MIP stops at a relative gap, so its best bound is the certified worst case.
             if row["backend"] == "mip" and row.get("bound") not in (None, "", "nan"):
                 series[row["param_set"], "mip_bound"][k] = float(row["bound"])
+    for row in sim_rows:
+        series[row["param_set"], small][int(row["K"])] = float(row["value"])
     ks = np.array(sorted(next(iter(series.values()))))
 
     fig, ax = plt.subplots(figsize=(5, 3.2))
     columns, header = [ks], ["K"]
     for param_set, (color, plabel) in PARAM_SETS.items():
-        for backend, (style, blabel) in BACKENDS.items():
+        for backend, (style, blabel) in styles.items():
             if (param_set, backend) not in series:
                 continue
             values = np.array([series[param_set, backend][k] for k in ks])
