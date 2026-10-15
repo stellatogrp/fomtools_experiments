@@ -1,0 +1,21 @@
+STAGES 1 and 1b  (problem extraction, OpenMP/CUDA scaffolds, deterministic objects)
+  reused from rect325k1p3m (jobs 15570567 and 15571809, see
+  ../rect325k1p3m/generation_metadata.txt); operator files, data and objects
+  are byte-identical. Only test/verify_main.c differs: tolerance 1e-5.
+  REPO_COMMIT=b41c10a5b266f431079840a687f808dac3046bbc (~/fomtools_rect10k40k_k32)
+
+STAGE 2  (agent translation and code optimization with FOMTools' built-in
+          instructions and default driver; every make ran inside a <=1 h
+          test-queue holder job, AMD EPYC 7H12 + NVIDIA A100-PCIE-40GB,
+          16 cores, never H100)
+  controller: della-stellato login node, systemd user service,
+              controller_builtin.sh + fomtools_agent.py, Claude Code CLI 2.1.287
+  ista/openmp   2026-10-15T12:00:17 .. 13:20:44  holders 15627251, 15628557 (della-i12g1)
+  ista/cuda     2026-10-15T15:48:51 .. 16:00:40  holder 15640285 (della-i12g2)
+  fista/openmp  2026-10-15T16:00:40 .. 16:40:57  holders 15640285, 15643057 (della-i12g2)
+  fista/cuda    2026-10-15T16:40:57 .. 17:30:24  holders 15643057, 15645552 (della-i12g2)
+
+STAGE 3  (final benchmark; prep + 7 rounds, each round its own <=1 h job pinned to della-i12g2)
+  prep: job 15647862, 18:09-18:10
+  rounds 1-7: jobs 15647902 15650474 15649788 15650775 15651079 15651299 15651645
+  RUN=2026-10-15T18:09:08-04:00 .. 19:30:24-04:00

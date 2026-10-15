@@ -12,6 +12,7 @@ constant across backends; only the emitted backend changes.
 | Square sparse scaling | 20,000 × 20,000 | about 8 nonzeros/row and column | 3 interleaved rounds | [`results/sparse20k/`](results/sparse20k/) |
 | High-dimensional rectangular scaling | 10,000 × 40,000 | 8 nonzero slots/row; nominally 2/column | 7 interleaved rounds | [`results/rect10k40k/`](results/rect10k40k/) |
 | Large rectangular scaling | 325,000 × 1,300,000 (2.6M nonzeros) | 8 nonzeros/row; 2/column | 7 interleaved rounds, one node | [`results/rect325k1p3m/`](results/rect325k1p3m/) |
+| Large rectangular scaling, tolerance `1e-5` | 325,000 × 1,300,000 (2.6M nonzeros) | 8 nonzeros/row; 2/column | 7 interleaved rounds, one node | [`results/rect325k1p3m_tol1e-5/`](results/rect325k1p3m_tol1e-5/) |
 
 Both studies solve
 
@@ -49,6 +50,18 @@ authoritative records.
 
 This study ran on one AMD EPYC 7H12 + A100 node with 16-thread OpenMP builds
 (the earlier studies' OpenMP binaries were serial; see the study report).
+
+### Large rectangular scaling: 325,000 × 1,300,000, tolerance `1e-5`
+
+| method | NumPy (s) | OpenMP (s) | CUDA (s) | OpenMP speedup | CUDA speedup |
+|---|---:|---:|---:|---:|---:|
+| ISTA | 14.813 | 1.177 | 0.125 | 12.6× | 118.4× |
+| FISTA | 72.813 | 1.246 | 0.128 | 58.4× | 568.6× |
+
+Same problem and generated operators as the previous study, with all four
+solvers verified at tolerance `1e-5` and the agent driven by FOMTools'
+built-in translation and code optimization instructions. All rounds ran on
+one AMD EPYC 7H12 + A100 node (`della-i12g2`) with 16-thread OpenMP builds.
 
 The studies ran on different Della nodes and GPU models. They demonstrate
 backend-specific generation within each study; their absolute timing numbers
@@ -91,6 +104,18 @@ job (node in parentheses).
 | FISTA OpenMP (della-i14g1) | 10.390 | 9.066 | 1.15× |
 | FISTA CUDA (della-i12g1) | 0.721 | 0.456 | 1.58× |
 
+### Large rectangular scaling: 325,000 × 1,300,000, tolerance `1e-5`
+
+Fresh builds of the translated and code-optimized sources, timed in the same
+job (node in parentheses).
+
+| solver | translation (s) | code optimization (s) | speedup |
+|---|---:|---:|---:|
+| ISTA OpenMP (della-i12g1) | 1.209 | 1.128 | 1.07× |
+| ISTA CUDA (della-i12g2) | 0.125 | 0.125 | 1.00× |
+| FISTA OpenMP (della-i12g2) | 5.828 | 1.254 | 4.65× |
+| FISTA CUDA (della-i12g2) | 0.525 | 0.128 | 4.11× |
+
 ### Optimization tricks used
 
 Both studies applied the following algebra- and layout-aware transformations:
@@ -119,6 +144,30 @@ operator blocks differ by about `1e-15`, which over 200 iterations exceeds the
 `1e-6` verification tolerance. This explains its smaller FISTA
 code-optimization gains.
 
+The 325k × 1.3M tolerance-`1e-5` study's FISTA agents used that identity on
+both backends: `t0_state = [0, G]` and `t0_state__d_gamma = [-G, G]`, so the
+momentum moves onto the iterate and one product with `G` replaces the two
+large products per iteration (error about `1.4e-6`, within `1e-5`). Together
+with the following changes this gave 4.65× (OpenMP) and 4.11× (CUDA):
+
+- Replaced the shift-matrix state update with buffer relabelling, removing both
+  state-update products, the output clearing and the copy.
+- Hoisted the parameter product out of the solve and used it to seed the
+  accumulating matrix-vector output, so the add costs no extra pass.
+- Fused soft-thresholding, the momentum extrapolation and the next
+  accumulator seed into one sweep; computed the residual only at the final
+  iteration.
+- On CUDA, kept the gathered vector in an L2 persisting window sized for the
+  matrix's column density, and page-locked the host output buffer.
+
+Its ISTA agents hoisted the parameter product into the accumulator seed,
+removed the identity state-update product (checked at setup with probe
+vectors), and fused soft-thresholding with the accumulator reseed. On OpenMP
+they also computed the residual only at the final iteration and used
+non-temporal stores for the next iterate; on CUDA they kept the state vector in
+an L2 persisting window. The fixed matrix-vector product is about 93%
+(OpenMP) and 95% (CUDA) of the optimized ISTA solve, which limits the gains.
+
 All archived solvers passed their eight-sample generated-oracle verification
-checks with tolerance `1e-6`; exact error lines are retained in each
-`verify_*.log` file.
+checks with tolerance `1e-6` (`1e-5` for `rect325k1p3m_tol1e-5`); exact error
+lines are retained in each `verify_*.log` file.
