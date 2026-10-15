@@ -1,0 +1,18 @@
+I've written `src/fom_solver.c`, and `make verify` prints `VERIFY OK` (exit 0). The worst error over 8 samples was 2.3e-15, against a tolerance of 1e-6.
+
+- **Unrolled:** `fom_solve` runs all 149 steps (`t0` through `t148`) once, in the order SPEC.md gives, then applies the final state update. There is no loop over iterations, and it never reads `max_iter`. It returns `FOM_MAX_ITER_REACHED` with `iter = 1` and the residual `max|new_state − state|`.
+- **Each step:** it starts from the step's constant vector (or zero), adds every `fom_apply_<matrix>` term, then applies the activation (clip, relu or identity) in place in the workspace buffer. All numbers come from the `FOM_MAT_*` symbols in `fom_data.c`.
+- **No linear solves:** this spec has no solve steps, so nothing calls `fom_lin_solve_*`.
+- **Embedded constraints:** there is no dynamic memory and no variable-length arrays, and the file contains no `/` at all. Both `fom_setup` and `fom_update_params` reset the state to `FOM_STATE_INIT`.
+- **How the file was made:** the 149 steps are mechanical, so I generated the C from SPEC.md with a throwaway script, `/tmp/fomgen/gen.py`, instead of writing it by hand. Rerun it if the spec changes: `python3 /tmp/fomgen/gen.py SPEC.md > src/fom_solver.c`.
+
+I didn't run the benchmark or try further speed-ups after verification passed.
+I've written `src/fom_solver.c`, and `make verify` prints `VERIFY OK` (exit 0). The worst error over 8 samples was 2.3e-15, against a tolerance of 1e-6.
+
+- **Unrolled:** `fom_solve` runs all 149 steps (`t0` through `t148`) once, in the order SPEC.md gives, then applies the final state update. There is no loop over iterations, and it never reads `max_iter`. It returns `FOM_MAX_ITER_REACHED` with `iter = 1` and the residual `max|new_state − state|`.
+- **Each step:** it starts from the step's constant vector (or zero), adds every `fom_apply_<matrix>` term, then applies the activation (clip, relu or identity) in place in the workspace buffer. All numbers come from the `FOM_MAT_*` symbols in `fom_data.c`.
+- **No linear solves:** this spec has no solve steps, so nothing calls `fom_lin_solve_*`.
+- **Embedded constraints:** there is no dynamic memory and no variable-length arrays, and the file contains no `/` at all. Both `fom_setup` and `fom_update_params` reset the state to `FOM_STATE_INIT`.
+- **How the file was made:** the 149 steps are mechanical, so I generated the C from SPEC.md with a throwaway script, `/tmp/fomgen/gen.py`, instead of writing it by hand. Rerun it if the spec changes: `python3 /tmp/fomgen/gen.py SPEC.md > src/fom_solver.c`.
+
+I didn't run the benchmark or try further speed-ups after verification passed.

@@ -1,0 +1,103 @@
+{
+  "experiment": "network_schedule",
+  "arm": "scheduled",
+  "variant": "ruiz_momentum",
+  "iterations": 50,
+  "overrides": [
+    "experiment=network",
+    "experiment.problem.ns=20",
+    "experiment.problem.nd=30",
+    "experiment.problem.supply=4",
+    "experiment.problem.warm_start=center"
+  ],
+  "numpy_us": 648.4584591817111,
+  "translated_us": 195.2672,
+  "optimized_us": 29.316,
+  "speedup_translation": 3.3208775420639567,
+  "speedup_optimization": 6.660772274525857,
+  "speedup_total": 22.119609059275177,
+  "optimization_kept": true,
+  "optimization_notes": "",
+  "max_abs_dev": {
+    "translated": 8.881784197001252e-15,
+    "optimized": 8.43769498715119e-15
+  },
+  "timing_rounds": {
+    "numpy": [
+      736.56250606291,
+      646.0624863393605,
+      656.6669908352196,
+      648.4584591817111,
+      644.896033918485,
+      645.7709823735058,
+      652.6875076815486
+    ],
+    "translated": [
+      195.8096,
+      195.3316,
+      195.2672,
+      192.6176,
+      195.2182,
+      197.8854,
+      194.2208
+    ],
+    "optimized": [
+      29.316,
+      29.1468,
+      29.636,
+      29.5994,
+      29.2172,
+      29.7892,
+      29.1634
+    ]
+  },
+  "size": {
+    "ir": {
+      "oracle_vs_numpy_max_rel": 1.6213700957649793e-15,
+      "unrolled": false,
+      "body_steps": 2,
+      "coefficient_blocks": 15,
+      "coefficient_entries_dense": 2099320,
+      "coefficient_nonzeros": 8520,
+      "schedules": [
+        "xi"
+      ]
+    },
+    "translated": {
+      "solver_c_lines": 105,
+      "data_c_bytes": 43981,
+      "library_bytes": 151168
+    },
+    "optimized": {
+      "solver_c_lines": 146,
+      "data_c_bytes": 43981,
+      "library_bytes": 201072
+    }
+  },
+  "agent_wall_s": {
+    "translation": 38.150935888290405,
+    "code_optimization": 233.8638138771057
+  },
+  "agent_budgets_s": {
+    "translation": 600,
+    "code_optimization": 600
+  },
+  "instance": {
+    "ns": 20,
+    "nd": 30,
+    "ne": 600,
+    "eta": 0.09268607528845305
+  },
+  "machine": {
+    "cpu": "Apple M5",
+    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 17.0.0 (clang-1700.6.3.2)",
+    "python": "3.13.11",
+    "numpy": "2.5.3",
+    "fomtools_commit": "33cb15e",
+    "fomtools_branch": "vr/cvxpygen_features",
+    "fomtools_path": "/Users/vranjan/Research/2026/fomtools/fomtools"
+  },
+  "started_utc": "2026-10-15T00:04:18+00:00",
+  "finished_utc": "2026-10-15T00:09:03+00:00"
+}

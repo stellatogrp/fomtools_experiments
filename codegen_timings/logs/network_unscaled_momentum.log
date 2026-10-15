@@ -1,0 +1,11 @@
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `clarabel`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `cvxpy`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `imageio`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `matplotlib`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `numpy`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `osqp`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `pillow`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `scipy`[0m
+[network_unscaled_momentum] oracle vs NumPy (rel): 1.68e-15
+wrote /Users/vranjan/Research/2026/fomtools_experiments/codegen_timings/network/unscaled_momentum/optimized/OPTIMIZATIONS.md
+[network_unscaled_momentum] NumPy 2141.33 us | translated 168.292 us | optimized 19.317 us (kept=True) | speedups 12.7x, 8.71x, 110.9x | max|C-NumPy| {'translated': {'verified_set': 5.329070518200751e-15}, 'optimized': {'verified_set': 6.661338147750939e-15}}

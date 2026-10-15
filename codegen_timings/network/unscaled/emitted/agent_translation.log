@@ -1,0 +1,30 @@
+I wrote `src/fom_solver.c`, and `make verify` passes: it prints `VERIFY OK` and exits 0. The worst error over the 8 test samples was 2.7e-15, against a tolerance of 1e-6. I didn't run `make bench`, so I have no timing numbers yet.
+
+Each iteration follows `SPEC.md` using only the provided `fom_apply_*` helpers:
+1. **`t0`** = `t0_c` + `t0_state @ x`, clipped to `FOM_MAT_t0_lo` / `FOM_MAT_t0_hi`.
+2. **`t1`** = relu(`t1_c` + `t1_state @ x` + `t1_t_t0 @ t0`).
+3. **`x_new`** = `su_state @ x` + `su_t_t0 @ t0` + `su_t_t1 @ t1` + `su_p_p0 @ p0`.
+
+To make it faster:
+- **Parameter term computed once:** `su_p_p0 @ p0` doesn't change between iterations, so it's computed once per solve into the `acc` buffer and copied in each time.
+- **No state copying per iteration:** `state` and `new_state` take turns as the current state, and the result is copied out once at the end.
+- **Residual only when needed:** the default settings have no tolerance, so the solver always runs 200 iterations. It computes the residual only on the last iteration, unless `check_termination` is on and `tol > 0`, in which case it checks every iteration and stops early.
+
+It uses no dynamic memory, no variable-length arrays and no `/` operator, and it reads every number from `fom_data.c`. Both `fom_setup` and `fom_update_params` reset the state to `FOM_STATE_INIT`.
+
+The editor shows "file not found" errors for `fom_solver.h`. That's only because the editor isn't passing `-Iinclude`; the real build compiles cleanly.
+I wrote `src/fom_solver.c`, and `make verify` passes: it prints `VERIFY OK` and exits 0. The worst error over the 8 test samples was 2.7e-15, against a tolerance of 1e-6. I didn't run `make bench`, so I have no timing numbers yet.
+
+Each iteration follows `SPEC.md` using only the provided `fom_apply_*` helpers:
+1. **`t0`** = `t0_c` + `t0_state @ x`, clipped to `FOM_MAT_t0_lo` / `FOM_MAT_t0_hi`.
+2. **`t1`** = relu(`t1_c` + `t1_state @ x` + `t1_t_t0 @ t0`).
+3. **`x_new`** = `su_state @ x` + `su_t_t0 @ t0` + `su_t_t1 @ t1` + `su_p_p0 @ p0`.
+
+To make it faster:
+- **Parameter term computed once:** `su_p_p0 @ p0` doesn't change between iterations, so it's computed once per solve into the `acc` buffer and copied in each time.
+- **No state copying per iteration:** `state` and `new_state` take turns as the current state, and the result is copied out once at the end.
+- **Residual only when needed:** the default settings have no tolerance, so the solver always runs 200 iterations. It computes the residual only on the last iteration, unless `check_termination` is on and `tol > 0`, in which case it checks every iteration and stops early.
+
+It uses no dynamic memory, no variable-length arrays and no `/` operator, and it reads every number from `fom_data.c`. Both `fom_setup` and `fom_update_params` reset the state to `FOM_STATE_INIT`.
+
+The editor shows "file not found" errors for `fom_solver.h`. That's only because the editor isn't passing `-Iinclude`; the real build compiles cleanly.

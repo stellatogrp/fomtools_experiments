@@ -1,0 +1,13 @@
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `clarabel`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `cvxpy`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `imageio`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `matplotlib`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `numpy`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `osqp`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `pillow`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `scipy`[0m
+[portfolio_admm] oracle vs NumPy (rel): 8.06e-16
+[portfolio_admm] numpy_vs_verify_residuals_box: 0.0
+[portfolio_admm] numpy_vs_verify_residuals_simplex: 0.0
+wrote /Users/vranjan/Research/2026/fomtools_experiments/codegen_timings/portfolio/admm/optimized/OPTIMIZATIONS.md
+[portfolio_admm] NumPy 3015.56 us | translated 72.023 us | optimized 6.728 us (kept=True) | speedups 41.9x, 10.71x, 448.2x | max|C-NumPy| {'translated': {'verified_set': 2.3314683517128287e-15, 'simplex_set': 2.7755575615628914e-15}, 'optimized': {'verified_set': 1.887379141862766e-15, 'simplex_set': 2.7755575615628914e-15}}

@@ -1,0 +1,68 @@
+Got 27 → ~6.5 µs with the structural rewrite (VERIFY OK). Now trying a padded 16-wide copy of M for clean NEON vectorization.
+Noise dominates; comparing with more repetitions.
+Same speed; keeping the simpler v1. Per-iteration cost (~22 ns) suggests the 15-long FMA dependency chain is the limit, so I'm splitting the accumulation across independent partial sums.
+4-way split: 4.35 → 3.3 µs. Trying 5-way (15 = 5×3, so no tail loop and a chain of 3).
+5-way regressed badly (likely register spills / vectorizer gave up), so reverting to the 4-way version. Next I'm trying the row dot-product form.
+Row form is slower too. Back to v3; one more variant: 3-way split (15 = 3×5, no tail).
+3-way ties 4-way within noise, and two rounds have now gained under 2%, so I'm stopping and keeping v3 (4-way). Final checks:
+The default 5000-rep bench is noisy at this scale, so I'm measuring the original at 100k reps for a fair comparison.
+The solver is now about 7× faster: 23.6 µs → 3.32 µs per solve at 100k repetitions. `make verify` still prints `VERIFY OK` (worst error 1.1e-13 against a 1e-6 tolerance). I only changed `src/fom_solver.c`; it uses no dynamic allocation or division, and the `FOM_PROF_BEGIN/END` markers are still in place.
+
+`make bench` runs only 5000 solves, and at ~3 µs per solve that is too noisy to compare versions: the same final code read 5.3–6.0 µs there. So I timed every comparison with `./bench_bin 100000` (the original version was rebuilt and timed the same way). The profile has only three regions. I left timers out of the inner iteration because a per-iteration timer costs about as much as one iteration and would distort the numbers.
+
+Two things I tried did not help:
+- **A copy of M padded to 16 columns** (for whole SIMD lanes) gave the same speed, so I dropped it to avoid mutable static state.
+- **Splitting the sum 5 ways** was 3.4× slower (11.3 µs), probably because of register pressure. Computing each output as a row dot product was also slower (4.3 µs).
+
+FOMTOOLS-SUMMARY-BEGIN
+**Whole-solve mean_us** (`./bench_bin 100000`; the default 5000-solve `make bench` is too noisy at this scale and read 5.3–6.0 µs for the final code)
+- Initial: 23.6 µs (26–32 µs with the default `make bench`)
+- Final: 3.32 µs
+- Speedup: about 7.1×
+
+**Final profile** (`make profile`, 5000 solves, hottest first)
+| Region | total_us | pct |
+|---|---|---|
+| iterations (200-iteration FISTA loop: extrapolate, 15×15 matvec, soft-threshold, state rotation) | 28235 | 98.65% |
+| finalize (write back state and solution) | 229 | 0.80% |
+| param_const (t0_p_p0 @ p0, computed once per solve) | 158 | 0.55% |
+
+**Optimizations applied**
+1. **Halved the matvec work using the block structure of the linear operator.** `t0_state` = [0 | M] (left block ≤ 6e-17) and `t0_state__d_gamma` = [−M | M] (matches to about 1e-15). So `t0_state·x + γ·D·x` equals `M(x2 + γ(x2 − x1))`. Each iteration now computes the extrapolated point `y` (15 ops) and then does one 15×15 matvec, instead of two dense 15×30 matvecs. That is 225 multiply-adds instead of 900.
+2. **Replaced the sparse state update with pointer rotation.** `su_state` and `su_t_t0` are 0/1 selection matrices, so the new state is just [x2, t0]. Three 15-vectors are rotated by pointer, so there are no CSR passes, no memset, and no copies. The state is written back once at the end.
+3. **Contiguous, vectorizable matvec using the symmetry of M** (asymmetry ≤ 1.4e-16). Row j of M equals column j, so `t += y_j · M[j, :]` reads memory contiguously from `FOM_MAT_t0_state` with no transposed copy.
+4. **Shortened the dependency chain with 4 independent partial sums.** Each iteration depends on the previous one, so the matvec is limited by multiply-add latency rather than throughput. Splitting the j-sum across 4 accumulators cuts the chain from 15 to 4 and took the solve from 4.35 µs to 3.30 µs.
+5. **Kept the parameter term out of the loop.** `t0_p_p0 @ p0` does not change across iterations, so it is computed once per solve. The convergence residual is computed only on the last iteration, because tolerance checking is off (tol = 0).
+
+**Tried and rejected:** a copy of M padded to 16 columns (no gain), a 5-way split (3.4× slower, likely register spills), a row dot-product form (4.3 µs, slower), and a 3-way split (same speed as 4-way).
+FOMTOOLS-SUMMARY-END
+The solver is now about 7× faster: 23.6 µs → 3.32 µs per solve at 100k repetitions. `make verify` still prints `VERIFY OK` (worst error 1.1e-13 against a 1e-6 tolerance). I only changed `src/fom_solver.c`; it uses no dynamic allocation or division, and the `FOM_PROF_BEGIN/END` markers are still in place.
+
+`make bench` runs only 5000 solves, and at ~3 µs per solve that is too noisy to compare versions: the same final code read 5.3–6.0 µs there. So I timed every comparison with `./bench_bin 100000` (the original version was rebuilt and timed the same way). The profile has only three regions. I left timers out of the inner iteration because a per-iteration timer costs about as much as one iteration and would distort the numbers.
+
+Two things I tried did not help:
+- **A copy of M padded to 16 columns** (for whole SIMD lanes) gave the same speed, so I dropped it to avoid mutable static state.
+- **Splitting the sum 5 ways** was 3.4× slower (11.3 µs), probably because of register pressure. Computing each output as a row dot product was also slower (4.3 µs).
+
+FOMTOOLS-SUMMARY-BEGIN
+**Whole-solve mean_us** (`./bench_bin 100000`; the default 5000-solve `make bench` is too noisy at this scale and read 5.3–6.0 µs for the final code)
+- Initial: 23.6 µs (26–32 µs with the default `make bench`)
+- Final: 3.32 µs
+- Speedup: about 7.1×
+
+**Final profile** (`make profile`, 5000 solves, hottest first)
+| Region | total_us | pct |
+|---|---|---|
+| iterations (200-iteration FISTA loop: extrapolate, 15×15 matvec, soft-threshold, state rotation) | 28235 | 98.65% |
+| finalize (write back state and solution) | 229 | 0.80% |
+| param_const (t0_p_p0 @ p0, computed once per solve) | 158 | 0.55% |
+
+**Optimizations applied**
+1. **Halved the matvec work using the block structure of the linear operator.** `t0_state` = [0 | M] (left block ≤ 6e-17) and `t0_state__d_gamma` = [−M | M] (matches to about 1e-15). So `t0_state·x + γ·D·x` equals `M(x2 + γ(x2 − x1))`. Each iteration now computes the extrapolated point `y` (15 ops) and then does one 15×15 matvec, instead of two dense 15×30 matvecs. That is 225 multiply-adds instead of 900.
+2. **Replaced the sparse state update with pointer rotation.** `su_state` and `su_t_t0` are 0/1 selection matrices, so the new state is just [x2, t0]. Three 15-vectors are rotated by pointer, so there are no CSR passes, no memset, and no copies. The state is written back once at the end.
+3. **Contiguous, vectorizable matvec using the symmetry of M** (asymmetry ≤ 1.4e-16). Row j of M equals column j, so `t += y_j · M[j, :]` reads memory contiguously from `FOM_MAT_t0_state` with no transposed copy.
+4. **Shortened the dependency chain with 4 independent partial sums.** Each iteration depends on the previous one, so the matvec is limited by multiply-add latency rather than throughput. Splitting the j-sum across 4 accumulators cuts the chain from 15 to 4 and took the solve from 4.35 µs to 3.30 µs.
+5. **Kept the parameter term out of the loop.** `t0_p_p0 @ p0` does not change across iterations, so it is computed once per solve. The convergence residual is computed only on the last iteration, because tolerance checking is off (tol = 0).
+
+**Tried and rejected:** a copy of M padded to 16 columns (no gain), a 5-way split (3.4× slower, likely register spills), a row dot-product form (4.3 µs, slower), and a 3-way split (same speed as 4-way).
+FOMTOOLS-SUMMARY-END

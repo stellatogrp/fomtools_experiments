@@ -6,6 +6,7 @@ variants: [ista, fista]
 problem:
   m: 3                 # measurements (rows of D); P in problem.py
   n: 5                 # features (columns of D); N in problem.py
+  density: 0.2         # fraction of nonzero entries of D (sparse dictionary)
   lambd: 0.1
   n_star: 100          # sparse vectors z* whose measurements D z* span the parameter box
   p_star: 0.1          # probability that an entry of z* is nonzero

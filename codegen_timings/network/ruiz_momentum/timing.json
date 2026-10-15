@@ -1,0 +1,87 @@
+{
+  "experiment": "network",
+  "variant": "ruiz_momentum",
+  "iterations": 200,
+  "verified_run": "network/results/run_001",
+  "numpy_us": 2119.6664893068373,
+  "translated_us": 176.5502,
+  "optimized_us": 28.7048,
+  "speedup_translation": 12.00602712037051,
+  "speedup_optimization": 6.150546250104512,
+  "speedup_total": 73.84362508384791,
+  "optimization_kept": true,
+  "optimization_notes": "",
+  "max_abs_dev": {
+    "translated": {
+      "verified_set": 7.105427357601002e-15
+    },
+    "optimized": {
+      "verified_set": 6.217248937900877e-15
+    }
+  },
+  "timing_rounds": {
+    "numpy": [
+      2130.2915120031685,
+      2115.582989063114,
+      2125.1665020827204,
+      2099.6665116399527,
+      2119.6664893068373,
+      2110.646018991247,
+      2123.7499895505607
+    ],
+    "translated": [
+      175.2368,
+      176.1814,
+      176.5502,
+      177.2126,
+      176.817,
+      175.8436,
+      176.6058
+    ],
+    "optimized": [
+      28.7048,
+      28.872,
+      28.4862,
+      28.2308,
+      27.323,
+      34.5318,
+      29.0878
+    ]
+  },
+  "agent_wall_s": {
+    "translation": 20.441890001296997,
+    "code_optimization": 392.81633400917053
+  },
+  "agent_budgets_s": {
+    "translation": 600,
+    "code_optimization": 600
+  },
+  "check": {
+    "oracle_vs_numpy_max_rel": 1.1032262647791983e-15,
+    "state_dim": 175,
+    "params": {
+      "p0": 15
+    }
+  },
+  "info": {
+    "ns": 10,
+    "nd": 15,
+    "ne": 150,
+    "eta": 0.12831830742323286,
+    "momentum": true,
+    "ruiz": true,
+    "state_dim": 175
+  },
+  "machine": {
+    "cpu": "Apple M5",
+    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 17.0.0 (clang-1700.6.3.2)",
+    "python": "3.13.11",
+    "numpy": "2.5.3",
+    "fomtools_commit": "96eafd2",
+    "fomtools_branch": "vr/codegen_rename",
+    "fomtools_path": "/Users/vranjan/Research/2026/fomtools/fomtools"
+  },
+  "started_utc": "2026-10-12T16:17:12+00:00",
+  "finished_utc": "2026-10-12T16:24:19+00:00"
+}

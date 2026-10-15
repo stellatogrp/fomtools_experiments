@@ -1,0 +1,94 @@
+I'm checking how the bench/verify harness calls setup, so I can extract the operators' coefficients once at setup time.
+Big win already: 103 → 38.7 µs, and verify passes with error 2.7e-15. Next I'll profile, then go after the per-row reductions in the grid loop.
+The grid loop is the hot spot. Next I'll split it into a vectorizable elementwise pass plus a fixed-width tree reduction for the per-row sums.
+That came out slower (42.2 vs 38.7 µs). I'll rerun both versions a few times to rule out noise.
+v1 is reliably a bit faster (~35 µs), so I'm keeping it. Next I'll check whether the compiler actually vectorized the grid loop.
+The loop isn't vectorized: `acc` lives on the stack and the strict-FP row reductions block the vectorizer. Next I'll split it into separate elementwise / column-accumulate / row-reduce phases.
+Small gain (33.3 µs). Next I'll find out which of the hot loops actually vectorized.
+`t0_clip` is the hottest region now; the cost model rejected vectorizing the 15-trip inner loop. I'll try forcing it with a vectorize pragma.
+Forcing vectorization worked: 33.3 → 23.2 µs. I'll apply the same pragma to the `s2` accumulate loop and the `t1` row reductions.
+No change from those two, so the remaining cost is mostly passes over memory. Next I'll fuse the `s2` column accumulation into the vectorized `t0` loop so x and t0 are read only once.
+Fusion gave about 5% (22.0 µs). Next I'll fold the `t1` row reductions into the same loop.
+Specialized kernel: 12.8 µs. Next I'll check that it vectorized and try letting the compiler interleave.
+Interleaving is slower (14.1 µs), so I'm reverting it. Next I'll check that both fallback kernels still pass verify when forced on.
+All three paths (specialized, general fast, generic) pass verify. Specialized is steady at ~12.8 µs. Next I'll take the final profile.
+FOMTOOLS-SUMMARY-BEGIN
+**Result:** the whole solve went from **103.05 µs to 12.84 µs mean**, about **8.0× faster**. `make verify` still prints VERIFY OK, with worst error 2.7e-15 against a tolerance of 1e-6. I only edited `src/fom_solver.c`. It does no dynamic allocation and has no `/` or `%` anywhere, setup included.
+
+**Final profile** (`make profile`, 5000 solves × 200 iterations; the timers inflate the profiled run to about 32 µs):
+
+| Region | Total time | Calls | Share |
+|---|---|---|---|
+| `iterate` (whole iteration, contains `grid_special`) | 135,147 µs | 1,000,000 | 58.9% |
+| `grid_special` (the fused grid kernel) | 93,887 µs | 1,000,000 | 40.9% |
+| `residual` (final iteration only) | 423 µs | 5,000 | 0.2% |
+
+Most of the gap between `iterate` and `grid_special` is the cost of the nested timer calls, not real work.
+
+**Optimizations, in the order applied:**
+
+1. **Replaced the generic sparse products with a grid kernel (103 → ~35 µs).**
+   - *Structure:* the state is `[s0 (10×15 grid, r = 15i + j), s1 (10), s2 (15)]`.
+     - `t0[r]` only reads `x[r]`, `s1[i]` and `s2[j]`.
+     - `t1[i]` is a sum over row i plus `s1[i]`.
+     - `su_state` and `su_t_t0` are zero apart from a diagonal for rows 0–149 and column sums into the 15 `s2` rows.
+     - `su_t_t1` is a diagonal into the `s1` rows.
+   - *How it's checked:* `fom_setup` probes every fixed `fom_apply_*` operator with unit vectors. It reads off the coefficients and confirms that every entry outside this pattern is exactly zero. If any check fails, the solver uses the original generic sparse path.
+2. **Moved the parameter product out of the loop.** `su_p_p0 @ p0` doesn't change between iterations, so it is now computed once in `fom_update_params` / `fom_setup`.
+3. **Made the grid loop vectorize (→ 23.2 µs).** The compiler's cost model rejected vectorizing the 15-long inner loop, so I force it with a clang-only loop pragma (it does nothing on other compilers). That one change cut the time by about 30%.
+4. **Fused everything into one pass over the grid (→ 22.0 → 17.8 µs).** `t0`, the clip, the `s2` column sums and the `t1` row sums are now computed together. Each `x[r]` and `t0[r]` is read once and the `t0` buffer is gone. This works because `t1` and `s2` only depend on the current `t0` row and column.
+5. **Added a specialized kernel for the coefficient values (→ 12.8 µs).**
+   - *Structure:* setup confirms that:
+     - `d0 ≡ 1`, `h ≡ 1` and `lo ≡ 0`;
+     - `u == w0` elementwise (the `su_state` coupling to `s2` equals the `t0_state` coupling);
+     - `a0`, `e1` and `g1` are each a single repeated value.
+   - *Effect:* those become scalars or a shared array, so each grid point streams 5 arrays instead of 11. The kernel was limited by memory loads, so fewer streams meant directly less time.
+   - *Fallback:* if any of these checks fails, the general fast kernel from steps 1–4 runs instead.
+6. **The convergence residual is computed only on the last iteration.** The tolerance check is off in this configuration (tol = 0, max_iters termination), so the residual is only needed for the reported value.
+
+**Tried and dropped:** a separate tree reduction for the row sums, and letting the compiler interleave the vectorized loops. Both were slower.
+
+**Checks:** all three paths pass `make verify` when forced on one at a time: the specialized kernel, the general fast kernel, and the generic fallback. The file also compiles cleanly with `-Wall`.
+
+`FOM_PROF_BEGIN/END` markers are kept around `iterate`, `residual` and each fast kernel (`grid_special`, `t0_s2`/`t1_relu`).
+FOMTOOLS-SUMMARY-END
+FOMTOOLS-SUMMARY-BEGIN
+**Result:** the whole solve went from **103.05 µs to 12.84 µs mean**, about **8.0× faster**. `make verify` still prints VERIFY OK, with worst error 2.7e-15 against a tolerance of 1e-6. I only edited `src/fom_solver.c`. It does no dynamic allocation and has no `/` or `%` anywhere, setup included.
+
+**Final profile** (`make profile`, 5000 solves × 200 iterations; the timers inflate the profiled run to about 32 µs):
+
+| Region | Total time | Calls | Share |
+|---|---|---|---|
+| `iterate` (whole iteration, contains `grid_special`) | 135,147 µs | 1,000,000 | 58.9% |
+| `grid_special` (the fused grid kernel) | 93,887 µs | 1,000,000 | 40.9% |
+| `residual` (final iteration only) | 423 µs | 5,000 | 0.2% |
+
+Most of the gap between `iterate` and `grid_special` is the cost of the nested timer calls, not real work.
+
+**Optimizations, in the order applied:**
+
+1. **Replaced the generic sparse products with a grid kernel (103 → ~35 µs).**
+   - *Structure:* the state is `[s0 (10×15 grid, r = 15i + j), s1 (10), s2 (15)]`.
+     - `t0[r]` only reads `x[r]`, `s1[i]` and `s2[j]`.
+     - `t1[i]` is a sum over row i plus `s1[i]`.
+     - `su_state` and `su_t_t0` are zero apart from a diagonal for rows 0–149 and column sums into the 15 `s2` rows.
+     - `su_t_t1` is a diagonal into the `s1` rows.
+   - *How it's checked:* `fom_setup` probes every fixed `fom_apply_*` operator with unit vectors. It reads off the coefficients and confirms that every entry outside this pattern is exactly zero. If any check fails, the solver uses the original generic sparse path.
+2. **Moved the parameter product out of the loop.** `su_p_p0 @ p0` doesn't change between iterations, so it is now computed once in `fom_update_params` / `fom_setup`.
+3. **Made the grid loop vectorize (→ 23.2 µs).** The compiler's cost model rejected vectorizing the 15-long inner loop, so I force it with a clang-only loop pragma (it does nothing on other compilers). That one change cut the time by about 30%.
+4. **Fused everything into one pass over the grid (→ 22.0 → 17.8 µs).** `t0`, the clip, the `s2` column sums and the `t1` row sums are now computed together. Each `x[r]` and `t0[r]` is read once and the `t0` buffer is gone. This works because `t1` and `s2` only depend on the current `t0` row and column.
+5. **Added a specialized kernel for the coefficient values (→ 12.8 µs).**
+   - *Structure:* setup confirms that:
+     - `d0 ≡ 1`, `h ≡ 1` and `lo ≡ 0`;
+     - `u == w0` elementwise (the `su_state` coupling to `s2` equals the `t0_state` coupling);
+     - `a0`, `e1` and `g1` are each a single repeated value.
+   - *Effect:* those become scalars or a shared array, so each grid point streams 5 arrays instead of 11. The kernel was limited by memory loads, so fewer streams meant directly less time.
+   - *Fallback:* if any of these checks fails, the general fast kernel from steps 1–4 runs instead.
+6. **The convergence residual is computed only on the last iteration.** The tolerance check is off in this configuration (tol = 0, max_iters termination), so the residual is only needed for the reported value.
+
+**Tried and dropped:** a separate tree reduction for the row sums, and letting the compiler interleave the vectorized loops. Both were slower.
+
+**Checks:** all three paths pass `make verify` when forced on one at a time: the specialized kernel, the general fast kernel, and the generic fallback. The file also compiles cleanly with `-Wall`.
+
+`FOM_PROF_BEGIN/END` markers are kept around `iterate`, `residual` and each fast kernel (`grid_special`, `t0_s2`/`t1_relu`).
+FOMTOOLS-SUMMARY-END

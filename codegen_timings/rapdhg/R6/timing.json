@@ -1,0 +1,94 @@
+{
+  "experiment": "rapdhg",
+  "variant": "R6",
+  "iterations": 200,
+  "verified_run": "control/rapdhg/verify/results/run_001",
+  "numpy_us": 1892.811997095123,
+  "translated_us": 182.7228,
+  "optimized_us": 9.9628,
+  "speedup_translation": 10.358926182693802,
+  "speedup_optimization": 18.34050668486771,
+  "speedup_total": 189.9879549017468,
+  "optimization_kept": true,
+  "optimization_notes": "",
+  "max_abs_dev": {
+    "translated": {
+      "verified_set": 9.43689570931383e-15
+    },
+    "optimized": {
+      "verified_set": 1.4432899320127035e-14
+    }
+  },
+  "timing_rounds": {
+    "numpy": [
+      1884.9374901037663,
+      1881.333504570648,
+      1885.27099089697,
+      1905.2499847020954,
+      1911.583007313311,
+      1911.4380120299757,
+      1892.811997095123
+    ],
+    "translated": [
+      182.6764,
+      184.34,
+      179.2402,
+      184.3164,
+      182.7228,
+      180.9916,
+      183.5516
+    ],
+    "optimized": [
+      8.865,
+      9.9628,
+      10.3776,
+      8.2236,
+      10.3122,
+      10.2896,
+      7.9244
+    ]
+  },
+  "agent_wall_s": {
+    "translation": 68.8351743221283,
+    "code_optimization": 677.78768491745
+  },
+  "agent_budgets_s": {
+    "translation": 600,
+    "code_optimization": 600
+  },
+  "check": {
+    "tables_vs_rapdhg_schedule_tables": 0.0,
+    "numpy_x_vs_verify_recurrence": 2.3314683517128287e-15,
+    "oracle_vs_numpy_max_rel": 2.514150219521659e-13,
+    "state_dim": 160,
+    "params": {
+      "p0": 16,
+      "p1": 48
+    }
+  },
+  "info": {
+    "method": "rapdhg",
+    "restart": 6,
+    "horizon": 5,
+    "n": 16,
+    "m": 48,
+    "param_coords": [
+      0,
+      1,
+      5
+    ],
+    "state_dim": 160
+  },
+  "machine": {
+    "cpu": "Apple M5",
+    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 17.0.0 (clang-1700.6.3.2)",
+    "python": "3.13.11",
+    "numpy": "2.5.3",
+    "fomtools_commit": "96eafd2",
+    "fomtools_branch": "vr/codegen_rename",
+    "fomtools_path": "/Users/vranjan/Research/2026/fomtools/fomtools"
+  },
+  "started_utc": "2026-10-12T16:38:44+00:00",
+  "finished_utc": "2026-10-12T16:51:23+00:00"
+}

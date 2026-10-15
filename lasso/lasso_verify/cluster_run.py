@@ -11,15 +11,15 @@ import numpy as np
 from fomtools.linearexpression import stack
 
 from fomexp.kloop import VariantSpec
-from problem import LassoProblem, momentum, residual_map, residuals
+from problem import LassoProblem, make_D, momentum, residual_map, residuals
 
 
 def make_problem(cfg, K: int) -> LassoProblem:
     """``problem.make_problem`` with every constant from ``cfg``, drawing in the same order."""
     m, n, n_star = int(cfg.m), int(cfg.n), int(cfg.n_star)
     rng = np.random.default_rng(int(cfg.seed))
-    D = rng.normal(scale=np.sqrt(1.0 / m), size=(m, n))
-    D = D / np.linalg.norm(D, axis=0)
+    # Runs from before the density option (run_001, run_002) have no key and used a dense D.
+    D = make_D(rng, m, n, float(cfg.get("density", 1.0)))
     # signal_scale multiplies every sparse signal, so it scales the measurement box
     # about its centre by the same factor; the draws themselves are unchanged.
     scale = float(cfg.get("signal_scale", 1.0))

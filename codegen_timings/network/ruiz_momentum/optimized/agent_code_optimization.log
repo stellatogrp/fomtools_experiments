@@ -1,0 +1,84 @@
+Baseline: 179.5 µs per solve and `VERIFY OK`. Next I'll add profiling markers and get a per-region breakdown.
+That gave about 6% (30.4 → about 28.7 µs), so I'm keeping it. Next I'll check whether clang actually vectorized the inner loop.
+That was slower (about 34 µs against 28.5 µs), so I'm reverting it. Running the final verify, bench and profile.
+The final kernel is one fused region, so I'll also mark the per-solve setup, the residual check and the write-back. That way `make profile` still breaks the time down by region.
+I got the solve from about 177 µs to about 28 µs per solve (about 6.3× faster), and `make verify` still prints `VERIFY OK`. The worst error is 7.1e-15 against a tolerance of 1e-6, the same as the original. Only `src/fom_solver.c` was changed. It does no dynamic allocation and no division.
+
+The biggest gain relies on this network data having a 10×15 grid structure. The solver checks for that structure once, the first time `fom_setup` runs. If the data ever stops matching it exactly, the solver falls back to the original helper-based loop.
+
+Two attempts made things worse and I reverted them: splitting the s2 update into a second pass (about 34 µs) and the earlier general compressed-row version once the grid kernel replaced it. The final kernel needs about 13 memory loads per pair of grid cells, which by my rough estimate is close to the load-throughput limit. That is why I stopped there.
+
+FOMTOOLS-SUMMARY-BEGIN
+**Whole-solve time (`make bench`, `mean_us`)**
+- Initial: about 177 µs (runs gave 174.7–179.5).
+- Final: about 28 µs (runs gave 25.5–28.5).
+- Speedup: about **6.3×**.
+
+**Final profile (`make profile`; timer overhead per call inflates the totals)**
+
+| region | total_us | pct |
+|---|---|---|
+| grid_sweep (the whole fused iteration, 200 per solve) | 159273 | 99.11% |
+| solve_prologue (`su_p_p0 @ p0` and copy into the internal layout) | 679 | 0.42% |
+| residual (final iteration only) | 434 | 0.27% |
+| writeback | 310 | 0.19% |
+
+**Optimizations applied**
+
+1. **Hoisted the parameter term out of the loop** (176 → 127 µs, together with step 2). `su_p_p0 @ p0` does not change between iterations, so it is computed once per solve instead of 200 times.
+
+2. **Recovered the operators once and fused them** (same step, 176 → 127 µs). The first `fom_setup` calls each `fom_apply_*` helper with unit vectors to read out its coefficients and stores them in static arrays (no dynamic allocation). This removed six full 175-row sparse-row sweeps per iteration, even though only 15–175 of those rows have entries. It also removed the zeroing passes and the separate xi accumulator.
+
+3. **Used the 10×15 grid structure of the network problem** (127 → 47.7 µs).
+   - The state is `[s0 (10×15 grid) | s1 (10) | s2 (15)]`, and with i = 15r + c every operator couples cell i only to its grid row r and column c:
+     - `t0[i]` depends on `x[i]`, `s1[r]` and `s2[c]`.
+     - `t1[r]` is a sum over row r.
+     - The `s2[c]` update is a sum over column c.
+   - The next s0 and s1 are exactly `t0` and `t1`, because the corresponding blocks are exact identity matrices (checked to equal 1.0 exactly).
+   - So the whole iteration is one sweep over the grid with contiguous coefficient arrays and no index lookups. `t0` is written straight into the next state, so it needs no buffer or copy.
+   - Setup checks that every coefficient it reads fits this pattern; otherwise the solver falls back to the original helper loop.
+
+4. **Padded grid rows from 15 to 16 columns** (47.7 → about 31 µs). The extra column has zero coefficients and zero bounds, so it always stays 0 and never affects the result. Every inner loop then has a fixed length of 16 and compiles to fully unrolled NEON vector code with no leftover iterations.
+
+5. **Specialized the `t0` activation** (about 31 → about 28.5 µs). The `t0` self-coefficient on s0 is exactly 1 and the lower bound `t0_lo` is exactly 0. Setup checks both exactly and then picks a kernel variant that skips loading those two arrays.
+FOMTOOLS-SUMMARY-END
+I got the solve from about 177 µs to about 28 µs per solve (about 6.3× faster), and `make verify` still prints `VERIFY OK`. The worst error is 7.1e-15 against a tolerance of 1e-6, the same as the original. Only `src/fom_solver.c` was changed. It does no dynamic allocation and no division.
+
+The biggest gain relies on this network data having a 10×15 grid structure. The solver checks for that structure once, the first time `fom_setup` runs. If the data ever stops matching it exactly, the solver falls back to the original helper-based loop.
+
+Two attempts made things worse and I reverted them: splitting the s2 update into a second pass (about 34 µs) and the earlier general compressed-row version once the grid kernel replaced it. The final kernel needs about 13 memory loads per pair of grid cells, which by my rough estimate is close to the load-throughput limit. That is why I stopped there.
+
+FOMTOOLS-SUMMARY-BEGIN
+**Whole-solve time (`make bench`, `mean_us`)**
+- Initial: about 177 µs (runs gave 174.7–179.5).
+- Final: about 28 µs (runs gave 25.5–28.5).
+- Speedup: about **6.3×**.
+
+**Final profile (`make profile`; timer overhead per call inflates the totals)**
+
+| region | total_us | pct |
+|---|---|---|
+| grid_sweep (the whole fused iteration, 200 per solve) | 159273 | 99.11% |
+| solve_prologue (`su_p_p0 @ p0` and copy into the internal layout) | 679 | 0.42% |
+| residual (final iteration only) | 434 | 0.27% |
+| writeback | 310 | 0.19% |
+
+**Optimizations applied**
+
+1. **Hoisted the parameter term out of the loop** (176 → 127 µs, together with step 2). `su_p_p0 @ p0` does not change between iterations, so it is computed once per solve instead of 200 times.
+
+2. **Recovered the operators once and fused them** (same step, 176 → 127 µs). The first `fom_setup` calls each `fom_apply_*` helper with unit vectors to read out its coefficients and stores them in static arrays (no dynamic allocation). This removed six full 175-row sparse-row sweeps per iteration, even though only 15–175 of those rows have entries. It also removed the zeroing passes and the separate xi accumulator.
+
+3. **Used the 10×15 grid structure of the network problem** (127 → 47.7 µs).
+   - The state is `[s0 (10×15 grid) | s1 (10) | s2 (15)]`, and with i = 15r + c every operator couples cell i only to its grid row r and column c:
+     - `t0[i]` depends on `x[i]`, `s1[r]` and `s2[c]`.
+     - `t1[r]` is a sum over row r.
+     - The `s2[c]` update is a sum over column c.
+   - The next s0 and s1 are exactly `t0` and `t1`, because the corresponding blocks are exact identity matrices (checked to equal 1.0 exactly).
+   - So the whole iteration is one sweep over the grid with contiguous coefficient arrays and no index lookups. `t0` is written straight into the next state, so it needs no buffer or copy.
+   - Setup checks that every coefficient it reads fits this pattern; otherwise the solver falls back to the original helper loop.
+
+4. **Padded grid rows from 15 to 16 columns** (47.7 → about 31 µs). The extra column has zero coefficients and zero bounds, so it always stays 0 and never affects the result. Every inner loop then has a fixed length of 16 and compiles to fully unrolled NEON vector code with no leftover iterations.
+
+5. **Specialized the `t0` activation** (about 31 → about 28.5 µs). The `t0` self-coefficient on s0 is exactly 1 and the lower bound `t0_lo` is exactly 0. Setup checks both exactly and then picks a kernel variant that skips loading those two arrays.
+FOMTOOLS-SUMMARY-END

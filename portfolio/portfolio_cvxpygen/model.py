@@ -1,0 +1,134 @@
+"""The portfolio rebalancing problem as a parametric CVXPY problem, for any N.
+
+The instance is the verified one (``portfolio/results/run_002``: drift 0.15,
+z_bar 0.3, the ``conf/experiment/portfolio.yaml`` defaults otherwise) with the
+number of assets overridden. The current holdings ``x`` are the CVXPY parameter;
+they enter only the epigraph of ``||z - x||_1``, so after canonicalization only
+the inequality bounds depend on ``x`` and ``P``, ``A`` stay constant, as the
+fomtools CVXPYgen front end requires.
+"""
+
+from __future__ import annotations
+
+import importlib
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+
+import cvxpy as cp
+import numpy as np
+
+PORTFOLIO = Path(__file__).resolve().parents[1]
+ROOT = PORTFOLIO.parent
+for path in (PORTFOLIO, ROOT):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
+
+from cluster_run import drift_interval, make_problem  # noqa: E402
+
+OUT = Path(__file__).parent / "out"
+RESULTS = Path(__file__).parent / "results"
+
+SIZES = (10, 20, 50, 100, 200)
+ITERATIONS = 200
+N_SOLVES = 100  # back-test length per timing round
+DRIFT = 0.15
+
+# portfolio.yaml, with the run_002 overrides (slurm/submit_all.sh)
+PROBLEM = dict(
+    kappa=1.0,
+    lambd=0.01,
+    z_bar=0.3,
+    rho=1.0,
+    sigma=1.0e-4,
+    mu_high=0.5,
+    sigma_ridge=0.1,
+    seed=0,
+)
+
+# fomtools ADMM builder defaults (rho 0.1, sigma 1e-6, alpha 1.6, rho_eq_scale
+# 1e3), which are OSQP's; the front end Ruiz-equilibrates the canonical QP
+# (auto_equilibrate, on by default).
+FOM_OPTIONS: dict = {}
+STEP_SIZES = dict(rho=0.1, sigma=1.0e-6, alpha=1.6)
+
+# OSQP with every extra off: plain ADMM with the same step sizes, a fixed
+# number of iterations, a cold start. CVXPY takes all of these.
+OSQP_OFF = dict(
+    **STEP_SIZES,
+    scaling=0,
+    adaptive_rho=False,
+    polishing=False,
+    warm_starting=False,
+    max_iter=ITERATIONS,
+    check_termination=0,
+)
+# OSQP with its defaults and its extras on (scaling, adaptive rho, and polishing,
+# which is off by default), but run for the same fixed number of iterations as
+# every other arm: no termination check, and a cold start. The holdings are
+# independent draws, but all lie near the equal-weight portfolio, so warm
+# starting from the previous solve would let OSQP skip most of the work.
+OSQP_ON = dict(
+    polishing=True,
+    warm_starting=False,
+    warm_start=False,
+    max_iter=ITERATIONS,
+    check_termination=0,
+)
+
+# Stock CVXPYgen: OSQP with its defaults, the same fixed number of iterations,
+# a cold start. Its rho, sigma, alpha and scaling are fixed at generation and
+# adaptive_rho is not a runtime setting, so these runtime settings are all the
+# API reaches. Embedded OSQP does adapt rho, and the adapted rho stays in the
+# solver between solves; the Python wrapper resets the settings (rho included)
+# before every solve, the C interface does not.
+CPG_OSQP = dict(max_iter=ITERATIONS, check_termination=0, warm_start=False)
+
+
+def instance(N: int):
+    """The ``PortfolioProblem`` data (Sigma, mu, ...) for ``N`` assets."""
+    return make_problem(SimpleNamespace(n=N, **PROBLEM), ITERATIONS)
+
+
+def x_bounds(N: int) -> tuple[np.ndarray, np.ndarray]:
+    """Exact per-asset range of the drifted equal-weight portfolio (the verified box)."""
+    return drift_interval(np.ones(N) / N, DRIFT)
+
+
+def build(N: int):
+    """``(problem, x, z)``: the parametric CVXPY problem, its parameter and variable."""
+    data = instance(N)
+    x = cp.Parameter(N, name="x")
+    x.value = np.ones(N) / N
+    z = cp.Variable(N, name="z")
+    objective = (
+        0.5 * data.kappa * cp.quad_form(z, cp.psd_wrap(data.Sigma))
+        - data.mu @ z
+        + data.lambd * cp.norm1(z - x)
+    )
+    constraints = [cp.sum(z) == 1, z >= 0, z <= data.z_bar]
+    return cp.Problem(cp.Minimize(objective), constraints), x, z
+
+
+def code_dir(N: int, arm: str) -> str:
+    """Generated CVXPYgen directory beneath ``OUT``, which is also its module name."""
+    return f"cpg_n{N}_{arm}"
+
+
+def prefix(N: int, arm: str) -> str:
+    """Unique CVXPYgen symbol prefix, so several generated wrappers can share one process."""
+    return f"{arm}{N}_"
+
+
+def load_cpg_solve(N: int, arm: str):
+    """The generated ``cpg_solve`` of one solver, for ``problem.register_solve``."""
+    if str(OUT) not in sys.path:
+        sys.path.insert(0, str(OUT))
+    return importlib.import_module(f"{code_dir(N, arm)}.cpg_solver").cpg_solve
+
+
+def holdings_sequence(N: int, count: int = N_SOLVES, seed: int = 1) -> np.ndarray:
+    """``count`` drifted equal-weight portfolios ``(1 + r) / sum(1 + r)``, ``r ~ U[-drift, drift]``."""
+    rng = np.random.default_rng([seed, N])
+    growth = 1.0 + rng.uniform(-DRIFT, DRIFT, size=(count, N))
+    return growth / growth.sum(axis=1, keepdims=True)

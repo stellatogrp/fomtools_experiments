@@ -1,0 +1,80 @@
+Mapping the matrix block structure (mostly identity/diagonal blocks) to replace the generic CSR calls with fused loops; checking verify tolerance next.
+Down to ~16 µs (from ~180). Profiling again to find what's left.
+Splitting accumulators made it slower (19.8 vs 14.1 µs), so I'm reverting it and looking at the generated code.
+No gain from reordering (14.2 vs 14.1 µs). Checking whether G has a parity (checkerboard) sparsity pattern that would halve its cost.
+~3.5% gain from the checkerboard split (13.7 µs). Running quick knockout experiments (timing only, not kept) to see which piece actually costs the most.
+Restructuring paid off: 13.7 → 11.1 µs. Checking the new asm for remaining scalar code or spills.
+Spill count is high (145) and each step is ~900 instructions. Measuring what the dense D block costs now before deciding whether to exploit its internal structure.
+G products (~4 µs, on the critical path) cost more than D (~2 µs). Inspecting the 8×8 half-blocks for further sparsity.
+11.1 → 10.25 µs. Running knockouts again to re-rank the remaining cost.
+Only ~2% from the D transform (10.25 → 10.05 µs). The machine is noisy, so I'll fix the unused-variable warning and then look at per-step instruction count.
+Codegen regressed to scalar FMAs with ~1000 spills: clang fully unrolled three inlined copies of the step. Trying the step as a single non-inlined function instead.
+Noinline is much better: 7.6 vs 10.1 µs. Adopting it and checking that the asm vectorizes.
+Most of the remaining scalar code is in the DFT transform for D, which clang won't SLP-vectorize. Comparing it against the dense column-major D (which did vectorize) now that the step is out of line.
+The DFT version wins (7.6 vs 9.4 µs). Knockouts on the current version:
+Slower overall (8.3 vs 7.6 µs). Isolating which of the two rewrites hurt.
+Both rewrites were slower in isolation too, so I'm reverting to the previous best (v9, 7.6 µs) and doing the final verify, bench, and profile.
+The solver is about 23.5× faster: the whole solve went from ~179 µs to ~7.6 µs, and `make verify` still prints `VERIFY OK` (worst error 1.5e-12 against a 1e-6 tolerance). All changes are in `src/fom_solver.c`. It still uses no dynamic allocation and no division, and the `FOM_PROF_BEGIN/END` markers are kept. The `FOM_USE_TOL=1` build compiles but was never run, since the default build doesn't use it.
+
+Things you should know:
+- **The faster code is tied to this problem's data.** It relies on structure I checked in `data.npz` (identity blocks, exact sign relations between matrices, the checkerboard/Toeplitz pattern in G, the circulant blocks in D). The values are still read from the provided `fom_apply_*` operators at setup, but the solver doesn't re-check the structure. If the data is regenerated with a different structure, it would give wrong answers silently.
+- **The extracted blocks live in file-scope static arrays**, filled in `fom_setup`. That means `fom_setup` must run before `fom_solve`, which the bench and verify drivers already do. All workspaces share these arrays, which is fine because the values never change.
+- **Use long benchmark runs.** With the default 5000 solves, `mean_us` jumps around (7.5–11 µs). Runs of 20000 solves were steady at about 7.6 µs.
+- **The per-region profile is mostly timer overhead.** Each timed region costs about 30 ns, similar to a whole iteration. The profiled solve reads 36.9 µs against 7.6 µs unprofiled, so I chose changes by timing variants with parts of the step removed.
+
+FOMTOOLS-SUMMARY-BEGIN
+**Whole-solve time:** initial `mean_us` ≈ 179 (177.8–180.3 over runs), final `mean_us` ≈ 7.6 (7.54–7.68 in steady runs). Overall speedup is about **23.5×**. `make verify` still passes (worst error 1.5e-12, tolerance 1e-6).
+
+**Final profile (`make profile`, 200 iterations × 5000 solves; each timed region adds about 30 ns of timer overhead, so these shares are only rough):**
+
+| region | total_us | pct |
+|---|---|---|
+| state_update | 33453 | 36.7% |
+| t1_state_part (D·s5 − p0) | 19864 | 21.8% |
+| t0_step | 19785 | 21.7% |
+| t1_step | 18072 | 19.8% |
+
+**Optimizations applied, in order, with the structure each one relies on:**
+1. **Removed identity and zero CSR calls (180 → 52 µs).** Every state-update matrix is an identity block or zero. Also, `t0_state` = I on s1, `t1_state` = I on s0, `t0_p_p1`, `t1_p_p0` and `t1_t_t0` are zero, and the `__d_tau`/`__d_eta` parameter terms are −I. These became plain vector updates (for example s4' = s0 and s3' = d1·s3 + d2·t0). The new state alternates between `state` and `new_state` instead of being copied each iteration. The residual is computed only once, after the last step, because `FOM_USE_TOL=0`; the tolerance path is kept under `#if`.
+2. **Merged two coupling products into one (52 → 40 µs).** `t0_state__d_tth[:,s4]` is exactly −`t0_state__d_taux[:,s0]`, so the two terms become Kx·(taux·s0 − tth·s4): one product instead of two.
+3. **Extracted small blocks once at setup (40 → 16 µs).** In `fom_setup`, the provided operators are applied to unit vectors and the results stored in static arrays. Kx = [I; −I; G] and `t1_t_t0__d_eta` = −Kxᵀ, so the I/−I parts become additions and subtractions. G and the dense 16×16 D become contiguous column-major products instead of indexed CSR loops.
+4. **Split G by its checkerboard pattern (14.1 → 13.7 µs).** G[r][c] ≠ 0 only when r + c is odd, so it splits into two 8×8 halves on even and odd indices.
+5. **Gave the compiler aliasing guarantees (13.7 → 11.1 µs).** One iteration is a `restrict`-qualified step function, called twice per loop (A→B, then B→A), with t0 and t1 as local arrays. This removed clang's runtime alias checks and spills. The state and new-state buffers are always distinct, which makes `restrict` valid.
+6. **Reduced G to a 4×4 lower-triangular Toeplitz block (11.1 → 10.25 µs).** The two 8×8 halves of G are equal and each is [L; −L] with L = L4 ⊗ [−1, 1]. So G·x and Gᵀ·y each need only pairwise differences plus one 4×4 product (16 two-wide FMAs instead of 128). This also shortens the critical dependency chain t1 → x → G → t0 → Gᵀ → t1.
+7. **Applied a DFT to D's circulant blocks (10.25 → 10.05 µs; worth more once item 8 was in).** D is a 4×4 grid of symmetric circulant blocks circ(α, β, γ, β). A real 4-point DFT on the inner index diagonalizes all of them, giving 64 multiply-adds instead of 256. The 1/4 and 1/2 scale factors are folded in at setup as multiplications, so it stays division-free. This product depends only on the current state, so it is issued first and overlaps the t0 chain.
+8. **Kept the step out of line (10.05 → 7.6 µs).** Marking the step `noinline` leaves one compact copy of the body instead of three fully unrolled inlined copies. Clang then emits two-wide vector code and spills much less.
+
+**Tried and dropped (slower):** four-way split accumulators (spilled registers), dense D after item 8 (9.4 µs), and lane-pair rewrites of the D and G kernels (8.2–8.4 µs).
+FOMTOOLS-SUMMARY-END
+The solver is about 23.5× faster: the whole solve went from ~179 µs to ~7.6 µs, and `make verify` still prints `VERIFY OK` (worst error 1.5e-12 against a 1e-6 tolerance). All changes are in `src/fom_solver.c`. It still uses no dynamic allocation and no division, and the `FOM_PROF_BEGIN/END` markers are kept. The `FOM_USE_TOL=1` build compiles but was never run, since the default build doesn't use it.
+
+Things you should know:
+- **The faster code is tied to this problem's data.** It relies on structure I checked in `data.npz` (identity blocks, exact sign relations between matrices, the checkerboard/Toeplitz pattern in G, the circulant blocks in D). The values are still read from the provided `fom_apply_*` operators at setup, but the solver doesn't re-check the structure. If the data is regenerated with a different structure, it would give wrong answers silently.
+- **The extracted blocks live in file-scope static arrays**, filled in `fom_setup`. That means `fom_setup` must run before `fom_solve`, which the bench and verify drivers already do. All workspaces share these arrays, which is fine because the values never change.
+- **Use long benchmark runs.** With the default 5000 solves, `mean_us` jumps around (7.5–11 µs). Runs of 20000 solves were steady at about 7.6 µs.
+- **The per-region profile is mostly timer overhead.** Each timed region costs about 30 ns, similar to a whole iteration. The profiled solve reads 36.9 µs against 7.6 µs unprofiled, so I chose changes by timing variants with parts of the step removed.
+
+FOMTOOLS-SUMMARY-BEGIN
+**Whole-solve time:** initial `mean_us` ≈ 179 (177.8–180.3 over runs), final `mean_us` ≈ 7.6 (7.54–7.68 in steady runs). Overall speedup is about **23.5×**. `make verify` still passes (worst error 1.5e-12, tolerance 1e-6).
+
+**Final profile (`make profile`, 200 iterations × 5000 solves; each timed region adds about 30 ns of timer overhead, so these shares are only rough):**
+
+| region | total_us | pct |
+|---|---|---|
+| state_update | 33453 | 36.7% |
+| t1_state_part (D·s5 − p0) | 19864 | 21.8% |
+| t0_step | 19785 | 21.7% |
+| t1_step | 18072 | 19.8% |
+
+**Optimizations applied, in order, with the structure each one relies on:**
+1. **Removed identity and zero CSR calls (180 → 52 µs).** Every state-update matrix is an identity block or zero. Also, `t0_state` = I on s1, `t1_state` = I on s0, `t0_p_p1`, `t1_p_p0` and `t1_t_t0` are zero, and the `__d_tau`/`__d_eta` parameter terms are −I. These became plain vector updates (for example s4' = s0 and s3' = d1·s3 + d2·t0). The new state alternates between `state` and `new_state` instead of being copied each iteration. The residual is computed only once, after the last step, because `FOM_USE_TOL=0`; the tolerance path is kept under `#if`.
+2. **Merged two coupling products into one (52 → 40 µs).** `t0_state__d_tth[:,s4]` is exactly −`t0_state__d_taux[:,s0]`, so the two terms become Kx·(taux·s0 − tth·s4): one product instead of two.
+3. **Extracted small blocks once at setup (40 → 16 µs).** In `fom_setup`, the provided operators are applied to unit vectors and the results stored in static arrays. Kx = [I; −I; G] and `t1_t_t0__d_eta` = −Kxᵀ, so the I/−I parts become additions and subtractions. G and the dense 16×16 D become contiguous column-major products instead of indexed CSR loops.
+4. **Split G by its checkerboard pattern (14.1 → 13.7 µs).** G[r][c] ≠ 0 only when r + c is odd, so it splits into two 8×8 halves on even and odd indices.
+5. **Gave the compiler aliasing guarantees (13.7 → 11.1 µs).** One iteration is a `restrict`-qualified step function, called twice per loop (A→B, then B→A), with t0 and t1 as local arrays. This removed clang's runtime alias checks and spills. The state and new-state buffers are always distinct, which makes `restrict` valid.
+6. **Reduced G to a 4×4 lower-triangular Toeplitz block (11.1 → 10.25 µs).** The two 8×8 halves of G are equal and each is [L; −L] with L = L4 ⊗ [−1, 1]. So G·x and Gᵀ·y each need only pairwise differences plus one 4×4 product (16 two-wide FMAs instead of 128). This also shortens the critical dependency chain t1 → x → G → t0 → Gᵀ → t1.
+7. **Applied a DFT to D's circulant blocks (10.25 → 10.05 µs; worth more once item 8 was in).** D is a 4×4 grid of symmetric circulant blocks circ(α, β, γ, β). A real 4-point DFT on the inner index diagonalizes all of them, giving 64 multiply-adds instead of 256. The 1/4 and 1/2 scale factors are folded in at setup as multiplications, so it stays division-free. This product depends only on the current state, so it is issued first and overlaps the t0 chain.
+8. **Kept the step out of line (10.05 → 7.6 µs).** Marking the step `noinline` leaves one compact copy of the body instead of three fully unrolled inlined copies. Clang then emits two-wide vector code and spills much less.
+
+**Tried and dropped (slower):** four-way split accumulators (spilled registers), dense D after item 8 (9.4 µs), and lane-pair rewrites of the D and G kernels (8.2–8.4 µs).
+FOMTOOLS-SUMMARY-END

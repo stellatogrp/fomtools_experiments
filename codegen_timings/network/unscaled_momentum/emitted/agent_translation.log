@@ -1,0 +1,29 @@
+Passes. One fix: the user said to use only the workspace buffers, so I'll drop the local `pterm` array and apply the parameter term each iteration instead.
+I wrote `src/fom_solver.c` and `make verify` passes: it prints `VERIFY OK`, with a worst error of 2.2e-15 across the 8 samples against a tolerance of 1e-6. `make bench` gives about 168 µs mean per solve (155 µs minimum).
+
+**How it works:**
+- **Reset:** `fom_setup` and `fom_update_params` both reset the state from `FOM_STATE_INIT`.
+- **Loop:** each iteration reads `xi` once through `fom_sched_xi(it)`, so a `max_iter` above 200 is handled safely.
+- **t0:** starts from `t0_c`, adds `t0_state @ state` with the provided helper, then clips elementwise to `t0_lo`/`t0_hi`.
+- **t1 and the state update:** the plain terms go into the output buffer. The two `__d_xi` terms go into the workspace `acc` buffer, which is then added in once as `out += xi * acc`. t1 then gets a relu.
+- **State swap:** the current and new state swap by pointer instead of copying. If the final state ends up in `new_state`, it is copied back to `state` at the end.
+
+**Constraints:** there are no linear solves in this spec, so `fom_lin_solve_*` is never called. Every matrix-vector product goes through the `fom_apply_*` helpers, and all numbers come from `fom_data`. There is no `/`, no dynamic memory, and no buffer outside the workspace.
+
+**Choices you may want to know about:**
+- I first kept a local stack array for the parameter term, since it doesn't change between iterations. I removed it to follow "use only the workspace buffers", so `su_p_p0 @ p0` is now recomputed every iteration. That's a 175×15 sparse product; if a small local array is acceptable, putting the hoist back would save that work.
+- With no tolerance set, there is no early stop. The residual is computed only on the last iteration, and the status is always `FOM_MAX_ITER_REACHED`.
+I wrote `src/fom_solver.c` and `make verify` passes: it prints `VERIFY OK`, with a worst error of 2.2e-15 across the 8 samples against a tolerance of 1e-6. `make bench` gives about 168 µs mean per solve (155 µs minimum).
+
+**How it works:**
+- **Reset:** `fom_setup` and `fom_update_params` both reset the state from `FOM_STATE_INIT`.
+- **Loop:** each iteration reads `xi` once through `fom_sched_xi(it)`, so a `max_iter` above 200 is handled safely.
+- **t0:** starts from `t0_c`, adds `t0_state @ state` with the provided helper, then clips elementwise to `t0_lo`/`t0_hi`.
+- **t1 and the state update:** the plain terms go into the output buffer. The two `__d_xi` terms go into the workspace `acc` buffer, which is then added in once as `out += xi * acc`. t1 then gets a relu.
+- **State swap:** the current and new state swap by pointer instead of copying. If the final state ends up in `new_state`, it is copied back to `state` at the end.
+
+**Constraints:** there are no linear solves in this spec, so `fom_lin_solve_*` is never called. Every matrix-vector product goes through the `fom_apply_*` helpers, and all numbers come from `fom_data`. There is no `/`, no dynamic memory, and no buffer outside the workspace.
+
+**Choices you may want to know about:**
+- I first kept a local stack array for the parameter term, since it doesn't change between iterations. I removed it to follow "use only the workspace buffers", so `su_p_p0 @ p0` is now recomputed every iteration. That's a 175×15 sparse product; if a small local array is acceptable, putting the hoist back would save that work.
+- With no tolerance set, there is no early stop. The residual is computed only on the last iteration, and the status is always `FOM_MAX_ITER_REACHED`.

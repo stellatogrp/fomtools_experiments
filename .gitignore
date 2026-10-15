@@ -20,3 +20,12 @@ diagnostics/
 uv.lock
 gurobi_logs/
 *.npz
+# Code generation timings: compiled solver outputs (sources, logs and timings stay tracked)
+codegen_timings/**/verify_bin
+codegen_timings/**/bench_bin
+codegen_timings/**/profile_bin
+codegen_timings/**/*.dylib
+codegen_timings/**/*.so
+codegen_timings/**/*.dSYM/
+run_*
+*draft*

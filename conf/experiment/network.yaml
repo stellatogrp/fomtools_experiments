@@ -13,5 +13,6 @@ problem:
   supply: 10.0
   x_lb: -6.0           # demand box [x_lb, x_ub]^nd
   x_ub: -4.0
+  warm_start: largest  # s^0 solves the LP at: largest = x_lb (the largest demand), center = box centre
   ruiz_iters: 30
   eta_scale: 0.5       # eta = eta_scale / ||[A_s; A_d]||

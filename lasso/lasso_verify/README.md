@@ -1,10 +1,10 @@
 # Lasso: verifying ISTA and FISTA on a nonstrongly convex instance
 
-ISTA and FISTA on a small Lasso whose data matrix is wide, so the problem is
-not strongly convex. The setup follows the sparse coding experiment of
-[Ranjan et al.](https://arxiv.org/abs/2412.11330) (Example 2.4 and Sec. 4.1),
-with a dense $D$ for now. The large-scale code generation experiments are in
-[`../lasso_codegen/`](../lasso_codegen/).
+ISTA and FISTA on a sparse coding Lasso whose dictionary is wide, so the problem
+is not strongly convex. The setup follows the sparse coding experiment of
+[Ranjan et al.](https://arxiv.org/abs/2412.11330) (Example 2.4 and Sec. 4.1).
+The instance is $10 \times 15$ with a sparse dictionary. The large-scale code
+generation experiments are in [`../lasso_codegen/`](../lasso_codegen/).
 
 ## Problem
 
@@ -14,17 +14,23 @@ $$
 \end{array}
 $$
 
-with parameter $x$, $\lambda = 0.1$ and $K = 1, \dots, 10$.
+with parameter $x$ and $\lambda = 0.1$.
 
-- **Data:** $D \in \mathbf{R}^{3 \times 5}$ has i.i.d. $N(0, 1/3)$ entries
-  (seed 0), and its columns are normalized. $D^\top D$ has rank 3, so the
-  problem is not strongly convex.
+- **Data:** $D \in \mathbf{R}^{10 \times 15}$ is a sparse Gaussian dictionary
+  (seed 0), as in the paper:
+  - Each entry is $N(0, 1/10)$ with probability 0.2 (`density` in
+    `conf/experiment/lasso.yaml`) and 0 otherwise.
+  - Every column and every row keeps at least one nonzero, so the columns can
+    be normalized and no measurement is identically zero. Then the columns are
+    normalized.
+  - The draw has 32 nonzeros (1 to 6 per column). $D^\top D$ has rank 10, so
+    the problem is not strongly convex.
 - **Parameter set:** draw 100 sparse $z^\star$, each entry $N(0,1)$ with
   probability 0.1 and otherwise 0. $X$ is the tightest box containing the
   points $Dz^\star$.
 - **Initial iterate:** $s^0$ is the min-norm least-squares solution
   ($\lambda = 0$) for one of those samples.
-- **Step:** $\eta = 1/\lambda_{\max}(D^\top D) = 0.366$ for both methods.
+- **Step:** $\eta = 1/\lambda_{\max}(D^\top D) = 0.250$ for both methods.
 
 ## Methods and the residual map $H$
 
@@ -49,112 +55,79 @@ with parameter $x$, $\lambda = 0.1$ and $K = 1, \dots, 10$.
 - **$K = 1, 2$ are identical:** $\gamma_0 = 0$, so FISTA equals ISTA for the
   first two iterations. Momentum first affects $u^3$.
 
-## Backends
+## Verification
 
-- **MIP:** Gurobi with Gurobi OBBT, and `MIPGap` set to 5%. The reported value
-  is Gurobi's best bound (`ObjBound`). It is a certified upper bound on the
-  worst case, and so on every sample. The incumbent (`ObjVal`) is kept in the
-  `objval` column of `results/milp_bounds.csv`.
-- **Simulator:** 10,000 uniform samples of $x$ in $X$. The plot shows the
-  sample maximum for each $K$.
-- **SDP:** Clarabel with Gurobi OBBT, on the 2-norm, with all five cuts (RLT,
-  triangle, ReLU envelope, cross, subgradient monotonicity). fomtools builds
-  the cuts on its chordal cut set. `clarabel_dual.py` then couples every PSD
-  cone into one cone over the whole moment matrix, and solves the dual so that
-  Clarabel's own chordal decomposition can split it. This is the same patch as
-  in the portfolio experiment. The results need fomtools with the soft-threshold
-  hull rows (branch `vr/tightening`, see below). fomtools maximizes the squared
-  2-norm, and the tables report its square root.
-- **Exact (MIQP):** the 2-norm worst case from Gurobi (`NonConvex=2`, 1e-4 gap,
-  best bound), as the reference for the SDP.
+Each method runs through the cluster driver (`python -m fomexp.run`, settings in
+`conf/`). See [`README_cluster.md`](../../README_cluster.md).
+
+- **MIP:** Gurobi with Gurobi OBBT, on the ∞-norm, with `MIPGap` 5%, `MIPFocus`
+  2 and a 3600 s limit per $K$ (16 threads). $K = 1, 2, \dots$ run on one
+  verifier, so the worst case at $K-1$ warm-starts $K$.
+  - The best of 10,000 samples is also given as a MIP start.
+  - The reported bound is Gurobi's best bound (`ObjBound`). It is a certified
+    upper bound on the worst case, even when a $K$ hits the time limit.
+  - The loop stops when the next $K$ would overrun the 20 h budget.
+- **Simulator:** 1,000 uniform samples of $x$ in $X$, cross-checked against
+  the NumPy iteration in `problem.py`. The tables show the sample maximum.
 
 ## Results
 
-### MILP (∞-norm, K = 1..10)
+Run `results/run_003`. **It is still running.** These numbers are a snapshot
+from 2026-10-13, about 06:26 UTC: ISTA was on $K = 19$ and FISTA on $K = 10$.
 
-| K | ISTA MIP bound | ISTA sample max | FISTA MIP bound | FISTA sample max |
-|---:|---:|---:|---:|---:|
-| 1 | 0.6218 | 0.5751 | 0.6218 | 0.5751 |
-| 2 | 0.3017 | 0.2827 | 0.3017 | 0.2827 |
-| 3 | 0.2262 | 0.2155 | 0.2085 | 0.1984 |
-| 4 | 0.1993 | 0.1878 | 0.1823 | 0.1700 |
-| 5 | 0.1843 | 0.1716 | 0.1604 | 0.1471 |
-| 6 | 0.1798 | 0.1607 | 0.1347 | 0.1244 |
-| 7 | 0.1660 | 0.1464 | 0.1177 | 0.1051 |
-| 8 | 0.1555 | 0.1346 | 0.1036 | 0.0923 |
-| 9 | 0.1418 | 0.1251 | 0.1059 | 0.0827 |
-| 10 | 0.1296 | 0.1173 | 0.1119 | 0.0950 |
+| K | ISTA bound | ISTA incumbent | ISTA sample max | ISTA time | FISTA bound | FISTA incumbent | FISTA sample max | FISTA time |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 2.2135 | 2.1911 | 1.8204 | 0.0 s | 2.2135 | 2.1911 | 1.8204 | 0.0 s |
+| 2 | 1.4802 | 1.4209 | 1.3879 | 0.0 s | 1.4802 | 1.4209 | 1.3879 | 0.0 s |
+| 3 | 1.1170 | 1.1103 | 1.0594 | 0.1 s | 1.0228 | 1.0048 | 0.9668 | 0.1 s |
+| 4 | 0.8886 | 0.8504 | 0.8095 | 0.0 s | 0.6736 | 0.6736 | 0.6000 | 0.3 s |
+| 5 | 0.6988 | 0.6832 | 0.6192 | 0.4 s | 0.4937 | 0.4760 | 0.3860 | 1.1 s |
+| 6 | 0.5875 | 0.5867 | 0.4742 | 0.7 s | 0.4170 | 0.4122 | 0.2834 | 1.2 s |
+| 7 | 0.5171 | 0.4928 | 0.3905 | 1.0 s | 0.3557 | 0.3406 | 0.2193 | 2.5 s |
+| 8 | 0.4847 | 0.4633 | 0.3360 | 1.8 s | 0.2666 | 0.2554 | 0.1867 | 7.4 s |
+| 9 | 0.4517 | 0.4348 | 0.2905 | 1.8 s | 0.2065 | 0.1967 | 0.1530 | 712.9 s |
+| 10 | 0.4198 | 0.4011 | 0.2602 | 1.5 s | | | | |
+| 11 | 0.3716 | 0.3701 | 0.2380 | 2.3 s | | | | |
+| 12 | 0.3576 | 0.3414 | 0.2194 | 2.6 s | | | | |
+| 13 | 0.3235 | 0.3132 | 0.1991 | 3.3 s | | | | |
+| 14 | 0.2916 | 0.2796 | 0.1840 | 6.6 s | | | | |
+| 15 | 0.2605 | 0.2510 | 0.1703 | 20.5 s | | | | |
+| 16 | 0.2373 | 0.2262 | 0.1579 | 35.4 s | | | | |
+| 17 | 0.2147 | 0.2045 | 0.1487 | 51.4 s | | | | |
+| 18 | 0.2091 | 0.2015 | 0.1431 | 319.0 s | | | | |
 
-Solve times (one MIP per $K$):
+Times are Gurobi's runtime for each $K$.
 
-| K | ISTA MIP | FISTA MIP |
-|---:|---:|---:|
-| 1 | 0.01 s | 0.01 s |
-| 2 | 0.02 s | 0.02 s |
-| 3 | 0.04 s | 0.05 s |
-| 4 | 0.12 s | 0.07 s |
-| 5 | 0.25 s | 0.29 s |
-| 6 | 0.51 s | 0.97 s |
-| 7 | 0.32 s | 2.71 s |
-| 8 | 0.57 s | 14.3 s |
-| 9 | 1.42 s | 34.2 s |
-| 10 | 2.22 s | 62.4 s |
-
-- **FISTA pulls ahead from K = 3.** At K = 8 its certified bound is 33% below ISTA's (0.104 vs 0.156).
-- **FISTA is not monotone.** Its bound rises after K = 8, and so does its incumbent: 0.099, 0.101, 0.107 for K = 8, 9, 10. Its sample max rises at K = 10. ISTA decreases at every K.
-- **The bound equals the incumbent through K = 5 for ISTA and K = 6 for FISTA.** After that it sits up to 5% above the incumbent, as the gap allows.
-- **FISTA MIPs get slower past K = 7.** They take 14 s at K = 8 and 62 s at K = 10, while every ISTA MIP stays under 3 s. The 5% gap barely changed these times, so most of the time is not spent closing the gap. The full run takes about 2 minutes.
-
-![milp](results/lasso_milp.png)
-
-### SDP (2-norm, K = 1..3)
-
-| K | moment matrix | ISTA SDP | ISTA exact | ISTA sample max | FISTA SDP | FISTA exact | FISTA sample max |
-|---:|---:|---:|---:|---:|---:|---:|---:|
-| 1 | 24 × 24 | 0.8718 | 0.8649 | 0.8362 | 0.8718 | 0.8649 | 0.8362 |
-| 2 | 39 × 39 | 0.3400 | 0.3362 | 0.3161 | 0.3400 | 0.3362 | 0.3161 |
-| 3 | 54 × 54 | 0.2769 | 0.2719 | 0.2630 | 0.2693 | 0.2649 | 0.2521 |
-
-Solve times (one solve per $K$):
-
-| K | ISTA SDP | ISTA exact | FISTA SDP | FISTA exact |
-|---:|---:|---:|---:|---:|
-| 1 | 0.57 s | 0.10 s | 0.59 s | 0.10 s |
-| 2 | 3.74 s | 10.1 s | 4.77 s | 9.80 s |
-| 3 | 3.34 s | 55.9 s | 3.93 s | 159.7 s |
-
-- **The SDP is within 2% of the exact worst case** at every $K$ (0.8%, 1.1%,
-  1.8% for ISTA), and it is much cheaper: at $K = 3$ the exact MIQP is 17x
-  (ISTA) and 40x (FISTA) slower.
-- **This needs the soft-threshold hull rows in fomtools.** The SDP writes
-  $\mathrm{soft}(v) = \mathrm{relu}(v - \lambda) - \mathrm{relu}(-v - \lambda)$,
-  and before the fix nothing tied the two pieces back to $v$. In particular,
-  nothing said that $v - \mathrm{soft}(v) = \mathrm{clip}(v, -\lambda, \lambda)$
-  stays in $[-\lambda, \lambda]$. The SDP was then 1.55, 1.14, 0.93 for ISTA
-  (1.8x–3.4x the exact value).
-  - **The fix:** fomtools now registers the convex hull of $v \mapsto
-    \mathrm{soft}(v)$ over the input bounds: the two lines and two chords. The
-    inequality cuts multiply its rows by each other and by the bounds of $x$.
-- **Every solve from $K = 2$ ended "AlmostSolved"**, meaning reduced accuracy
-  (the `status` column of `results/sdp_bounds.csv`). The values are still at
-  least the exact MIQP value.
-
-![sdp](results/lasso_sdp.png)
+- **Every finished $K$ reached the 5% gap.** That is through $K = 18$ for ISTA
+  and $K = 9$ for FISTA.
+- **FISTA pulls ahead from $K = 3$.** At $K = 9$ its certified bound is 54%
+  below ISTA's (0.207 vs 0.452).
+- **Sampling underestimates the worst case.** The incumbent exceeds the sample
+  max by up to 57% for ISTA (0.313 vs 0.199 at $K = 13$) and 29% for FISTA at
+  $K = 9$.
+- **FISTA gets hard first.** It needs under 10 s per $K$ through $K = 8$, then
+  713 s at $K = 9$. ISTA stays under a minute through $K = 17$.
+  - The relaxation is about as loose in absolute terms for both methods, but
+    FISTA's worst case is smaller. At $K = 8$ the root bound is 2.2× the
+    incumbent for FISTA and 1.5× for ISTA, so the same 5% relative gap takes
+    far more branching (9,814 vs 1,260 nodes).
+- **The sparse dictionary is what makes this size tractable.** The same size
+  with a dense $D$ (`results/run_002`) needed 3,113 s at $K = 18$ for ISTA, and
+  FISTA timed out from $K = 9$ (bound 0.280 at a 12% gap).
 
 ## Reproduce
 
 ```sh
-cd lasso/lasso_verify
-../../.venv/bin/python verify.py milp   # results/milp_bounds.csv (about 2 min)
-../../.venv/bin/python verify.py sdp    # results/sdp_bounds.csv (about 4 min, mostly the exact MIQP)
-../../.venv/bin/python check.py         # sanity checks
-../../.venv/bin/python plot.py          # results/lasso_{milp,sdp}.{pdf,png} and *_wide.csv
+# cluster (both methods, one array task each, into a new results/run_NNN)
+bash slurm/submit.sh --exp lasso experiment.problem.m=10 experiment.problem.n=15
+
+# or locally, e.g. a short check up to K = 6
+.venv/bin/python -m fomexp.run experiment=lasso experiment.problem.m=10 experiment.problem.n=15 \
+    schedule.k_max=6
+
+# laptop, after ./sync.sh --pull lasso
+uv run python -m fomexp.collect lasso run_003
 ```
 
-`check.py` confirms three things:
-- Both methods reach the CVXPY (Clarabel) Lasso objective value. Objective
-  values are compared rather than $u$, because the minimizer need not be unique.
-- $H(s^k - s^{k-1})$ equals the KKT residual computed directly from $u^k$.
-- The simulator matches the NumPy reference, and sampled residual ≤ MIP or SDP
-  bound for every study, method and $K$. In the SDP study it also checks
-  sampled ≤ exact (MIQP) ≤ SDP.
+`verify.py`, `check.py` and `plot.py` still build the earlier $3 \times 5$
+instance (the module constants in `problem.py`), and write to `results/`.

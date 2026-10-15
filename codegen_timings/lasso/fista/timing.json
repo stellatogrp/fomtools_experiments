@@ -1,0 +1,86 @@
+{
+  "experiment": "lasso",
+  "variant": "fista",
+  "iterations": 200,
+  "verified_run": "lasso/lasso_verify/results/run_002",
+  "numpy_us": 629.7295331023633,
+  "translated_us": 25.53,
+  "optimized_us": 5.448,
+  "speedup_translation": 24.66625668242708,
+  "speedup_optimization": 4.686123348017621,
+  "speedup_total": 115.5891213477172,
+  "optimization_kept": true,
+  "optimization_notes": "",
+  "max_abs_dev": {
+    "translated": {
+      "verified_set": 6.972200594645983e-14
+    },
+    "optimized": {
+      "verified_set": 4.163336342344337e-14
+    }
+  },
+  "timing_rounds": {
+    "numpy": [
+      699.9380129855126,
+      622.0415234565735,
+      610.8130037318915,
+      644.1455043386668,
+      629.7295331023633,
+      636.2914864439517,
+      622.8750280570239
+    ],
+    "translated": [
+      25.714,
+      23.517,
+      25.5304,
+      25.01,
+      25.53,
+      25.898,
+      25.3844
+    ],
+    "optimized": [
+      4.5364,
+      5.448,
+      5.4886,
+      5.1916,
+      5.5524,
+      4.8936,
+      5.5068
+    ]
+  },
+  "agent_wall_s": {
+    "translation": 35.960102796554565,
+    "code_optimization": 141.57317113876343
+  },
+  "agent_budgets_s": {
+    "translation": 600,
+    "code_optimization": 600
+  },
+  "check": {
+    "numpy_vs_verify_recurrence": 0.0,
+    "oracle_vs_numpy_max_rel": 3.683150229025431e-14,
+    "state_dim": 30,
+    "params": {
+      "p0": 10
+    }
+  },
+  "info": {
+    "m": 10,
+    "n": 15,
+    "lambd": 0.1,
+    "eta": 0.2909358740902483,
+    "method": "fista"
+  },
+  "machine": {
+    "cpu": "Apple M5",
+    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 17.0.0 (clang-1700.6.3.2)",
+    "python": "3.13.11",
+    "numpy": "2.5.3",
+    "fomtools_commit": "96eafd2",
+    "fomtools_branch": "vr/codegen_rename",
+    "fomtools_path": "/Users/vranjan/Research/2026/fomtools/fomtools"
+  },
+  "started_utc": "2026-10-12T15:46:00+00:00",
+  "finished_utc": "2026-10-12T15:49:02+00:00"
+}

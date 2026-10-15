@@ -30,10 +30,13 @@ def make_problem(cfg, K: int) -> NetworkProblem:
     c = rng.uniform(*map(float, cfg.capacity_range), ne)
     b_s = np.full(ns, float(cfg.supply))
     x_lb, x_ub = np.full(nd, float(cfg.x_lb)), np.full(nd, float(cfg.x_ub))
-    # Warm start at the largest demand (see problem.make_problem).
-    z0, v0, w0, _ = _solve_lp(A_s, A_d, mu, c, b_s, x_lb)
+    # Warm start at the largest demand (see problem.make_problem) or at the box centre.
+    # Either way every demand in the box is feasible, since x_lb is (checked here).
+    _solve_lp(A_s, A_d, mu, c, b_s, x_lb)
+    x0 = {"largest": x_lb, "center": (x_lb + x_ub) / 2}[str(cfg.get("warm_start", "largest"))]
+    z0, v0, w0, _ = _solve_lp(A_s, A_d, mu, c, b_s, x0)
     problem = NetworkProblem(A_s, A_d, g, mu, c, b_s, x_lb, x_ub, z0, v0, w0, K)
-    assert kkt_residual(problem, z0, v0, w0, x_lb) < 1e-6
+    assert kkt_residual(problem, z0, v0, w0, x0) < 1e-6
     return problem
 
 

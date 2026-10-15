@@ -1,0 +1,125 @@
+{
+  "name": "lasso_fista",
+  "dtype": "float64",
+  "unrolled": false,
+  "factorizations": {},
+  "termination": {
+    "kind": "max_iters",
+    "max_iters": 200,
+    "tol": null,
+    "check_termination": 1
+  },
+  "params": [
+    {
+      "name": "p0",
+      "dim": 10
+    }
+  ],
+  "state": {
+    "dim": 30,
+    "slots": [
+      [
+        "s0",
+        15
+      ],
+      [
+        "s1",
+        15
+      ]
+    ]
+  },
+  "body": [
+    {
+      "name": "t0",
+      "out_dim": 15,
+      "linear_op": {
+        "out_dim": 15,
+        "terms": [
+          {
+            "source": "state",
+            "matrix": "t0_state",
+            "scale": null
+          },
+          {
+            "source": "state",
+            "matrix": "t0_state__d_gamma",
+            "scale": "gamma"
+          },
+          {
+            "source": "param:p0",
+            "matrix": "t0_p_p0",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "soft_threshold",
+        "lambd": 0.029093587409024832,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    }
+  ],
+  "state_update": {
+    "out_dim": 30,
+    "terms": [
+      {
+        "source": "state",
+        "matrix": "su_state",
+        "scale": null
+      },
+      {
+        "source": "tmp:t0",
+        "matrix": "su_t_t0",
+        "scale": null
+      }
+    ],
+    "const": null
+  },
+  "matrices": {
+    "t0_state": {
+      "shape": [
+        15,
+        30
+      ],
+      "sparse": false
+    },
+    "t0_p_p0": {
+      "shape": [
+        15,
+        10
+      ],
+      "sparse": false
+    },
+    "su_state": {
+      "shape": [
+        30,
+        30
+      ],
+      "sparse": false
+    },
+    "su_t_t0": {
+      "shape": [
+        30,
+        15
+      ],
+      "sparse": false
+    },
+    "t0_state__d_gamma": {
+      "shape": [
+        15,
+        30
+      ],
+      "sparse": false
+    }
+  },
+  "schedules": {
+    "gamma": {
+      "len": 200
+    }
+  }
+}

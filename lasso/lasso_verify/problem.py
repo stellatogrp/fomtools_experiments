@@ -3,8 +3,8 @@
 The problem is ``minimize (1/2)||Du - x||² + lambda ||u||₁`` with the
 measurement ``x`` as the parameter. ``D`` is wide (``P < N``), so ``DᵀD`` is
 singular and the problem is not strongly convex. The data follow the sparse
-coding setup of Ranjan et al. (arXiv 2412.11330, Example 2.4 and Sec. 4.1),
-with a dense ``D`` for now.
+coding setup of Ranjan et al. (arXiv 2412.11330, Example 2.4 and Sec. 4.1):
+``D`` is a sparse Gaussian dictionary with unit-norm columns.
 
 Both methods report the scaled fixed-point residual ``H(s^K - s^{K-1})`` from
 Sec. 4.1 of that paper, which equals the Lasso KKT residual at ``u^K``:
@@ -26,6 +26,7 @@ SEED = 0
 LAMBD = 0.1
 N_STAR = 100
 P_STAR = 0.1
+DENSITY = 0.2  # fraction of nonzero entries of D
 METHODS = ("ista", "fista")
 
 
@@ -53,9 +54,23 @@ class LassoProblem:
         return self.D.T @ self.D - np.eye(self.n) / self.eta
 
 
-def make_D(rng: np.random.Generator) -> np.ndarray:
-    """Gaussian ``N(0, 1/P)`` entries with unit-norm columns."""
-    D = rng.normal(scale=np.sqrt(1.0 / P), size=(P, N))
+def make_D(
+    rng: np.random.Generator, m: int = P, n: int = N, density: float = DENSITY
+) -> np.ndarray:
+    """Gaussian ``N(0, 1/m)`` entries, each kept with probability ``density``, unit-norm columns.
+
+    Every column keeps at least one nonzero (a random row) so it can be normalized,
+    and every row keeps one (a random column) so no measurement is identically zero.
+    With ``density = 1`` no mask is drawn, so the draws match the earlier dense ``D``.
+    """
+    D = rng.normal(scale=np.sqrt(1.0 / m), size=(m, n))
+    if density < 1.0:
+        mask = rng.random((m, n)) < density
+        rows = rng.integers(m, size=n)
+        mask[rows, np.arange(n)] |= ~mask.any(axis=0)
+        cols = rng.integers(n, size=m)
+        mask[np.arange(m), cols] |= ~mask.any(axis=1)
+        D = D * mask
     return D / np.linalg.norm(D, axis=0)
 
 

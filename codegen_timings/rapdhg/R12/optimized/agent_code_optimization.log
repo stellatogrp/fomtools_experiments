@@ -1,0 +1,118 @@
+Parsing the operator matrices to understand their structure.
+Baseline is 199 µs, and the state update takes about 62% of it. Next I'm rewriting the solver into one fused pass that uses the operator structure.
+Down to 42 µs (from 199). Next: compute the residual only when it is actually used.
+~24 µs now, with t1 and t0 (the small matvecs) the hottest. Next I'm trying dense vs CSR for the K and Kᵀ blocks.
+Dense is slower: without -ffast-math the reductions don't vectorize. Reverting, then trying a transposed (column-contiguous) layout for E.
+24 → 21 µs. Cleaning up the extraction interface before continuing.
+t0 (the K-matvec CSR gather with short rows) is now hottest. Trying column-oriented (CSC scatter) accumulation for K.
+CSC gives only ~1%, which is within noise. Trying to shorten the dependency chain in the dense E matvec by splitting it across two accumulators.
+Also marginal. To find where the remaining ~100 ns/iteration goes, I'm timing knock-out variants (built from a scratch copy, not checked).
+Splitting K didn't help, so the cost is latency along the serial chain x→t0→t1→x rather than loop overhead. Trying shorter reduction chains in the sparse row dot products.
+The machine got noisy (the min is still 19 µs). Re-running the two variants interleaved.
+The two are indistinguishable, so I'm keeping the simpler CSC version. Running the final verify, profile and bench.
+The solver went from 199 µs to about 21–24 µs per solve, roughly 8–9× faster. `make verify` still prints `VERIFY OK`, with worst error 7.3e-13 against the 1e-6 tolerance. I only edited `src/fom_solver.c`, and it stays allocation-free and division-free.
+
+The speedup comes from noticing that most of the iteration's operators are identity, −identity or zero blocks. I apply those directly, and pull the three blocks that carry real numbers out of the provided `fom_apply_*` helpers once at setup. The result now depends on that block structure: if the operator data changed shape, the solver would need revisiting. The three extracted blocks go into fixed-size static arrays, so the matrix values themselves are not copied into the solver source.
+
+Two things to know:
+- **The residual is computed only on the last iteration.** That holds because `FOM_USE_TOL` is 0. If tolerance checking is turned on, it is computed every iteration again.
+- **The final timing is noisy.** It measured 20.6 µs on a quiet run and 24–25 µs on the last runs while the machine was loaded; the fastest single solve stayed at 19 µs.
+
+I didn't touch `release/fom_solver.c`, the marker-free production copy, so it still holds the old solver. If nothing regenerates it, it needs updating from `src/fom_solver.c`.
+
+FOMTOOLS-SUMMARY-BEGIN
+**Whole-solve time (`make bench`, 200 iterations, 160-dim state)**
+- Initial: mean_us ≈ 199 (199.3 / 198.4 on two runs).
+- Final: mean_us ≈ 20.6 on a quiet machine, 24–25 under load; min_us 19 in both cases.
+- Overall speedup: about **8–9.5×**.
+
+**Final profile (`make profile`; each region's time includes about 20 ns of timer overhead per call)**
+
+| region | total_us | calls | % |
+|---|---|---|---|
+| t0 (K·w scatter, then relu) | 77,588 | 1,000,000 | 46.2 |
+| t1 (E·s5 plus C·t0, then clip) | 55,769 | 1,000,000 | 33.2 |
+| su (in-place state update) | 34,560 | 1,000,000 | 20.6 |
+
+Initial profile for comparison: su 61.9%, t0 17.7%, t1 13.6%, residual 6.8%.
+
+**Optimizations applied**
+1. **Applied the identity, −identity and zero blocks directly** (largest gain: 199 → 42 µs).
+   - The 22 operators break down as follows. `t0_p_p1`, `t1_p_p0`, `t1_t_t0`, `su_t_t0` and `su_t_t1` are all zero. `t0_state`, `t1_state` and all `su_*` operators are unit shifts between state slots. `t0_p_p1__d_tau` and `t1_p_p0__d_eta` are −I.
+   - The state update collapses to:
+     - s0 ← g2·s2 + g1·t1
+     - s1 ← g2·s3 + g1·t0
+     - s2 ← d1·s2 + d2·t1
+     - s3 ← d1·s3 + d2·t0
+     - s4 ← s0 (old value)
+     - s5 ← m1·s2 + m2·t1
+   - This runs as two fused in-place passes. They replace 7 CSR sweeps over 160 rows plus the zero/accumulate/axpy passes, and drop the `new_state` copy.
+2. **Reduced t0 to one sparse product with K.** The `t0_state__d_tth` block on the s4 columns equals −K, where K is the `t0_state__d_taux` block on the s0 columns. So t0 = relu(s1 + K(taux·s0 − tth·s4) − tau·p1): one 112-nonzero product instead of two.
+3. **Extracted the non-trivial blocks once at setup, no hand-copied data.** `fom_setup` probes the provided `fom_apply_*` helpers with unit vectors and stores:
+   - K (48×16, 112 nonzeros) as CSC, scattered by column so there is no reduction chain;
+   - C = `t1_t_t0__d_eta` (equal to −Kᵀ) as CSR;
+   - E = `t1_state__d_eta` (16×16, dense) column-major.
+   All three live in fixed-size static arrays.
+4. **Residual computed only when it is observable** (42 → 26 µs). With `FOM_USE_TOL = 0` it only feeds `solution.residual` on the final iteration. Earlier iterations use an update with no residual; the version with the max-abs residual runs on the last iteration, or every iteration if tolerance checking is on.
+5. **Column-major E with two accumulators** (24 → 21 µs). The dense 16×16 product becomes contiguous, vectorized axpy steps, and the two accumulators halve the floating-point dependency chain.
+6. **Two accumulators in the C·t0 row dot products** (about 2–3%). This shortens the dependency chain on the serial x → t0 → t1 → x critical path.
+
+**Tried and rejected**
+- Dense K and C: about 2× slower, because without fast-math the reductions don't vectorize and dense column-major K is limited by the 768 multiply-adds.
+- Splitting K's 32 single-entry rows from a CSR remainder: indistinguishable within noise, so I kept the simpler CSC form.
+
+The last three kept changes each gained 3% or less, so I stopped there. The remaining time of about 100 ns per iteration is dominated by the serial dependency chain through two sparse products and one 16×16 dense product.
+FOMTOOLS-SUMMARY-END
+The solver went from 199 µs to about 21–24 µs per solve, roughly 8–9× faster. `make verify` still prints `VERIFY OK`, with worst error 7.3e-13 against the 1e-6 tolerance. I only edited `src/fom_solver.c`, and it stays allocation-free and division-free.
+
+The speedup comes from noticing that most of the iteration's operators are identity, −identity or zero blocks. I apply those directly, and pull the three blocks that carry real numbers out of the provided `fom_apply_*` helpers once at setup. The result now depends on that block structure: if the operator data changed shape, the solver would need revisiting. The three extracted blocks go into fixed-size static arrays, so the matrix values themselves are not copied into the solver source.
+
+Two things to know:
+- **The residual is computed only on the last iteration.** That holds because `FOM_USE_TOL` is 0. If tolerance checking is turned on, it is computed every iteration again.
+- **The final timing is noisy.** It measured 20.6 µs on a quiet run and 24–25 µs on the last runs while the machine was loaded; the fastest single solve stayed at 19 µs.
+
+I didn't touch `release/fom_solver.c`, the marker-free production copy, so it still holds the old solver. If nothing regenerates it, it needs updating from `src/fom_solver.c`.
+
+FOMTOOLS-SUMMARY-BEGIN
+**Whole-solve time (`make bench`, 200 iterations, 160-dim state)**
+- Initial: mean_us ≈ 199 (199.3 / 198.4 on two runs).
+- Final: mean_us ≈ 20.6 on a quiet machine, 24–25 under load; min_us 19 in both cases.
+- Overall speedup: about **8–9.5×**.
+
+**Final profile (`make profile`; each region's time includes about 20 ns of timer overhead per call)**
+
+| region | total_us | calls | % |
+|---|---|---|---|
+| t0 (K·w scatter, then relu) | 77,588 | 1,000,000 | 46.2 |
+| t1 (E·s5 plus C·t0, then clip) | 55,769 | 1,000,000 | 33.2 |
+| su (in-place state update) | 34,560 | 1,000,000 | 20.6 |
+
+Initial profile for comparison: su 61.9%, t0 17.7%, t1 13.6%, residual 6.8%.
+
+**Optimizations applied**
+1. **Applied the identity, −identity and zero blocks directly** (largest gain: 199 → 42 µs).
+   - The 22 operators break down as follows. `t0_p_p1`, `t1_p_p0`, `t1_t_t0`, `su_t_t0` and `su_t_t1` are all zero. `t0_state`, `t1_state` and all `su_*` operators are unit shifts between state slots. `t0_p_p1__d_tau` and `t1_p_p0__d_eta` are −I.
+   - The state update collapses to:
+     - s0 ← g2·s2 + g1·t1
+     - s1 ← g2·s3 + g1·t0
+     - s2 ← d1·s2 + d2·t1
+     - s3 ← d1·s3 + d2·t0
+     - s4 ← s0 (old value)
+     - s5 ← m1·s2 + m2·t1
+   - This runs as two fused in-place passes. They replace 7 CSR sweeps over 160 rows plus the zero/accumulate/axpy passes, and drop the `new_state` copy.
+2. **Reduced t0 to one sparse product with K.** The `t0_state__d_tth` block on the s4 columns equals −K, where K is the `t0_state__d_taux` block on the s0 columns. So t0 = relu(s1 + K(taux·s0 − tth·s4) − tau·p1): one 112-nonzero product instead of two.
+3. **Extracted the non-trivial blocks once at setup, no hand-copied data.** `fom_setup` probes the provided `fom_apply_*` helpers with unit vectors and stores:
+   - K (48×16, 112 nonzeros) as CSC, scattered by column so there is no reduction chain;
+   - C = `t1_t_t0__d_eta` (equal to −Kᵀ) as CSR;
+   - E = `t1_state__d_eta` (16×16, dense) column-major.
+   All three live in fixed-size static arrays.
+4. **Residual computed only when it is observable** (42 → 26 µs). With `FOM_USE_TOL = 0` it only feeds `solution.residual` on the final iteration. Earlier iterations use an update with no residual; the version with the max-abs residual runs on the last iteration, or every iteration if tolerance checking is on.
+5. **Column-major E with two accumulators** (24 → 21 µs). The dense 16×16 product becomes contiguous, vectorized axpy steps, and the two accumulators halve the floating-point dependency chain.
+6. **Two accumulators in the C·t0 row dot products** (about 2–3%). This shortens the dependency chain on the serial x → t0 → t1 → x critical path.
+
+**Tried and rejected**
+- Dense K and C: about 2× slower, because without fast-math the reductions don't vectorize and dense column-major K is limited by the 768 multiply-adds.
+- Splitting K's 32 single-entry rows from a CSR remainder: indistinguishable within noise, so I kept the simpler CSC form.
+
+The last three kept changes each gained 3% or less, so I stopped there. The remaining time of about 100 ns per iteration is dominated by the serial dependency chain through two sparse products and one 16×16 dense product.
+FOMTOOLS-SUMMARY-END

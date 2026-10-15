@@ -1,0 +1,93 @@
+{
+  "experiment": "rapdhg",
+  "variant": "pdhg",
+  "iterations": 200,
+  "verified_run": "control/rapdhg/verify/results/run_001",
+  "numpy_us": 1903.562486404553,
+  "translated_us": 140.5342,
+  "optimized_us": 26.537,
+  "speedup_translation": 13.545190326657519,
+  "speedup_optimization": 5.29578324603384,
+  "speedup_total": 71.73239199625252,
+  "optimization_kept": true,
+  "optimization_notes": "",
+  "max_abs_dev": {
+    "translated": {
+      "verified_set": 1.0880185641326534e-14
+    },
+    "optimized": {
+      "verified_set": 8.43769498715119e-15
+    }
+  },
+  "timing_rounds": {
+    "numpy": [
+      1890.9164646174759,
+      1898.4169873874635,
+      1902.0004838239402,
+      1903.562486404553,
+      1929.6249956823885,
+      1942.853967193514,
+      1930.499478476122
+    ],
+    "translated": [
+      139.9754,
+      140.4614,
+      140.5342,
+      142.7892,
+      142.4926,
+      139.5578,
+      142.1568
+    ],
+    "optimized": [
+      26.537,
+      25.3794,
+      26.4714,
+      27.0308,
+      26.5726,
+      26.8136,
+      25.7296
+    ]
+  },
+  "agent_wall_s": {
+    "translation": 42.876882791519165,
+    "code_optimization": 847.2024941444397
+  },
+  "agent_budgets_s": {
+    "translation": 600,
+    "code_optimization": 600
+  },
+  "check": {
+    "numpy_x_vs_verify_recurrence": 9.880984919163893e-15,
+    "oracle_vs_numpy_max_rel": 1.6475709685437323e-13,
+    "state_dim": 160,
+    "params": {
+      "p0": 16,
+      "p1": 48
+    }
+  },
+  "info": {
+    "method": "pdhg",
+    "restart": 12,
+    "horizon": 5,
+    "n": 16,
+    "m": 48,
+    "param_coords": [
+      0,
+      1,
+      5
+    ],
+    "state_dim": 160
+  },
+  "machine": {
+    "cpu": "Apple M5",
+    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 17.0.0 (clang-1700.6.3.2)",
+    "python": "3.13.11",
+    "numpy": "2.5.3",
+    "fomtools_commit": "96eafd2",
+    "fomtools_branch": "vr/codegen_rename",
+    "fomtools_path": "/Users/vranjan/Research/2026/fomtools/fomtools"
+  },
+  "started_utc": "2026-10-12T16:52:48+00:00",
+  "finished_utc": "2026-10-12T17:07:50+00:00"
+}

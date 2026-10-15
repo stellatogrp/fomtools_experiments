@@ -1,4 +1,4 @@
-"""Generate Phase-B-optimized CPU and CUDA solvers for ISTA and FISTA.
+"""Generate code-optimized CPU and CUDA solvers for ISTA and FISTA.
 
 Run from the repository root:
 
@@ -6,7 +6,7 @@ Run from the repository root:
 
 Generated artifacts are written beneath ``lasso/out/`` and are intentionally
 untracked. Each optimized directory retains ``OPTIMIZATIONS.md`` and the full
-Phase-A/Phase-B agent transcripts.
+translation and code optimization agent transcripts.
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ def _generate(algorithm: str, backend: str, max_iterations: int, force: bool) ->
         "out_dir": target,
         "config": _config(backend, max_iterations),
         "name": recording["name"],
-        "run_phase_b": True,
+        "code_optimization": True,
         "profile": True,
     }
     if algorithm == "ista":

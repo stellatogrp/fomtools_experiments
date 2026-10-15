@@ -1,0 +1,87 @@
+{
+  "experiment": "network",
+  "variant": "ruiz",
+  "iterations": 200,
+  "verified_run": "network/results/run_001",
+  "numpy_us": 2141.479024430737,
+  "translated_us": 108.3834,
+  "optimized_us": 12.0658,
+  "speedup_translation": 19.758367281620036,
+  "speedup_optimization": 8.98269488968821,
+  "speedup_total": 177.48338480919102,
+  "optimization_kept": true,
+  "optimization_notes": "",
+  "max_abs_dev": {
+    "translated": {
+      "verified_set": 8.645861804268407e-15
+    },
+    "optimized": {
+      "verified_set": 1.1102230246251565e-14
+    }
+  },
+  "timing_rounds": {
+    "numpy": [
+      2141.2505011539906,
+      2158.958464860916,
+      2141.479024430737,
+      2129.6460181474686,
+      2164.771023672074,
+      2135.229005943984,
+      2144.0415002871305
+    ],
+    "translated": [
+      110.9006,
+      107.5044,
+      108.1294,
+      110.5422,
+      108.3834,
+      116.7312,
+      107.1188
+    ],
+    "optimized": [
+      11.1108,
+      10.966,
+      12.1198,
+      12.0658,
+      11.8994,
+      13.0928,
+      12.555
+    ]
+  },
+  "agent_wall_s": {
+    "translation": 22.780296087265015,
+    "code_optimization": 380.73302698135376
+  },
+  "agent_budgets_s": {
+    "translation": 600,
+    "code_optimization": 600
+  },
+  "check": {
+    "oracle_vs_numpy_max_rel": 2.183423404847454e-15,
+    "state_dim": 175,
+    "params": {
+      "p0": 15
+    }
+  },
+  "info": {
+    "ns": 10,
+    "nd": 15,
+    "ne": 150,
+    "eta": 0.12831830742323286,
+    "momentum": false,
+    "ruiz": true,
+    "state_dim": 175
+  },
+  "machine": {
+    "cpu": "Apple M5",
+    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 17.0.0 (clang-1700.6.3.2)",
+    "python": "3.13.11",
+    "numpy": "2.5.3",
+    "fomtools_commit": "96eafd2",
+    "fomtools_branch": "vr/codegen_rename",
+    "fomtools_path": "/Users/vranjan/Research/2026/fomtools/fomtools"
+  },
+  "started_utc": "2026-10-12T16:01:48+00:00",
+  "finished_utc": "2026-10-12T16:08:41+00:00"
+}

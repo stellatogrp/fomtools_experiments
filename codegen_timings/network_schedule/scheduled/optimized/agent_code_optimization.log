@@ -1,0 +1,81 @@
+Down from 197 to 106 µs. Next I'm looking at the structure of the state-update operator.
+Fixing a variable-name clash in my table generator, then applying the fully fused, structure-specialized pass.
+Now at 35.6 µs (from 197). Checking whether the parameter term touches only the last 30 rows so I can drop redundant adds.
+The solver went from 197.5 µs to about 29.9 µs per solve (roughly 6.6×), and `make verify` still prints `VERIFY OK`. The worst error is 2.9e-15 against a 1e-6 tolerance.
+
+The timings are noisy. The last two `make bench` runs gave 29.85 and 29.94 µs, and one run gave 24.2 µs, so I'm quoting the slower figure. I only edited `src/fom_solver.c`. The problem has no linear solves (`factorizations` is empty), so `src/fom_linsolve.c` had nothing to optimize.
+
+The main change re-encodes the problem's matrices as fixed-pattern tables inside `src/fom_solver.c`. They are exact copies of the values in `fom_ops.c`, made by a one-off script. That script also checked every structural assumption (identity blocks, which rows are empty, the 20×30 index pattern) before relying on it. Because nothing reads `fom_ops.c` at build time, if `fom_ops.c` or the problem data are regenerated, these tables must be regenerated too.
+
+FOMTOOLS-SUMMARY-BEGIN
+**Whole-solve time:** 197.52 µs → 29.94 µs `mean_us` (last `make bench` run; one other run gave 24.17 µs). That is a **≈6.6× speedup**. `make verify` gives `VERIFY OK` with worst error 2.9e-15 (tolerance 1e-6).
+
+**Profile breakdown of the final solver (`make profile`, 50 iterations × 5000 solves):**
+
+| Region | Total time (µs) | Share |
+|---|---|---|
+| `fused_pass` (t0 clip, state update, t1 partial sums) | 133,783 | 85.3% |
+| `t1_reduce` (t1 row sums + relu, flow rows of the state update) | 16,709 | 10.7% |
+| `residual` (buffer swap; max-abs residual on the final iteration only) | 6,354 | 4.1% |
+
+**Optimizations applied:**
+1. **Sparse operators rebuilt from the problem's network structure.** The state is x (20 links × 30 flows, indexed 30j+k), then s1 (20 links), then s2 (30 flows).
+   - `t0_state` has exactly 3 nonzeros per row: x[q], s1[j] and s2[k].
+   - `t1_*` row j only touches x and t0 entries 30j..30j+29, plus s1[j].
+   - The only non-trivial rows of `su_*` are 620+k, which sum over j at index 30j+k (plus the s2[k] diagonal).
+
+   These became direct-indexed tables, which removed the CSR loops over 650 rows (mostly empty), the index gathers, and the 11 separate operator calls.
+2. **Each base matrix merged with its ξ-scaled companion.** Every `*__d_xi` matrix has the same nonzero pattern as its base matrix, so (B + ξD)·z is computed in one pass instead of a second accumulator buffer, extra memsets and an extra pass.
+3. **Identity and zero blocks dropped.**
+   - `su_t_t0` is the identity on rows 0..599 and `su_t_t1` is the identity on rows 600..619, so t0 and t1 are written straight into the new state.
+   - The parameter term `su_p_p0·p0` is zero on rows 0..619. It is computed once per solve and only added on rows 620..649.
+   - The t0/t1 scratch buffers are gone.
+4. **Everything fused into one sweep over (j, k).** One pass over the 600 link-flow entries computes the t0 clip, the state rows, the t1 partial products and the flow-row accumulators, so every input value is loaded once per iteration.
+5. **Vectorization-friendly layout.**
+   - The t1 per-entry partials go into the otherwise unused `work->acc` buffer. They are summed with k outer and j inner, so the 20 row sums run in parallel instead of one serial chain of adds.
+   - `restrict` pointers tell the compiler the input and output buffers don't overlap.
+6. **Less per-iteration overhead.**
+   - The state buffers are swapped by pointer instead of copied (copied back to `work->state` at the end).
+   - The residual is computed only when it's needed: `FOM_USE_TOL` is 0, so only on the final iteration for the report.
+
+All code still uses no dynamic allocation and no division. The `FOM_PROF_BEGIN/END` markers are kept around the three regions above.
+FOMTOOLS-SUMMARY-END
+The solver went from 197.5 µs to about 29.9 µs per solve (roughly 6.6×), and `make verify` still prints `VERIFY OK`. The worst error is 2.9e-15 against a 1e-6 tolerance.
+
+The timings are noisy. The last two `make bench` runs gave 29.85 and 29.94 µs, and one run gave 24.2 µs, so I'm quoting the slower figure. I only edited `src/fom_solver.c`. The problem has no linear solves (`factorizations` is empty), so `src/fom_linsolve.c` had nothing to optimize.
+
+The main change re-encodes the problem's matrices as fixed-pattern tables inside `src/fom_solver.c`. They are exact copies of the values in `fom_ops.c`, made by a one-off script. That script also checked every structural assumption (identity blocks, which rows are empty, the 20×30 index pattern) before relying on it. Because nothing reads `fom_ops.c` at build time, if `fom_ops.c` or the problem data are regenerated, these tables must be regenerated too.
+
+FOMTOOLS-SUMMARY-BEGIN
+**Whole-solve time:** 197.52 µs → 29.94 µs `mean_us` (last `make bench` run; one other run gave 24.17 µs). That is a **≈6.6× speedup**. `make verify` gives `VERIFY OK` with worst error 2.9e-15 (tolerance 1e-6).
+
+**Profile breakdown of the final solver (`make profile`, 50 iterations × 5000 solves):**
+
+| Region | Total time (µs) | Share |
+|---|---|---|
+| `fused_pass` (t0 clip, state update, t1 partial sums) | 133,783 | 85.3% |
+| `t1_reduce` (t1 row sums + relu, flow rows of the state update) | 16,709 | 10.7% |
+| `residual` (buffer swap; max-abs residual on the final iteration only) | 6,354 | 4.1% |
+
+**Optimizations applied:**
+1. **Sparse operators rebuilt from the problem's network structure.** The state is x (20 links × 30 flows, indexed 30j+k), then s1 (20 links), then s2 (30 flows).
+   - `t0_state` has exactly 3 nonzeros per row: x[q], s1[j] and s2[k].
+   - `t1_*` row j only touches x and t0 entries 30j..30j+29, plus s1[j].
+   - The only non-trivial rows of `su_*` are 620+k, which sum over j at index 30j+k (plus the s2[k] diagonal).
+
+   These became direct-indexed tables, which removed the CSR loops over 650 rows (mostly empty), the index gathers, and the 11 separate operator calls.
+2. **Each base matrix merged with its ξ-scaled companion.** Every `*__d_xi` matrix has the same nonzero pattern as its base matrix, so (B + ξD)·z is computed in one pass instead of a second accumulator buffer, extra memsets and an extra pass.
+3. **Identity and zero blocks dropped.**
+   - `su_t_t0` is the identity on rows 0..599 and `su_t_t1` is the identity on rows 600..619, so t0 and t1 are written straight into the new state.
+   - The parameter term `su_p_p0·p0` is zero on rows 0..619. It is computed once per solve and only added on rows 620..649.
+   - The t0/t1 scratch buffers are gone.
+4. **Everything fused into one sweep over (j, k).** One pass over the 600 link-flow entries computes the t0 clip, the state rows, the t1 partial products and the flow-row accumulators, so every input value is loaded once per iteration.
+5. **Vectorization-friendly layout.**
+   - The t1 per-entry partials go into the otherwise unused `work->acc` buffer. They are summed with k outer and j inner, so the 20 row sums run in parallel instead of one serial chain of adds.
+   - `restrict` pointers tell the compiler the input and output buffers don't overlap.
+6. **Less per-iteration overhead.**
+   - The state buffers are swapped by pointer instead of copied (copied back to `work->state` at the end).
+   - The residual is computed only when it's needed: `FOM_USE_TOL` is 0, so only on the final iteration for the report.
+
+All code still uses no dynamic allocation and no division. The `FOM_PROF_BEGIN/END` markers are kept around the three regions above.
+FOMTOOLS-SUMMARY-END

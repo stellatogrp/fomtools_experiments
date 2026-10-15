@@ -1,0 +1,27 @@
+The spec is structurally identical to the already-verified sibling `unscaled_momentum`; only the data differs. I'll reuse that implementation and verify.
+I wrote `src/fom_solver.c`, and `make verify` prints **VERIFY OK**. The worst max-abs error over the 8 samples is 7.1e-15, against a tolerance of 1e-6.
+
+This spec has exactly the same structure as the sibling `network/unscaled_momentum` solver, and the two directories have identical `fom_ops.h` and `fom_workspace.h`. So I reused that solver's code unchanged. All the coefficients are read from the generated `fom_data.c` and `fom_ops.c`, which is how the Ruiz-scaled data gets used. Nothing was hardcoded.
+
+How it meets the constraints:
+- **No allocation:** it uses only the workspace buffers, and swaps the `state` and `new_state` pointers instead of copying each iteration.
+- **No division:** a check confirmed the `/` operator never appears outside comments.
+- **Sparse products only:** every matrix-vector product goes through the provided `fom_apply_*` helpers.
+- **Schedule handling:** `fom_sched_xi(it)` is read once at the top of each iteration. The ξ-scaled terms are summed in a scratch buffer and multiplied by ξ once.
+- **Residual:** it's only computed on the last iteration, because termination is fixed at `max_iter` with no tolerance check.
+- **Reset:** `fom_setup` and `fom_update_params` both reset the state to `FOM_STATE_INIT`.
+
+I didn't run `make bench`, so I have no timing numbers for this one.
+I wrote `src/fom_solver.c`, and `make verify` prints **VERIFY OK**. The worst max-abs error over the 8 samples is 7.1e-15, against a tolerance of 1e-6.
+
+This spec has exactly the same structure as the sibling `network/unscaled_momentum` solver, and the two directories have identical `fom_ops.h` and `fom_workspace.h`. So I reused that solver's code unchanged. All the coefficients are read from the generated `fom_data.c` and `fom_ops.c`, which is how the Ruiz-scaled data gets used. Nothing was hardcoded.
+
+How it meets the constraints:
+- **No allocation:** it uses only the workspace buffers, and swaps the `state` and `new_state` pointers instead of copying each iteration.
+- **No division:** a check confirmed the `/` operator never appears outside comments.
+- **Sparse products only:** every matrix-vector product goes through the provided `fom_apply_*` helpers.
+- **Schedule handling:** `fom_sched_xi(it)` is read once at the top of each iteration. The ξ-scaled terms are summed in a scratch buffer and multiplied by ξ once.
+- **Residual:** it's only computed on the last iteration, because termination is fixed at `max_iter` with no tolerance check.
+- **Reset:** `fom_setup` and `fom_update_params` both reset the state to `FOM_STATE_INIT`.
+
+I didn't run `make bench`, so I have no timing numbers for this one.

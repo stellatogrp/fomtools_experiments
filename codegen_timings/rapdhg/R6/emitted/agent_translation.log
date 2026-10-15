@@ -1,0 +1,21 @@
+Reading the operator structure; next I'll write the solver.
+I wrote `src/fom_solver.c` and `make verify` passes: it prints `VERIFY OK` and exits 0. The worst error across the 8 samples is 1.6e-12, against a tolerance of 1e-6. `make bench` gives about 180 µs per solve (200 iterations), measured once.
+
+- **Constraints:** The code uses no dynamic memory, no variable-length arrays and no `/` division. All numbers come from `fom_data.c`. Every matrix product goes through the provided `fom_apply_*` helpers, and the only buffers used are the ones already in the workspace. The spec has no solve steps, so the linear-solve routines aren't called.
+- **Speed:**
+  - For `t0`, the three schedule-scaled terms go into separate parts of the `acc` buffer, so `t0` is finished in a single pass.
+  - In the state update, the terms that multiply `t0`/`t1` scale those short inputs (length 48 and 16) instead of scaling the 160-long result.
+  - A schedule-scaled term is skipped in an iteration where its coefficient is exactly zero. This happens a lot, because `g2` is zero in most iterations. It gives the same result unless the state contains NaN or infinity.
+- **Restart:** `fom_setup` and `fom_update_params` both reset the state to `FOM_STATE_INIT`. Because the spec has no tolerance, the solver always runs `max_iter` iterations, and the residual is reported but never ends the loop early.
+
+Your editor shows "file not found" errors on `fom_solver.c`. That's only because the editor isn't given the `include/` directory; the real build compiles without errors.
+I wrote `src/fom_solver.c` and `make verify` passes: it prints `VERIFY OK` and exits 0. The worst error across the 8 samples is 1.6e-12, against a tolerance of 1e-6. `make bench` gives about 180 µs per solve (200 iterations), measured once.
+
+- **Constraints:** The code uses no dynamic memory, no variable-length arrays and no `/` division. All numbers come from `fom_data.c`. Every matrix product goes through the provided `fom_apply_*` helpers, and the only buffers used are the ones already in the workspace. The spec has no solve steps, so the linear-solve routines aren't called.
+- **Speed:**
+  - For `t0`, the three schedule-scaled terms go into separate parts of the `acc` buffer, so `t0` is finished in a single pass.
+  - In the state update, the terms that multiply `t0`/`t1` scale those short inputs (length 48 and 16) instead of scaling the 160-long result.
+  - A schedule-scaled term is skipped in an iteration where its coefficient is exactly zero. This happens a lot, because `g2` is zero in most iterations. It gives the same result unless the state contains NaN or infinity.
+- **Restart:** `fom_setup` and `fom_update_params` both reset the state to `FOM_STATE_INIT`. Because the spec has no tolerance, the solver always runs `max_iter` iterations, and the residual is reported but never ends the loop early.
+
+Your editor shows "file not found" errors on `fom_solver.c`. That's only because the editor isn't given the `include/` directory; the real build compiles without errors.

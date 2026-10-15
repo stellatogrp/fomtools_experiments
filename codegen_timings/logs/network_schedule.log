@@ -1,0 +1,14 @@
+warning: Missing version constraint (e.g., a lower bound) for `clarabel`
+warning: Missing version constraint (e.g., a lower bound) for `cvxpy`
+warning: Missing version constraint (e.g., a lower bound) for `imageio`
+warning: Missing version constraint (e.g., a lower bound) for `matplotlib`
+warning: Missing version constraint (e.g., a lower bound) for `numpy`
+warning: Missing version constraint (e.g., a lower bound) for `osqp`
+warning: Missing version constraint (e.g., a lower bound) for `pillow`
+warning: Missing version constraint (e.g., a lower bound) for `scipy`
+[scheduled] pre-flight: {'oracle_vs_numpy_max_rel': 1.6213700957649793e-15, 'unrolled': False, 'body_steps': 2, 'coefficient_blocks': 15, 'coefficient_entries_dense': 2099320, 'coefficient_nonzeros': 8520, 'schedules': ['xi']}
+wrote /Users/vranjan/Research/2026/fomtools_experiments/codegen_timings/network_schedule/scheduled/optimized/OPTIMIZATIONS.md
+[scheduled] NumPy 648.5 us | translated 195.27 us | optimized 29.32 us (kept=True) | speedups 3.3x, 6.66x, 22.1x | max|C-NumPy| {'translated': 8.881784197001252e-15, 'optimized': 8.43769498715119e-15}
+[unrolled] pre-flight: {'oracle_vs_numpy_max_rel': 1.4078414447602164e-15, 'unrolled': True, 'body_steps': 149, 'coefficient_blocks': 217, 'coefficient_entries_dense': 4959920, 'coefficient_nonzeros': 150230, 'schedules': []}
+wrote /Users/vranjan/Research/2026/fomtools_experiments/codegen_timings/network_schedule/unrolled/optimized/OPTIMIZATIONS.md
+[unrolled] NumPy 649.1 us | translated 113.02 us | optimized 60.08 us (kept=True) | speedups 5.7x, 1.88x, 10.8x | max|C-NumPy| {'translated': 5.35682609381638e-15, 'optimized': 5.329070518200751e-15}

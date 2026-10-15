@@ -1,0 +1,335 @@
+{
+  "name": "portfolio_admm",
+  "dtype": "float64",
+  "unrolled": false,
+  "factorizations": {
+    "t3": {
+      "method": "ldlt",
+      "dim": 20
+    }
+  },
+  "termination": {
+    "kind": "max_iters",
+    "max_iters": 200,
+    "tol": null,
+    "check_termination": 1
+  },
+  "params": [
+    {
+      "name": "p0",
+      "dim": 10
+    }
+  ],
+  "state": {
+    "dim": 51,
+    "slots": [
+      [
+        "s0",
+        51
+      ]
+    ]
+  },
+  "body": [
+    {
+      "name": "t0",
+      "out_dim": 10,
+      "linear_op": {
+        "out_dim": 10,
+        "terms": [
+          {
+            "source": "state",
+            "matrix": "t0_state",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t1",
+      "out_dim": 10,
+      "linear_op": {
+        "out_dim": 10,
+        "terms": [
+          {
+            "source": "state",
+            "matrix": "t1_state",
+            "scale": null
+          },
+          {
+            "source": "param:p0",
+            "matrix": "t1_p_p0",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t2",
+      "out_dim": 10,
+      "linear_op": {
+        "out_dim": 10,
+        "terms": [
+          {
+            "source": "state",
+            "matrix": "t2_state",
+            "scale": null
+          },
+          {
+            "source": "param:p0",
+            "matrix": "t2_p_p0",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t3",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "state",
+            "matrix": "t3_state",
+            "scale": null
+          },
+          {
+            "source": "param:p0",
+            "matrix": "t3_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t0",
+            "matrix": "t3_t_t0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t1",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t2",
+            "matrix": "t3_t_t2",
+            "scale": null
+          }
+        ],
+        "const": "t3_c"
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": "t3"
+    }
+  ],
+  "state_update": {
+    "out_dim": 51,
+    "terms": [
+      {
+        "source": "state",
+        "matrix": "su_state",
+        "scale": null
+      },
+      {
+        "source": "tmp:t0",
+        "matrix": "su_t_t0",
+        "scale": null
+      },
+      {
+        "source": "tmp:t1",
+        "matrix": "su_t_t1",
+        "scale": null
+      },
+      {
+        "source": "tmp:t2",
+        "matrix": "su_t_t2",
+        "scale": null
+      },
+      {
+        "source": "tmp:t3",
+        "matrix": "su_t_t3",
+        "scale": null
+      },
+      {
+        "source": "param:p0",
+        "matrix": "su_p_p0",
+        "scale": null
+      }
+    ],
+    "const": "su_c"
+  },
+  "matrices": {
+    "t0_state": {
+      "shape": [
+        10,
+        51
+      ],
+      "sparse": false
+    },
+    "t0_lo": {
+      "shape": [
+        10
+      ],
+      "sparse": false
+    },
+    "t0_hi": {
+      "shape": [
+        10
+      ],
+      "sparse": false
+    },
+    "t1_state": {
+      "shape": [
+        10,
+        51
+      ],
+      "sparse": false
+    },
+    "t1_p_p0": {
+      "shape": [
+        10,
+        10
+      ],
+      "sparse": true
+    },
+    "t2_state": {
+      "shape": [
+        10,
+        51
+      ],
+      "sparse": false
+    },
+    "t2_p_p0": {
+      "shape": [
+        10,
+        10
+      ],
+      "sparse": true
+    },
+    "t3_state": {
+      "shape": [
+        20,
+        51
+      ],
+      "sparse": false
+    },
+    "t3_p_p0": {
+      "shape": [
+        20,
+        10
+      ],
+      "sparse": true
+    },
+    "t3_t_t0": {
+      "shape": [
+        20,
+        10
+      ],
+      "sparse": true
+    },
+    "t3_t_t1": {
+      "shape": [
+        20,
+        10
+      ],
+      "sparse": true
+    },
+    "t3_t_t2": {
+      "shape": [
+        20,
+        10
+      ],
+      "sparse": true
+    },
+    "t3_c": {
+      "shape": [
+        20
+      ],
+      "sparse": false
+    },
+    "su_state": {
+      "shape": [
+        51,
+        51
+      ],
+      "sparse": false
+    },
+    "su_t_t0": {
+      "shape": [
+        51,
+        10
+      ],
+      "sparse": false
+    },
+    "su_t_t1": {
+      "shape": [
+        51,
+        10
+      ],
+      "sparse": false
+    },
+    "su_t_t2": {
+      "shape": [
+        51,
+        10
+      ],
+      "sparse": false
+    },
+    "su_t_t3": {
+      "shape": [
+        51,
+        20
+      ],
+      "sparse": false
+    },
+    "su_p_p0": {
+      "shape": [
+        51,
+        10
+      ],
+      "sparse": false
+    },
+    "su_c": {
+      "shape": [
+        51
+      ],
+      "sparse": false
+    }
+  },
+  "schedules": {}
+}

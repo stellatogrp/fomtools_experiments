@@ -1,0 +1,34 @@
+I wrote `src/fom_solver.c` and `make verify` prints **VERIFY OK** over all 8 samples. The worst error is 1.4e-14, against a tolerance of 1e-6.
+
+What the solver does:
+- **Setup:** `fom_setup` and `fom_update_params` both reset the state to `FOM_STATE_INIT`, so every solve starts from the same point as the reference.
+- **Each iteration:** it computes `t0` as `t0_state @ x + gamma(it) * (t0_state__d_gamma @ x) + t0_p_p0 @ p0`, then soft-thresholds it with `FOM_T0_LAMBDA`. The state update is `su_state @ x + su_t_t0 @ t0`.
+- **Matrices:** all products go through the provided `fom_apply_*` helpers, and every number comes from `fom_data`. Nothing is hardcoded.
+- **Constraints:** there is no dynamic memory, no variable-length arrays and no `/` operator anywhere. It only uses the buffers already in the workspace.
+
+Speed-ups:
+- The `t0_p_p0 @ p0` term doesn't change between iterations, so it's computed once per solve and kept in the spare half of `work->acc`.
+- When `gamma` is 0 (the first two iterations), the `d_gamma` product is skipped.
+- Instead of copying the state each iteration, it swaps between `state` and `new_state`, with one copy at the end.
+- The residual is only computed on the last iteration, unless tolerance checking is on (`check_termination` set and `tol > 0`). In that case it's checked every iteration and the solve stops with `FOM_SOLVED` once the residual is at or below `tol`. The defaults have `tol = 0`, so the default run always does the full 200 iterations; that is the path verify exercised.
+
+The editor shows "file not found" errors for the headers. That's only because the editor isn't given the `-Iinclude` include path that the Makefile passes; the real build is clean.
+
+Separately, the Gmail and Google Calendar connectors need to be authorized in your claude.ai connector settings before they can be used. They weren't needed for this task.
+I wrote `src/fom_solver.c` and `make verify` prints **VERIFY OK** over all 8 samples. The worst error is 1.4e-14, against a tolerance of 1e-6.
+
+What the solver does:
+- **Setup:** `fom_setup` and `fom_update_params` both reset the state to `FOM_STATE_INIT`, so every solve starts from the same point as the reference.
+- **Each iteration:** it computes `t0` as `t0_state @ x + gamma(it) * (t0_state__d_gamma @ x) + t0_p_p0 @ p0`, then soft-thresholds it with `FOM_T0_LAMBDA`. The state update is `su_state @ x + su_t_t0 @ t0`.
+- **Matrices:** all products go through the provided `fom_apply_*` helpers, and every number comes from `fom_data`. Nothing is hardcoded.
+- **Constraints:** there is no dynamic memory, no variable-length arrays and no `/` operator anywhere. It only uses the buffers already in the workspace.
+
+Speed-ups:
+- The `t0_p_p0 @ p0` term doesn't change between iterations, so it's computed once per solve and kept in the spare half of `work->acc`.
+- When `gamma` is 0 (the first two iterations), the `d_gamma` product is skipped.
+- Instead of copying the state each iteration, it swaps between `state` and `new_state`, with one copy at the end.
+- The residual is only computed on the last iteration, unless tolerance checking is on (`check_termination` set and `tol > 0`). In that case it's checked every iteration and the solve stops with `FOM_SOLVED` once the residual is at or below `tol`. The defaults have `tol = 0`, so the default run always does the full 200 iterations; that is the path verify exercised.
+
+The editor shows "file not found" errors for the headers. That's only because the editor isn't given the `-Iinclude` include path that the Makefile passes; the real build is clean.
+
+Separately, the Gmail and Google Calendar connectors need to be authorized in your claude.ai connector settings before they can be used. They weren't needed for this task.

@@ -1,17 +1,17 @@
 """Emit two C solvers for one recorded iteration: as translated, and optimized.
 
 :func:`fomtools.codegen.generate.generate_code` runs both agent phases in one
-directory, and the optimization phase overwrites the translation it started from.
+directory, and the code optimization phase overwrites the translation it started from.
 That is right for shipping one solver and wrong here, where the two are the
 experiment: the emitted solver and the optimized solver are two implementations
 of the same algorithm and both have to fly.
 
 So the translation phase runs once, its verified directory is copied, and the
-optimization phase runs on the copy.  Both solvers then descend from the same
+code optimization phase runs on the copy.  Both solvers then descend from the same
 translation, which is what makes the comparison between them a statement about
-the optimization phase rather than about two independent agent runs.
+the code optimization phase rather than about two independent agent runs.
 
-The optimization phase is driven here rather than through ``generate_code``, and
+The code optimization phase is driven here rather than through ``generate_code``, and
 mirrors the gating in :mod:`fomtools.codegen.generate`: restore the deterministic
 files so only the solver body can have changed, require the result to still
 verify, require it to be no slower than what it started from, and fall back to
@@ -31,7 +31,7 @@ from pathlib import Path
 
 from fomtools.codegen import CodegenConfig, TerminationSpec
 from fomtools.codegen.agent.driver import AgentTask
-from fomtools.codegen.agent.prompts import phase_b_instructions
+from fomtools.codegen.agent.prompts import code_optimization_instructions
 from fomtools.codegen.emit import scaffold
 from fomtools.codegen.extract_scheduled import extract_scheduled_ir
 from fomtools.codegen.generate import extract_fom_ir, generate_code, optimization_is_faster
@@ -161,7 +161,7 @@ def translate(
             config=config,
             driver=driver or default_driver(config),
             name=name,
-            run_phase_b=False,
+            code_optimization=False,
             schedules=recording.schedules,
         )
     else:
@@ -174,7 +174,7 @@ def translate(
             state=recording.state,
             params=recording.params,
             name=name,
-            run_phase_b=False,
+            code_optimization=False,
             iterates=recording.iterates,
             param_values=recording.param_values(boxes),
         )
@@ -188,7 +188,7 @@ def translate(
 
 @dataclass
 class OptimizeResult:
-    """Outcome of running the optimization phase on a copy of the emitted solver."""
+    """Outcome of running the code optimization phase on a copy of the emitted solver."""
 
     path: Path
     kept: bool
@@ -205,7 +205,7 @@ def optimize(
     driver=None,
     force: bool = False,
 ) -> OptimizeResult:
-    """Copy the emitted solver and run the optimization phase on the copy."""
+    """Copy the emitted solver and run the code optimization phase on the copy."""
     config = config or config_for()
     optimized = Path(out_dir) / "optimized"
 
@@ -225,20 +225,20 @@ def optimize(
         workdir=optimized,
         solver_rel_path=target.solver_source_path(),
         verify_cmd=target.verify_command(),
-        instructions=phase_b_instructions(ir, target),
-        phase="B_optimize",
+        instructions=code_optimization_instructions(ir, target),
+        phase="code_optimization",
         max_turns=config.agent_optimize_max_turns,
         bench_cmd=["make", "bench"],
         restore_hook=lambda: target.scaffold(ir, optimized),
     )
     outcome = (driver or default_driver(config)).run(task)
     target.scaffold(ir, optimized)  # discard any edit outside the solver body
-    (optimized / "agent_phase_b_optimize.log").write_text(outcome.agent_log or outcome.log)
+    (optimized / "agent_code_optimization.log").write_text(outcome.agent_log or outcome.log)
 
     after = solver_path.read_text()
     if after == before:
         return OptimizeResult(
-            path=optimized, kept=False, notes="the optimization phase left the source unchanged"
+            path=optimized, kept=False, notes="the code optimization phase left the source unchanged"
         )
 
     recheck = build_and_verify(optimized, target)
@@ -281,7 +281,7 @@ def _write_report(
 ) -> None:
     """Write ``OPTIMIZATIONS.md``, as :func:`generate_code` does on its own path.
 
-    Running the optimization phase here rather than through ``generate_code`` is
+    Running the code optimization phase here rather than through ``generate_code`` is
     what lets both solvers survive, but it also skips the postprocessing that
     records what the phase did.  The agent's summary is the only account of which
     structure it exploited and what it tried and rejected, and it exists only
@@ -304,16 +304,16 @@ def _write_report(
     if fast is not None and slow is not None:
         speedup = f"{slow / fast:.2f}x" if fast else "n/a"
         timing = (
-            f"phase A (emitted)   {slow:9.1f} us/solve\n"
-            f"phase B (optimized) {fast:9.1f} us/solve\n"
-            f"speedup             {speedup:>9}"
+            f"translated (emitted) {slow:9.1f} us/solve\n"
+            f"optimized            {fast:9.1f} us/solve\n"
+            f"speedup              {speedup:>9}"
         )
     diff = "".join(
         difflib.unified_diff(
             before.splitlines(keepends=True),
             after.splitlines(keepends=True),
-            fromfile="phase A (emitted)",
-            tofile="phase B (optimized)",
+            fromfile="translated (emitted)",
+            tofile="optimized",
         )
     )
     path = write_optimization_report(

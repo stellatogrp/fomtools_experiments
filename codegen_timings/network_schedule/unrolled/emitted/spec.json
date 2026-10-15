@@ -1,0 +1,6877 @@
+{
+  "name": "network_unrolled",
+  "dtype": "float64",
+  "unrolled": true,
+  "factorizations": {},
+  "termination": {
+    "kind": "max_iters",
+    "max_iters": 1,
+    "tol": null,
+    "check_termination": 1
+  },
+  "params": [
+    {
+      "name": "p0",
+      "dim": 30
+    }
+  ],
+  "state": {
+    "dim": 650,
+    "slots": [
+      [
+        "s0",
+        600
+      ],
+      [
+        "s1",
+        20
+      ],
+      [
+        "s2",
+        30
+      ]
+    ]
+  },
+  "body": [
+    {
+      "name": "t0",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "state",
+            "matrix": "t0_state",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t1",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "state",
+            "matrix": "t1_state",
+            "scale": null
+          },
+          {
+            "source": "tmp:t0",
+            "matrix": "t1_t_t0",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t2",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "state",
+            "matrix": "t2_state",
+            "scale": null
+          },
+          {
+            "source": "param:p0",
+            "matrix": "t2_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t0",
+            "matrix": "t2_t_t0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t1",
+            "matrix": "t2_t_t1",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t3",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t0",
+            "matrix": "t3_t_t0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t1",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t2",
+            "matrix": "t3_t_t2",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t4",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "state",
+            "matrix": "t4_state",
+            "scale": null
+          },
+          {
+            "source": "param:p0",
+            "matrix": "t4_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t0",
+            "matrix": "t4_t_t0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t2",
+            "matrix": "t4_t_t2",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t5",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t2",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t3",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t4",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t6",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t2",
+            "matrix": "t6_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t3",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t5",
+            "matrix": "t6_t_t5",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t7",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t2",
+            "matrix": "t7_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t4",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t5",
+            "matrix": "t7_t_t5",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t8",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t5",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t6",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t7",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t9",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t5",
+            "matrix": "t9_t_t5",
+            "scale": null
+          },
+          {
+            "source": "tmp:t6",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t8",
+            "matrix": "t9_t_t8",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t10",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t5",
+            "matrix": "t10_t_t5",
+            "scale": null
+          },
+          {
+            "source": "tmp:t7",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t8",
+            "matrix": "t10_t_t8",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t11",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t8",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t9",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t10",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t12",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t8",
+            "matrix": "t12_t_t8",
+            "scale": null
+          },
+          {
+            "source": "tmp:t9",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t11",
+            "matrix": "t12_t_t11",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t13",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t8",
+            "matrix": "t13_t_t8",
+            "scale": null
+          },
+          {
+            "source": "tmp:t10",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t11",
+            "matrix": "t13_t_t11",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t14",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t11",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t12",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t13",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t15",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t11",
+            "matrix": "t15_t_t11",
+            "scale": null
+          },
+          {
+            "source": "tmp:t12",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t14",
+            "matrix": "t15_t_t14",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t16",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t11",
+            "matrix": "t16_t_t11",
+            "scale": null
+          },
+          {
+            "source": "tmp:t13",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t14",
+            "matrix": "t16_t_t14",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t17",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t14",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t15",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t16",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t18",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t14",
+            "matrix": "t18_t_t14",
+            "scale": null
+          },
+          {
+            "source": "tmp:t15",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t17",
+            "matrix": "t18_t_t17",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t19",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t14",
+            "matrix": "t19_t_t14",
+            "scale": null
+          },
+          {
+            "source": "tmp:t16",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t17",
+            "matrix": "t19_t_t17",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t20",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t17",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t18",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t19",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t21",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t17",
+            "matrix": "t21_t_t17",
+            "scale": null
+          },
+          {
+            "source": "tmp:t18",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t20",
+            "matrix": "t21_t_t20",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t22",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t17",
+            "matrix": "t22_t_t17",
+            "scale": null
+          },
+          {
+            "source": "tmp:t19",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t20",
+            "matrix": "t22_t_t20",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t23",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t20",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t21",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t22",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t24",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t20",
+            "matrix": "t24_t_t20",
+            "scale": null
+          },
+          {
+            "source": "tmp:t21",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t23",
+            "matrix": "t24_t_t23",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t25",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t20",
+            "matrix": "t25_t_t20",
+            "scale": null
+          },
+          {
+            "source": "tmp:t22",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t23",
+            "matrix": "t25_t_t23",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t26",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t23",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t24",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t25",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t27",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t23",
+            "matrix": "t27_t_t23",
+            "scale": null
+          },
+          {
+            "source": "tmp:t24",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t26",
+            "matrix": "t27_t_t26",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t28",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t23",
+            "matrix": "t28_t_t23",
+            "scale": null
+          },
+          {
+            "source": "tmp:t25",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t26",
+            "matrix": "t28_t_t26",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t29",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t26",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t27",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t28",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t30",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t26",
+            "matrix": "t30_t_t26",
+            "scale": null
+          },
+          {
+            "source": "tmp:t27",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t29",
+            "matrix": "t30_t_t29",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t31",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t26",
+            "matrix": "t31_t_t26",
+            "scale": null
+          },
+          {
+            "source": "tmp:t28",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t29",
+            "matrix": "t31_t_t29",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t32",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t29",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t30",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t31",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t33",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t29",
+            "matrix": "t33_t_t29",
+            "scale": null
+          },
+          {
+            "source": "tmp:t30",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t32",
+            "matrix": "t33_t_t32",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t34",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t29",
+            "matrix": "t34_t_t29",
+            "scale": null
+          },
+          {
+            "source": "tmp:t31",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t32",
+            "matrix": "t34_t_t32",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t35",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t32",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t33",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t34",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t36",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t32",
+            "matrix": "t36_t_t32",
+            "scale": null
+          },
+          {
+            "source": "tmp:t33",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t35",
+            "matrix": "t36_t_t35",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t37",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t32",
+            "matrix": "t37_t_t32",
+            "scale": null
+          },
+          {
+            "source": "tmp:t34",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t35",
+            "matrix": "t37_t_t35",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t38",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t35",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t36",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t37",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t39",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t35",
+            "matrix": "t39_t_t35",
+            "scale": null
+          },
+          {
+            "source": "tmp:t36",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t38",
+            "matrix": "t39_t_t38",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t40",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t35",
+            "matrix": "t40_t_t35",
+            "scale": null
+          },
+          {
+            "source": "tmp:t37",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t38",
+            "matrix": "t40_t_t38",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t41",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t38",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t39",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t40",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t42",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t38",
+            "matrix": "t42_t_t38",
+            "scale": null
+          },
+          {
+            "source": "tmp:t39",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t41",
+            "matrix": "t42_t_t41",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t43",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t38",
+            "matrix": "t43_t_t38",
+            "scale": null
+          },
+          {
+            "source": "tmp:t40",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t41",
+            "matrix": "t43_t_t41",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t44",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t41",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t42",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t43",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t45",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t41",
+            "matrix": "t45_t_t41",
+            "scale": null
+          },
+          {
+            "source": "tmp:t42",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t44",
+            "matrix": "t45_t_t44",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t46",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t41",
+            "matrix": "t46_t_t41",
+            "scale": null
+          },
+          {
+            "source": "tmp:t43",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t44",
+            "matrix": "t46_t_t44",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t47",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t44",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t45",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t46",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t48",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t44",
+            "matrix": "t48_t_t44",
+            "scale": null
+          },
+          {
+            "source": "tmp:t45",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t47",
+            "matrix": "t48_t_t47",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t49",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t44",
+            "matrix": "t49_t_t44",
+            "scale": null
+          },
+          {
+            "source": "tmp:t46",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t47",
+            "matrix": "t49_t_t47",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t50",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t47",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t48",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t49",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t51",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t47",
+            "matrix": "t51_t_t47",
+            "scale": null
+          },
+          {
+            "source": "tmp:t48",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t50",
+            "matrix": "t51_t_t50",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t52",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t47",
+            "matrix": "t52_t_t47",
+            "scale": null
+          },
+          {
+            "source": "tmp:t49",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t50",
+            "matrix": "t52_t_t50",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t53",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t50",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t51",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t52",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t54",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t50",
+            "matrix": "t54_t_t50",
+            "scale": null
+          },
+          {
+            "source": "tmp:t51",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t53",
+            "matrix": "t54_t_t53",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t55",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t50",
+            "matrix": "t55_t_t50",
+            "scale": null
+          },
+          {
+            "source": "tmp:t52",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t53",
+            "matrix": "t55_t_t53",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t56",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t53",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t54",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t55",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t57",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t53",
+            "matrix": "t57_t_t53",
+            "scale": null
+          },
+          {
+            "source": "tmp:t54",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t56",
+            "matrix": "t57_t_t56",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t58",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t53",
+            "matrix": "t58_t_t53",
+            "scale": null
+          },
+          {
+            "source": "tmp:t55",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t56",
+            "matrix": "t58_t_t56",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t59",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t56",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t57",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t58",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t60",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t56",
+            "matrix": "t60_t_t56",
+            "scale": null
+          },
+          {
+            "source": "tmp:t57",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t59",
+            "matrix": "t60_t_t59",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t61",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t56",
+            "matrix": "t61_t_t56",
+            "scale": null
+          },
+          {
+            "source": "tmp:t58",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t59",
+            "matrix": "t61_t_t59",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t62",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t59",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t60",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t61",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t63",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t59",
+            "matrix": "t63_t_t59",
+            "scale": null
+          },
+          {
+            "source": "tmp:t60",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t62",
+            "matrix": "t63_t_t62",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t64",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t59",
+            "matrix": "t64_t_t59",
+            "scale": null
+          },
+          {
+            "source": "tmp:t61",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t62",
+            "matrix": "t64_t_t62",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t65",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t62",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t63",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t64",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t66",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t62",
+            "matrix": "t66_t_t62",
+            "scale": null
+          },
+          {
+            "source": "tmp:t63",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t65",
+            "matrix": "t66_t_t65",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t67",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t62",
+            "matrix": "t67_t_t62",
+            "scale": null
+          },
+          {
+            "source": "tmp:t64",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t65",
+            "matrix": "t67_t_t65",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t68",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t65",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t66",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t67",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t69",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t65",
+            "matrix": "t69_t_t65",
+            "scale": null
+          },
+          {
+            "source": "tmp:t66",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t68",
+            "matrix": "t69_t_t68",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t70",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t65",
+            "matrix": "t70_t_t65",
+            "scale": null
+          },
+          {
+            "source": "tmp:t67",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t68",
+            "matrix": "t70_t_t68",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t71",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t68",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t69",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t70",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t72",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t68",
+            "matrix": "t72_t_t68",
+            "scale": null
+          },
+          {
+            "source": "tmp:t69",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t71",
+            "matrix": "t72_t_t71",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t73",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t68",
+            "matrix": "t73_t_t68",
+            "scale": null
+          },
+          {
+            "source": "tmp:t70",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t71",
+            "matrix": "t73_t_t71",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t74",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t71",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t72",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t73",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t75",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t71",
+            "matrix": "t75_t_t71",
+            "scale": null
+          },
+          {
+            "source": "tmp:t72",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t74",
+            "matrix": "t75_t_t74",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t76",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t71",
+            "matrix": "t76_t_t71",
+            "scale": null
+          },
+          {
+            "source": "tmp:t73",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t74",
+            "matrix": "t76_t_t74",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t77",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t74",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t75",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t76",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t78",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t74",
+            "matrix": "t78_t_t74",
+            "scale": null
+          },
+          {
+            "source": "tmp:t75",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t77",
+            "matrix": "t78_t_t77",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t79",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t74",
+            "matrix": "t79_t_t74",
+            "scale": null
+          },
+          {
+            "source": "tmp:t76",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t77",
+            "matrix": "t79_t_t77",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t80",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t77",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t78",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t79",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t81",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t77",
+            "matrix": "t81_t_t77",
+            "scale": null
+          },
+          {
+            "source": "tmp:t78",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t80",
+            "matrix": "t81_t_t80",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t82",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t77",
+            "matrix": "t82_t_t77",
+            "scale": null
+          },
+          {
+            "source": "tmp:t79",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t80",
+            "matrix": "t82_t_t80",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t83",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t80",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t81",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t82",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t84",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t80",
+            "matrix": "t84_t_t80",
+            "scale": null
+          },
+          {
+            "source": "tmp:t81",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t83",
+            "matrix": "t84_t_t83",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t85",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t80",
+            "matrix": "t85_t_t80",
+            "scale": null
+          },
+          {
+            "source": "tmp:t82",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t83",
+            "matrix": "t85_t_t83",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t86",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t83",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t84",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t85",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t87",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t83",
+            "matrix": "t87_t_t83",
+            "scale": null
+          },
+          {
+            "source": "tmp:t84",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t86",
+            "matrix": "t87_t_t86",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t88",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t83",
+            "matrix": "t88_t_t83",
+            "scale": null
+          },
+          {
+            "source": "tmp:t85",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t86",
+            "matrix": "t88_t_t86",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t89",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t86",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t87",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t88",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t90",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t86",
+            "matrix": "t90_t_t86",
+            "scale": null
+          },
+          {
+            "source": "tmp:t87",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t89",
+            "matrix": "t90_t_t89",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t91",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t86",
+            "matrix": "t91_t_t86",
+            "scale": null
+          },
+          {
+            "source": "tmp:t88",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t89",
+            "matrix": "t91_t_t89",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t92",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t89",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t90",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t91",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t93",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t89",
+            "matrix": "t93_t_t89",
+            "scale": null
+          },
+          {
+            "source": "tmp:t90",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t92",
+            "matrix": "t93_t_t92",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t94",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t89",
+            "matrix": "t94_t_t89",
+            "scale": null
+          },
+          {
+            "source": "tmp:t91",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t92",
+            "matrix": "t94_t_t92",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t95",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t92",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t93",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t94",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t96",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t92",
+            "matrix": "t96_t_t92",
+            "scale": null
+          },
+          {
+            "source": "tmp:t93",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t95",
+            "matrix": "t96_t_t95",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t97",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t92",
+            "matrix": "t97_t_t92",
+            "scale": null
+          },
+          {
+            "source": "tmp:t94",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t95",
+            "matrix": "t97_t_t95",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t98",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t95",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t96",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t97",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t99",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t95",
+            "matrix": "t99_t_t95",
+            "scale": null
+          },
+          {
+            "source": "tmp:t96",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t98",
+            "matrix": "t99_t_t98",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t100",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t95",
+            "matrix": "t100_t_t95",
+            "scale": null
+          },
+          {
+            "source": "tmp:t97",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t98",
+            "matrix": "t100_t_t98",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t101",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t98",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t99",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t100",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t102",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t98",
+            "matrix": "t102_t_t98",
+            "scale": null
+          },
+          {
+            "source": "tmp:t99",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t101",
+            "matrix": "t102_t_t101",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t103",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t98",
+            "matrix": "t103_t_t98",
+            "scale": null
+          },
+          {
+            "source": "tmp:t100",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t101",
+            "matrix": "t103_t_t101",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t104",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t101",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t102",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t103",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t105",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t101",
+            "matrix": "t105_t_t101",
+            "scale": null
+          },
+          {
+            "source": "tmp:t102",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t104",
+            "matrix": "t105_t_t104",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t106",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t101",
+            "matrix": "t106_t_t101",
+            "scale": null
+          },
+          {
+            "source": "tmp:t103",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t104",
+            "matrix": "t106_t_t104",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t107",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t104",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t105",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t106",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t108",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t104",
+            "matrix": "t108_t_t104",
+            "scale": null
+          },
+          {
+            "source": "tmp:t105",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t107",
+            "matrix": "t108_t_t107",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t109",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t104",
+            "matrix": "t109_t_t104",
+            "scale": null
+          },
+          {
+            "source": "tmp:t106",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t107",
+            "matrix": "t109_t_t107",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t110",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t107",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t108",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t109",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t111",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t107",
+            "matrix": "t111_t_t107",
+            "scale": null
+          },
+          {
+            "source": "tmp:t108",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t110",
+            "matrix": "t111_t_t110",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t112",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t107",
+            "matrix": "t112_t_t107",
+            "scale": null
+          },
+          {
+            "source": "tmp:t109",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t110",
+            "matrix": "t112_t_t110",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t113",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t110",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t111",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t112",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t114",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t110",
+            "matrix": "t114_t_t110",
+            "scale": null
+          },
+          {
+            "source": "tmp:t111",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t113",
+            "matrix": "t114_t_t113",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t115",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t110",
+            "matrix": "t115_t_t110",
+            "scale": null
+          },
+          {
+            "source": "tmp:t112",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t113",
+            "matrix": "t115_t_t113",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t116",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t113",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t114",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t115",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t117",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t113",
+            "matrix": "t117_t_t113",
+            "scale": null
+          },
+          {
+            "source": "tmp:t114",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t116",
+            "matrix": "t117_t_t116",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t118",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t113",
+            "matrix": "t118_t_t113",
+            "scale": null
+          },
+          {
+            "source": "tmp:t115",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t116",
+            "matrix": "t118_t_t116",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t119",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t116",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t117",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t118",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t120",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t116",
+            "matrix": "t120_t_t116",
+            "scale": null
+          },
+          {
+            "source": "tmp:t117",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t119",
+            "matrix": "t120_t_t119",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t121",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t116",
+            "matrix": "t121_t_t116",
+            "scale": null
+          },
+          {
+            "source": "tmp:t118",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t119",
+            "matrix": "t121_t_t119",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t122",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t119",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t120",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t121",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t123",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t119",
+            "matrix": "t123_t_t119",
+            "scale": null
+          },
+          {
+            "source": "tmp:t120",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t122",
+            "matrix": "t123_t_t122",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t124",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t119",
+            "matrix": "t124_t_t119",
+            "scale": null
+          },
+          {
+            "source": "tmp:t121",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t122",
+            "matrix": "t124_t_t122",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t125",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t122",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t123",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t124",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t126",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t122",
+            "matrix": "t126_t_t122",
+            "scale": null
+          },
+          {
+            "source": "tmp:t123",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t125",
+            "matrix": "t126_t_t125",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t127",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t122",
+            "matrix": "t127_t_t122",
+            "scale": null
+          },
+          {
+            "source": "tmp:t124",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t125",
+            "matrix": "t127_t_t125",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t128",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t125",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t126",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t127",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t129",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t125",
+            "matrix": "t129_t_t125",
+            "scale": null
+          },
+          {
+            "source": "tmp:t126",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t128",
+            "matrix": "t129_t_t128",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t130",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t125",
+            "matrix": "t130_t_t125",
+            "scale": null
+          },
+          {
+            "source": "tmp:t127",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t128",
+            "matrix": "t130_t_t128",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t131",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t128",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t129",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t130",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t132",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t128",
+            "matrix": "t132_t_t128",
+            "scale": null
+          },
+          {
+            "source": "tmp:t129",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t131",
+            "matrix": "t132_t_t131",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t133",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t128",
+            "matrix": "t133_t_t128",
+            "scale": null
+          },
+          {
+            "source": "tmp:t130",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t131",
+            "matrix": "t133_t_t131",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t134",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t131",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t132",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t133",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t135",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t131",
+            "matrix": "t135_t_t131",
+            "scale": null
+          },
+          {
+            "source": "tmp:t132",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t134",
+            "matrix": "t135_t_t134",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t136",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t131",
+            "matrix": "t136_t_t131",
+            "scale": null
+          },
+          {
+            "source": "tmp:t133",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t134",
+            "matrix": "t136_t_t134",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t137",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t134",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t135",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t136",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t138",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t134",
+            "matrix": "t138_t_t134",
+            "scale": null
+          },
+          {
+            "source": "tmp:t135",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t137",
+            "matrix": "t138_t_t137",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t139",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t134",
+            "matrix": "t139_t_t134",
+            "scale": null
+          },
+          {
+            "source": "tmp:t136",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t137",
+            "matrix": "t139_t_t137",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t140",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t137",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t138",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t139",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t141",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t137",
+            "matrix": "t141_t_t137",
+            "scale": null
+          },
+          {
+            "source": "tmp:t138",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t140",
+            "matrix": "t141_t_t140",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t142",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t137",
+            "matrix": "t142_t_t137",
+            "scale": null
+          },
+          {
+            "source": "tmp:t139",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t140",
+            "matrix": "t142_t_t140",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t143",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t140",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t141",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t142",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t144",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t140",
+            "matrix": "t144_t_t140",
+            "scale": null
+          },
+          {
+            "source": "tmp:t141",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t143",
+            "matrix": "t144_t_t143",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t145",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t140",
+            "matrix": "t145_t_t140",
+            "scale": null
+          },
+          {
+            "source": "tmp:t142",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t143",
+            "matrix": "t145_t_t143",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t146",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "tmp:t143",
+            "matrix": "t5_t_t2",
+            "scale": null
+          },
+          {
+            "source": "tmp:t144",
+            "matrix": "t2_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t145",
+            "matrix": "t5_t_t4",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t147",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "tmp:t143",
+            "matrix": "t147_t_t143",
+            "scale": null
+          },
+          {
+            "source": "tmp:t144",
+            "matrix": "t3_t_t1",
+            "scale": null
+          },
+          {
+            "source": "tmp:t146",
+            "matrix": "t147_t_t146",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t148",
+      "out_dim": 30,
+      "linear_op": {
+        "out_dim": 30,
+        "terms": [
+          {
+            "source": "param:p0",
+            "matrix": "t7_p_p0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t143",
+            "matrix": "t148_t_t143",
+            "scale": null
+          },
+          {
+            "source": "tmp:t145",
+            "matrix": "t7_t_t4",
+            "scale": null
+          },
+          {
+            "source": "tmp:t146",
+            "matrix": "t148_t_t146",
+            "scale": null
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "identity",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    }
+  ],
+  "state_update": {
+    "out_dim": 650,
+    "terms": [
+      {
+        "source": "tmp:t146",
+        "matrix": "su_t_t146",
+        "scale": null
+      },
+      {
+        "source": "tmp:t147",
+        "matrix": "su_t_t147",
+        "scale": null
+      },
+      {
+        "source": "tmp:t148",
+        "matrix": "su_t_t148",
+        "scale": null
+      }
+    ],
+    "const": null
+  },
+  "matrices": {
+    "t0_state": {
+      "shape": [
+        600,
+        650
+      ],
+      "sparse": false
+    },
+    "t0_c": {
+      "shape": [
+        600
+      ],
+      "sparse": false
+    },
+    "t0_lo": {
+      "shape": [
+        600
+      ],
+      "sparse": false
+    },
+    "t0_hi": {
+      "shape": [
+        600
+      ],
+      "sparse": false
+    },
+    "t1_state": {
+      "shape": [
+        20,
+        650
+      ],
+      "sparse": false
+    },
+    "t1_t_t0": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t1_c": {
+      "shape": [
+        20
+      ],
+      "sparse": false
+    },
+    "t2_state": {
+      "shape": [
+        600,
+        650
+      ],
+      "sparse": false
+    },
+    "t2_p_p0": {
+      "shape": [
+        600,
+        30
+      ],
+      "sparse": false
+    },
+    "t2_t_t0": {
+      "shape": [
+        600,
+        600
+      ],
+      "sparse": false
+    },
+    "t2_t_t1": {
+      "shape": [
+        600,
+        20
+      ],
+      "sparse": false
+    },
+    "t3_t_t0": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t3_t_t1": {
+      "shape": [
+        20,
+        20
+      ],
+      "sparse": true
+    },
+    "t3_t_t2": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t4_state": {
+      "shape": [
+        30,
+        650
+      ],
+      "sparse": false
+    },
+    "t4_p_p0": {
+      "shape": [
+        30,
+        30
+      ],
+      "sparse": false
+    },
+    "t4_t_t0": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t4_t_t2": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t5_t_t2": {
+      "shape": [
+        600,
+        600
+      ],
+      "sparse": true
+    },
+    "t5_t_t4": {
+      "shape": [
+        600,
+        30
+      ],
+      "sparse": false
+    },
+    "t6_t_t2": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t6_t_t5": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t7_p_p0": {
+      "shape": [
+        30,
+        30
+      ],
+      "sparse": false
+    },
+    "t7_t_t2": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t7_t_t4": {
+      "shape": [
+        30,
+        30
+      ],
+      "sparse": true
+    },
+    "t7_t_t5": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t9_t_t5": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t9_t_t8": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t10_t_t5": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t10_t_t8": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t12_t_t8": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t12_t_t11": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t13_t_t8": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t13_t_t11": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t15_t_t11": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t15_t_t14": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t16_t_t11": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t16_t_t14": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t18_t_t14": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t18_t_t17": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t19_t_t14": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t19_t_t17": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t21_t_t17": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t21_t_t20": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t22_t_t17": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t22_t_t20": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t24_t_t20": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t24_t_t23": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t25_t_t20": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t25_t_t23": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t27_t_t23": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t27_t_t26": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t28_t_t23": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t28_t_t26": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t30_t_t26": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t30_t_t29": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t31_t_t26": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t31_t_t29": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t33_t_t29": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t33_t_t32": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t34_t_t29": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t34_t_t32": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t36_t_t32": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t36_t_t35": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t37_t_t32": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t37_t_t35": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t39_t_t35": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t39_t_t38": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t40_t_t35": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t40_t_t38": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t42_t_t38": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t42_t_t41": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t43_t_t38": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t43_t_t41": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t45_t_t41": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t45_t_t44": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t46_t_t41": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t46_t_t44": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t48_t_t44": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t48_t_t47": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t49_t_t44": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t49_t_t47": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t51_t_t47": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t51_t_t50": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t52_t_t47": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t52_t_t50": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t54_t_t50": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t54_t_t53": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t55_t_t50": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t55_t_t53": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t57_t_t53": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t57_t_t56": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t58_t_t53": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t58_t_t56": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t60_t_t56": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t60_t_t59": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t61_t_t56": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t61_t_t59": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t63_t_t59": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t63_t_t62": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t64_t_t59": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t64_t_t62": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t66_t_t62": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t66_t_t65": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t67_t_t62": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t67_t_t65": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t69_t_t65": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t69_t_t68": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t70_t_t65": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t70_t_t68": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t72_t_t68": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t72_t_t71": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t73_t_t68": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t73_t_t71": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t75_t_t71": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t75_t_t74": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t76_t_t71": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t76_t_t74": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t78_t_t74": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t78_t_t77": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t79_t_t74": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t79_t_t77": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t81_t_t77": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t81_t_t80": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t82_t_t77": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t82_t_t80": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t84_t_t80": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t84_t_t83": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t85_t_t80": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t85_t_t83": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t87_t_t83": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t87_t_t86": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t88_t_t83": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t88_t_t86": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t90_t_t86": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t90_t_t89": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t91_t_t86": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t91_t_t89": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t93_t_t89": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t93_t_t92": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t94_t_t89": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t94_t_t92": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t96_t_t92": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t96_t_t95": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t97_t_t92": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t97_t_t95": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t99_t_t95": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t99_t_t98": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t100_t_t95": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t100_t_t98": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t102_t_t98": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t102_t_t101": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t103_t_t98": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t103_t_t101": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t105_t_t101": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t105_t_t104": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t106_t_t101": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t106_t_t104": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t108_t_t104": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t108_t_t107": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t109_t_t104": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t109_t_t107": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t111_t_t107": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t111_t_t110": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t112_t_t107": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t112_t_t110": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t114_t_t110": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t114_t_t113": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t115_t_t110": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t115_t_t113": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t117_t_t113": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t117_t_t116": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t118_t_t113": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t118_t_t116": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t120_t_t116": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t120_t_t119": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t121_t_t116": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t121_t_t119": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t123_t_t119": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t123_t_t122": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t124_t_t119": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t124_t_t122": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t126_t_t122": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t126_t_t125": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t127_t_t122": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t127_t_t125": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t129_t_t125": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t129_t_t128": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t130_t_t125": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t130_t_t128": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t132_t_t128": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t132_t_t131": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t133_t_t128": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t133_t_t131": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t135_t_t131": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t135_t_t134": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t136_t_t131": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t136_t_t134": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t138_t_t134": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t138_t_t137": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t139_t_t134": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t139_t_t137": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t141_t_t137": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t141_t_t140": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t142_t_t137": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t142_t_t140": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t144_t_t140": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t144_t_t143": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t145_t_t140": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t145_t_t143": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t147_t_t143": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t147_t_t146": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false
+    },
+    "t148_t_t143": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "t148_t_t146": {
+      "shape": [
+        30,
+        600
+      ],
+      "sparse": false
+    },
+    "su_t_t146": {
+      "shape": [
+        650,
+        600
+      ],
+      "sparse": false
+    },
+    "su_t_t147": {
+      "shape": [
+        650,
+        20
+      ],
+      "sparse": false
+    },
+    "su_t_t148": {
+      "shape": [
+        650,
+        30
+      ],
+      "sparse": false
+    }
+  },
+  "schedules": {}
+}

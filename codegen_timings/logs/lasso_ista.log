@@ -1,0 +1,12 @@
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `clarabel`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `cvxpy`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `imageio`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `matplotlib`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `numpy`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `osqp`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `pillow`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `scipy`[0m
+[lasso_ista] oracle vs NumPy (rel): 1.64e-15
+[lasso_ista] numpy_vs_verify_recurrence: 0.0
+wrote /Users/vranjan/Research/2026/fomtools_experiments/codegen_timings/lasso/ista/optimized/OPTIMIZATIONS.md
+[lasso_ista] NumPy 513.25 us | translated 8.211 us | optimized 3.487 us (kept=True) | speedups 62.5x, 2.35x, 147.2x | max|C-NumPy| {'translated': {'verified_set': 1.3322676295501878e-14}, 'optimized': {'verified_set': 1.4432899320127035e-14}}

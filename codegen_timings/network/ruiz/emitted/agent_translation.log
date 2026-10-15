@@ -1,0 +1,27 @@
+The spec matches the sibling `unscaled` variant structurally (same ops, same dims), so I'll use the same implementation (all numbers come from this directory's data/ops).
+I wrote `src/fom_solver.c`, and `make verify` passes: it prints `VERIFY OK` and exits 0. Across the 8 reference samples, the largest difference from the reference was 7.99e-15, against an allowed 1e-6.
+
+The `network_ruiz` spec has the same steps and sizes as the existing `network/unscaled` variant, so I reused that solver's C code. All numbers come from this directory's own `fom_data.c` and `fom_ops.c`, so the Ruiz-scaled data is what actually gets used.
+
+How it works:
+- **No allocation and no division:** it uses only the buffers already in the workspace. I checked for `/` and `malloc`/`free` and found neither.
+- **Parameter term computed once:** `su_p_p0 @ p0` doesn't change between iterations, so it's computed once per solve into `work->acc` and reused.
+- **Steps per iteration:** `t0` is `t0_c + t0_state @ x` clipped to the `lo`/`hi` bounds. `t1` is ReLU applied to `t1_c + t1_state @ x + t1_t_t0 @ t0`. The new state is built with the provided sparse helpers.
+- **No copying between iterations:** the current and new state buffers are swapped by pointer each iteration.
+- **Residual only on the last iteration:** tolerance is 0 here, so it runs the full 200 iterations and only computes the residual at the end. If a positive tolerance is set, it checks every iteration and can stop early.
+- **State reset:** `fom_setup` and `fom_update_params` both reset the state to `FOM_STATE_INIT`, so each solve starts from the same point.
+
+There are no linear solves in this spec, so `fom_linsolve` isn't called. I didn't run `make bench`, so I have no timing numbers yet.
+I wrote `src/fom_solver.c`, and `make verify` passes: it prints `VERIFY OK` and exits 0. Across the 8 reference samples, the largest difference from the reference was 7.99e-15, against an allowed 1e-6.
+
+The `network_ruiz` spec has the same steps and sizes as the existing `network/unscaled` variant, so I reused that solver's C code. All numbers come from this directory's own `fom_data.c` and `fom_ops.c`, so the Ruiz-scaled data is what actually gets used.
+
+How it works:
+- **No allocation and no division:** it uses only the buffers already in the workspace. I checked for `/` and `malloc`/`free` and found neither.
+- **Parameter term computed once:** `su_p_p0 @ p0` doesn't change between iterations, so it's computed once per solve into `work->acc` and reused.
+- **Steps per iteration:** `t0` is `t0_c + t0_state @ x` clipped to the `lo`/`hi` bounds. `t1` is ReLU applied to `t1_c + t1_state @ x + t1_t_t0 @ t0`. The new state is built with the provided sparse helpers.
+- **No copying between iterations:** the current and new state buffers are swapped by pointer each iteration.
+- **Residual only on the last iteration:** tolerance is 0 here, so it runs the full 200 iterations and only computes the residual at the end. If a positive tolerance is set, it checks every iteration and can stop early.
+- **State reset:** `fom_setup` and `fom_update_params` both reset the state to `FOM_STATE_INIT`, so each solve starts from the same point.
+
+There are no linear solves in this spec, so `fom_linsolve` isn't called. I didn't run `make bench`, so I have no timing numbers yet.

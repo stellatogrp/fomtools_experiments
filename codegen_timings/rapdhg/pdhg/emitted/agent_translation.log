@@ -1,0 +1,20 @@
+I wrote `src/fom_solver.c` and `make verify` prints `VERIFY OK`. The worst error across the 8 reference samples is 5.5e-13, against a tolerance of 1e-6. `make bench` gives about 141 µs per solve on average (5000 solves, best 132 µs).
+
+The solver follows `SPEC.md`:
+- **Each iteration:** it computes `t0` (relu), then `t1` (clipped to `FOM_MAT_t1_lo`/`_hi`), then the state update. Every matrix product goes through the provided `fom_apply_*` helpers, and every coefficient comes from the `fom_data` symbols and schedule accessors. This method has no linear-solve step, so `fom_linsolve` is never called.
+- **Embedded constraints:** there's no dynamic memory, no variable-length arrays and no `/` operator. Scratch work uses only the workspace buffers. `fom_setup` and `fom_update_params` both reset the state from `FOM_STATE_INIT`.
+
+Three choices affect speed or behaviour:
+- **Skipped terms:** if an iteration's schedule coefficient is exactly 0, that term is skipped. If it is exactly 1, the term is added directly without a scratch buffer.
+- **No copying between iterations:** the current and next state buffers swap roles each iteration instead of being copied.
+- **Residual timing:** the method stops only at `max_iter` (no tolerance check), so the residual `max|new − old|` is computed on the last iteration only. `solution.residual` holds that final value, and the returned status is always `FOM_MAX_ITER_REACHED`.
+I wrote `src/fom_solver.c` and `make verify` prints `VERIFY OK`. The worst error across the 8 reference samples is 5.5e-13, against a tolerance of 1e-6. `make bench` gives about 141 µs per solve on average (5000 solves, best 132 µs).
+
+The solver follows `SPEC.md`:
+- **Each iteration:** it computes `t0` (relu), then `t1` (clipped to `FOM_MAT_t1_lo`/`_hi`), then the state update. Every matrix product goes through the provided `fom_apply_*` helpers, and every coefficient comes from the `fom_data` symbols and schedule accessors. This method has no linear-solve step, so `fom_linsolve` is never called.
+- **Embedded constraints:** there's no dynamic memory, no variable-length arrays and no `/` operator. Scratch work uses only the workspace buffers. `fom_setup` and `fom_update_params` both reset the state from `FOM_STATE_INIT`.
+
+Three choices affect speed or behaviour:
+- **Skipped terms:** if an iteration's schedule coefficient is exactly 0, that term is skipped. If it is exactly 1, the term is added directly without a scratch buffer.
+- **No copying between iterations:** the current and next state buffers swap roles each iteration instead of being copied.
+- **Residual timing:** the method stops only at `max_iter` (no tolerance check), so the residual `max|new − old|` is computed on the last iteration only. `solution.residual` holds that final value, and the returned status is always `FOM_MAX_ITER_REACHED`.

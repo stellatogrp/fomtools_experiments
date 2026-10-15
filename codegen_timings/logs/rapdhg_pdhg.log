@@ -1,0 +1,12 @@
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `clarabel`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `cvxpy`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `imageio`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `matplotlib`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `numpy`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `osqp`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `pillow`[0m
+[1m[33mwarning[39m[0m[1m:[0m [1mMissing version constraint (e.g., a lower bound) for `scipy`[0m
+[rapdhg_pdhg] oracle vs NumPy (rel): 1.65e-13
+[rapdhg_pdhg] numpy_x_vs_verify_recurrence: 9.880984919163893e-15
+wrote /Users/vranjan/Research/2026/fomtools_experiments/codegen_timings/rapdhg/pdhg/optimized/OPTIMIZATIONS.md
+[rapdhg_pdhg] NumPy 1903.56 us | translated 140.534 us | optimized 26.537 us (kept=True) | speedups 13.5x, 5.30x, 71.7x | max|C-NumPy| {'translated': {'verified_set': 1.0880185641326534e-14}, 'optimized': {'verified_set': 8.43769498715119e-15}}

@@ -165,6 +165,27 @@ Momentum PDHG:
   three variants and within 2.7% for momentum Ruiz PDHG (the largest gap is at
   $K = 8$). At this size, sampling already finds nearly the worst case.
 
+## Cluster instance
+
+The tables above are for the small default instance. The cluster runs use
+$n_s = 10$, $n_d = 15$ (150 edges) with two changes, set in
+`slurm/submit_all.sh`:
+
+- **Scarce supply:** $b_s = 4$ at each node instead of 10.
+- **Warm start at the box centre:** $s^0$ is the primal-dual solution at
+  $x = -5$ (`warm_start: center`), not at the largest demand.
+
+With supply 10, the warm start serves each demand node over a single edge and no
+supply or capacity binds. Each residual row then depends on essentially one
+demand coordinate, so 1,000 uniform samples come within 0.3% of the worst case
+for every variant. Scarce supply couples the demands through the shared supply
+nodes, so the worst case needs a particular combination of demands that uniform
+sampling rarely hits. Against a lower bound from all $2^{15}$ box vertices,
+the sample max falls short by 12–26% on average over $K \le 50$ for the four
+variants. For Ruiz momentum PDHG, the MIP's incumbent is 30–45% above the sample
+max from $K \approx 19$ on. The box $[-6, -4]^{15}$ is unchanged and stays
+feasible: the largest demand is checked when the instance is built.
+
 ## Reproduce
 
 ```sh

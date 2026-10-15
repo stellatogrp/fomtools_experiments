@@ -1,0 +1,192 @@
+{
+  "name": "network_unscaled",
+  "dtype": "float64",
+  "unrolled": false,
+  "factorizations": {},
+  "termination": {
+    "kind": "max_iters",
+    "max_iters": 200,
+    "tol": null,
+    "check_termination": 1
+  },
+  "params": [
+    {
+      "name": "p0",
+      "dim": 15
+    }
+  ],
+  "state": {
+    "dim": 175,
+    "slots": [
+      [
+        "s0",
+        150
+      ],
+      [
+        "s1",
+        10
+      ],
+      [
+        "s2",
+        15
+      ]
+    ]
+  },
+  "body": [
+    {
+      "name": "t0",
+      "out_dim": 150,
+      "linear_op": {
+        "out_dim": 150,
+        "terms": [
+          {
+            "source": "state",
+            "matrix": "t0_state",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t1",
+      "out_dim": 10,
+      "linear_op": {
+        "out_dim": 10,
+        "terms": [
+          {
+            "source": "state",
+            "matrix": "t1_state",
+            "scale": null
+          },
+          {
+            "source": "tmp:t0",
+            "matrix": "t1_t_t0",
+            "scale": null
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    }
+  ],
+  "state_update": {
+    "out_dim": 175,
+    "terms": [
+      {
+        "source": "state",
+        "matrix": "su_state",
+        "scale": null
+      },
+      {
+        "source": "tmp:t0",
+        "matrix": "su_t_t0",
+        "scale": null
+      },
+      {
+        "source": "tmp:t1",
+        "matrix": "su_t_t1",
+        "scale": null
+      },
+      {
+        "source": "param:p0",
+        "matrix": "su_p_p0",
+        "scale": null
+      }
+    ],
+    "const": null
+  },
+  "matrices": {
+    "t0_state": {
+      "shape": [
+        150,
+        175
+      ],
+      "sparse": false
+    },
+    "t0_c": {
+      "shape": [
+        150
+      ],
+      "sparse": false
+    },
+    "t0_lo": {
+      "shape": [
+        150
+      ],
+      "sparse": false
+    },
+    "t0_hi": {
+      "shape": [
+        150
+      ],
+      "sparse": false
+    },
+    "t1_state": {
+      "shape": [
+        10,
+        175
+      ],
+      "sparse": false
+    },
+    "t1_t_t0": {
+      "shape": [
+        10,
+        150
+      ],
+      "sparse": false
+    },
+    "t1_c": {
+      "shape": [
+        10
+      ],
+      "sparse": false
+    },
+    "su_state": {
+      "shape": [
+        175,
+        175
+      ],
+      "sparse": false
+    },
+    "su_t_t0": {
+      "shape": [
+        175,
+        150
+      ],
+      "sparse": false
+    },
+    "su_t_t1": {
+      "shape": [
+        175,
+        10
+      ],
+      "sparse": false
+    },
+    "su_p_p0": {
+      "shape": [
+        175,
+        15
+      ],
+      "sparse": false
+    }
+  },
+  "schedules": {}
+}
