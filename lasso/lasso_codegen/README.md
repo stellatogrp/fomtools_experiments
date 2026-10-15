@@ -11,6 +11,7 @@ constant across backends; only the emitted backend changes.
 |---|---:|---:|---|---|
 | Square sparse scaling | 20,000 × 20,000 | about 8 nonzeros/row and column | 3 interleaved rounds | [`results/sparse20k/`](results/sparse20k/) |
 | High-dimensional rectangular scaling | 10,000 × 40,000 | 8 nonzero slots/row; nominally 2/column | 7 interleaved rounds | [`results/rect10k40k/`](results/rect10k40k/) |
+| Large rectangular scaling | 325,000 × 1,300,000 (2.6M nonzeros) | 8 nonzeros/row; 2/column | 7 interleaved rounds, one node | [`results/rect325k1p3m/`](results/rect325k1p3m/) |
 
 Both studies solve
 
@@ -38,6 +39,16 @@ authoritative records.
 |---|---:|---:|---:|
 | ISTA | 200.722 | 161.347 | 5.419 |
 | FISTA | 769.242 | 605.328 | 6.675 |
+
+### Large rectangular scaling: 325,000 × 1,300,000
+
+| method | NumPy (s) | OpenMP (s) | CUDA (s) |
+|---|---:|---:|---:|
+| ISTA | 14.954 | 1.210 | 0.142 |
+| FISTA | 73.375 | 5.219 | 0.455 |
+
+This study ran on one AMD EPYC 7H12 + A100 node with 16-thread OpenMP builds
+(the earlier studies' OpenMP binaries were serial; see the study report).
 
 The studies ran on different Della nodes and GPU models. They demonstrate
 backend-specific generation within each study; their absolute timing numbers
@@ -68,6 +79,18 @@ only after re-verification.
 | FISTA OpenMP | 420.554 | 146.887 | 2.86× |
 | FISTA CUDA | 14.840 | 4.583 | 3.24× |
 
+### Large rectangular scaling: 325,000 × 1,300,000
+
+Fresh builds of the translated and code-optimized sources, timed in the same
+job (node in parentheses).
+
+| solver | translation (s) | code optimization (s) | speedup |
+|---|---:|---:|---:|
+| ISTA OpenMP (della-i12g2) | 1.464 | 1.202 | 1.22× |
+| ISTA CUDA (della-i12g2) | 0.160 | 0.142 | 1.12× |
+| FISTA OpenMP (della-i14g1) | 10.390 | 9.066 | 1.15× |
+| FISTA CUDA (della-i12g1) | 0.721 | 0.456 | 1.58× |
+
 ### Optimization tricks used
 
 Both studies applied the following algebra- and layout-aware transformations:
@@ -87,6 +110,14 @@ The square sparse study additionally tuned the 20,000-element CUDA kernels and
 used direct block updates for the FISTA state. The rectangular study cached the
 previous `B*x` FISTA product on OpenMP, and fused CUDA accumulator clearing into
 the elementwise activation kernel.
+
+The 325k × 1.3M study's code optimization kept the parameter hoisting, direct state-update copies,
+fused activation and final-iteration residual. It also pinned the CUDA state
+vector in L2 cache and pinned the host transfer buffers. Its FISTA agents found
+the one-product momentum identity but could not use it: the two extracted
+operator blocks differ by about `1e-15`, which over 200 iterations exceeds the
+`1e-6` verification tolerance. This explains its smaller FISTA
+code-optimization gains.
 
 All archived solvers passed their eight-sample generated-oracle verification
 checks with tolerance `1e-6`; exact error lines are retained in each

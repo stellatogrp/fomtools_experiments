@@ -1,0 +1,55 @@
+#!/bin/bash
+# Run a command in the benchmark environment (stack limit, pinned OpenMP).
+# FOMTOOLS_REMOTE_JOB_ID selects where:
+#   inside a Slurm step -> right here
+#   local               -> on this machine, pinned to one NUMA domain
+#   perjob              -> as its own <=1 h Slurm job on an AMD EPYC 7H12 + A100
+#                          node (test queue; STEP_NODE pins a specific node)
+#   <job id>            -> as a step of that reserved allocation
+set -euo pipefail
+setup='ulimit -s unlimited
+export OMP_NUM_THREADS="${BENCH_THREADS:-16}" OMP_PLACES=cores OMP_PROC_BIND=close'
+
+if [[ -n "${SLURM_STEP_ID:-}" ]]; then
+  eval "$setup"
+  exec "$@"
+fi
+
+mode="${FOMTOOLS_REMOTE_JOB_ID:?set FOMTOOLS_REMOTE_JOB_ID}"
+case "$mode" in
+  local)
+    node="${CPU_NUMA_NODE:-3}"
+    [[ "$PWD" == */cuda ]] && node="${GPU_NUMA_NODE:-2}"
+    eval "$setup"
+    exec numactl --cpunodebind="$node" --preferred="$node" "$@"
+    ;;
+  perjob)
+    if [[ -z "${STEP_NODE:-}" ]]; then
+      # Reuse one <=1 h holder job for many calls (each new job waits minutes
+      # in the queue); start a fresh holder when <20 min remain.
+      holder="$("$(dirname "$0")/holder")"
+      exec srun --overlap --jobid="$holder" --nodes=1 --ntasks=1 \
+        --cpus-per-task="${BENCH_THREADS:-16}" --chdir="$PWD" \
+        bash -c "$setup"'
+                 echo "[fom-step in holder $SLURM_JOB_ID on $(hostname)]" >&2
+                 exec "$@"' bash "$@"
+    fi
+    # A pinned node (benchmark rounds) gets its own job on exactly that node.
+    exec srun --account=bstellato --job-name=fom-step \
+      --time="${STEP_TIME:-00:59:00}" --gres=gpu:a100:1 \
+      --constraint="${STEP_CONSTRAINT:-amd&rome&a100}" --exclude="${H100_EXCLUDE:?}" \
+      ${STEP_NODE:+--nodelist="$STEP_NODE"} \
+      --nodes=1 --ntasks=1 --cpus-per-task="${BENCH_THREADS:-16}" --mem="${STEP_MEM:-64G}" \
+      --chdir="$PWD" \
+      bash -c "$setup"'
+               echo "[fom-step job $SLURM_JOB_ID on $(hostname)]" >&2
+               exec "$@"' bash "$@"
+    ;;
+  *)
+    exec srun --overlap --jobid="$mode" --nodes=1 --ntasks=1 \
+      --cpus-per-task="${BENCH_THREADS:-16}" --chdir="$PWD" \
+      bash -c 'module load "${CUDA_MODULE:-cudatoolkit/12.9}" > /dev/null 2>&1
+               '"$setup"'
+               exec "$@"' bash "$@"
+    ;;
+esac

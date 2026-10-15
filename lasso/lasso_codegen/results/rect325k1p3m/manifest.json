@@ -1,0 +1,50 @@
+{
+  "experiment": "rectangular_sparse_lasso_ista_fista_openmp_cuda",
+  "problem": {
+    "m": 325000,
+    "n": 1300000,
+    "nnz_A": 2600000,
+    "seed": 0,
+    "lambda": 0.02,
+    "iterations": 200,
+    "numeric_type": "float64",
+    "nonzero_slots_per_row": 8,
+    "column_occurrences": 2,
+    "matrix": "two seeded permutations of 1300000 columns assigned to 325000 rows",
+    "step_size": 0.07308955543183375,
+    "step_size_bound": "1 / (||A||_1 * ||A||_infinity)",
+    "iteration_matrix_nnz": {
+      "ista_I_minus_tAtA": 19499968,
+      "fista_t0_state": 29960146,
+      "fista_t0_state__d_gamma": 38999936,
+      "tAt": 2600000
+    }
+  },
+  "backends": {
+    "cpu": {"version": "large_scale", "backend": "openmp", "threads": 16, "flags": "-O3 -mcmodel=medium -fopenmp"},
+    "gpu": {"version": "large_scale", "backend": "cuda", "flags": "-O3 -gencode arch=compute_80,code=sm_80"}
+  },
+  "measurement": {
+    "interleaved_rounds": 7,
+    "generated_solves_per_round": 10,
+    "generated_warmups_per_round": 8,
+    "numpy_repetitions_per_round": 3,
+    "numpy_warmups_per_round": 1,
+    "reported_statistic": "median of round-level per-solve values",
+    "omp_env": "OMP_NUM_THREADS=16 OMP_PLACES=cores OMP_PROC_BIND=close"
+  },
+  "verification_samples": 8,
+  "verification_tolerance": 1e-06,
+  "fomtools_commit": "b41c10a5b266f431079840a687f808dac3046bbc",
+  "agent": "Claude Code CLI 2.1.287 (headless)",
+  "generation_window": "2026-10-14T16:56:19-04:00/2026-10-14T18:26:06-04:00",
+  "benchmark_window": "2026-10-14T18:41:52-04:00/2026-10-14T20:33:19-04:00",
+  "benchmark_host": "della-i12g1",
+  "benchmark_cpu": "AMD EPYC 7H12 64-Core Processor (2 sockets)",
+  "benchmark_gpu": "NVIDIA A100-PCIE-40GB",
+  "python": "3.14.6",
+  "numpy": "2.5.3",
+  "scipy": "1.18.1",
+  "gcc": "11.5.0",
+  "cuda": "12.9.86"
+}
