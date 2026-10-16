@@ -26,10 +26,13 @@ for path in (PORTFOLIO, ROOT):
 
 from cluster_run import drift_interval, make_problem  # noqa: E402
 
-OUT = Path(__file__).parent / "out"
-RESULTS = Path(__file__).parent / "results"
+# Factor-model sweep (branch bs/portfolio-cvxpygen-scale): its own output folders,
+# so the dense-covariance results of the paper stay untouched.
+OUT = Path(__file__).parent / "out_factor"
+RESULTS = Path(__file__).parent / "results_factor"
 
-SIZES = (10, 20, 50, 100, 200)
+SIZES = (200, 500, 1000, 3000)
+FACTORS = 100  # k: Sigma = F F'/k + sigma_ridge I with F of size N x k
 ITERATIONS = 200
 N_SOLVES = 100  # back-test length per timing round
 DRIFT = 0.15
@@ -90,6 +93,23 @@ def instance(N: int):
     return make_problem(SimpleNamespace(n=N, **PROBLEM), ITERATIONS)
 
 
+def factor_instance(N: int, k: int = FACTORS):
+    """Factor-model data for ``N`` assets: ``F`` (N x k, entries N(0, 1/k)), so that
+    ``Sigma = F F' + sigma_ridge I`` has unit-scale factor risk as the dense instance,
+    and ``mu ~ U[0, mu_high]``; the other constants as in ``PROBLEM``."""
+    rng = np.random.default_rng([PROBLEM["seed"], N, k])
+    F = rng.normal(scale=1 / np.sqrt(k), size=(N, k))
+    mu = rng.uniform(0.0, PROBLEM["mu_high"], size=N)
+    return SimpleNamespace(
+        F=F,
+        d=PROBLEM["sigma_ridge"],
+        mu=mu,
+        kappa=PROBLEM["kappa"],
+        lambd=PROBLEM["lambd"],
+        z_bar=PROBLEM["z_bar"] * np.ones(N),
+    )
+
+
 def x_bounds(N: int) -> tuple[np.ndarray, np.ndarray]:
     """Exact per-asset range of the drifted equal-weight portfolio (the verified box)."""
     return drift_interval(np.ones(N) / N, DRIFT)
@@ -97,16 +117,17 @@ def x_bounds(N: int) -> tuple[np.ndarray, np.ndarray]:
 
 def build(N: int):
     """``(problem, x, z)``: the parametric CVXPY problem, its parameter and variable."""
-    data = instance(N)
+    data = factor_instance(N)
     x = cp.Parameter(N, name="x")
     x.value = np.ones(N) / N
     z = cp.Variable(N, name="z")
+    y = cp.Variable(data.F.shape[1], name="y")  # factor exposures, as in the CVXPYgen paper
     objective = (
-        0.5 * data.kappa * cp.quad_form(z, cp.psd_wrap(data.Sigma))
+        0.5 * data.kappa * (cp.sum_squares(y) + data.d * cp.sum_squares(z))
         - data.mu @ z
         + data.lambd * cp.norm1(z - x)
     )
-    constraints = [cp.sum(z) == 1, z >= 0, z <= data.z_bar]
+    constraints = [y == data.F.T @ z, cp.sum(z) == 1, z >= 0, z <= data.z_bar]
     return cp.Problem(cp.Minimize(objective), constraints), x, z
 
 
