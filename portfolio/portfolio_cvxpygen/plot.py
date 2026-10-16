@@ -15,6 +15,7 @@ pgfplots.
 
 from __future__ import annotations
 
+import argparse
 import csv
 from collections import defaultdict
 
@@ -37,8 +38,13 @@ LEVELS = {"python": "through Python (problem.solve)", "c": "generated C code"}
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--tol", action="store_true", help="plot timings_tol.csv (time to tolerance)")
+    args = parser.parse_args()
+    suffix = "_tol" if args.tol else ""
+
     series = defaultdict(dict)
-    with open(RESULTS / "timings.csv") as f:
+    with open(RESULTS / f"timings{suffix}.csv") as f:
         for row in csv.DictReader(f):
             series[row["arm"], row["level"]][int(row["N"])] = float(row["us_per_solve"])
     sizes = np.array(sorted({n for values in series.values() for n in values}))
@@ -62,13 +68,13 @@ def main() -> None:
     fig.legend(handles, labels, loc="upper center", ncol=3, fontsize=8, frameon=False)
     fig.tight_layout(rect=(0, 0, 1, 0.86))
     for ext in ("pdf", "png"):
-        fig.savefig(RESULTS / f"portfolio_cvxpygen_scaling.{ext}", dpi=200)
+        fig.savefig(RESULTS / f"portfolio_cvxpygen_scaling{suffix}.{ext}", dpi=200)
 
-    with open(RESULTS / "portfolio_cvxpygen_scaling_wide.csv", "w", newline="") as f:
+    with open(RESULTS / f"portfolio_cvxpygen_scaling{suffix}_wide.csv", "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(header)
         writer.writerows(np.column_stack(columns).tolist())
-    print(f"wrote {RESULTS / 'portfolio_cvxpygen_scaling.pdf'}")
+    print(f"wrote {RESULTS / f'portfolio_cvxpygen_scaling{suffix}.pdf'}")
 
 
 if __name__ == "__main__":
