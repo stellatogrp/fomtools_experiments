@@ -1,0 +1,57 @@
+#!/bin/bash
+# Print the id of a running <=1 h holder job (AMD EPYC 7H12 + A100, test
+# queue) with at least HOLDER_MIN_LEFT minutes left, submitting a new one if
+# needed. bridge/onnode runs per-job steps inside it with srun --overlap.
+set -euo pipefail
+state_dir="${ROOT:?}/holders"
+mkdir -p "$state_dir"
+exec 9> "$state_dir/.lock"
+flock 9
+min_left="${HOLDER_MIN_LEFT:-20}"
+
+minutes_left() {  # squeue %L: [days-]hours:minutes:seconds | minutes:seconds
+  local left="$1" d=0 h=0 m=0
+  [[ $left == *-* ]] && { d="${left%%-*}"; left="${left#*-}"; }
+  IFS=: read -r -a parts <<<"$left"
+  case ${#parts[@]} in
+    3) h=$((10#${parts[0]})); m=$((10#${parts[1]})) ;;
+    2) m=$((10#${parts[0]})) ;;
+    *) m=0 ;;
+  esac
+  echo $(( d * 1440 + h * 60 + m ))
+}
+
+current="$(cat "$state_dir/current" 2>/dev/null || true)"
+if [[ -n $current ]]; then
+  read -r st left <<<"$(squeue -h -j "$current" -o "%T %L" 2>/dev/null || true)"
+  if [[ ${st:-} == RUNNING && $(minutes_left "${left:-0:00}") -ge $min_left ]]; then
+    echo "$current"; exit 0
+  fi
+  if [[ ${st:-} == PENDING ]]; then
+    next="$current"
+  fi
+fi
+
+# Never put a holder (agent builds and benchmarks) on a node that one of our final
+# benchmarks is using: bench_supervisor.sh registers its node in bench_nodes_in_use/.
+avoid="${H100_EXCLUDE:?}"
+for f in "$(dirname "$0")/../bench_nodes_in_use"/*; do
+  [[ -s $f ]] && avoid="$avoid,$(cat "$f")"
+done
+if [[ -z ${next:-} ]]; then
+  next="$(sbatch --parsable --account=bstellato --job-name=fom-holder \
+    --time="${STEP_TIME:-00:59:00}" --gres=gpu:a100:1 \
+    --constraint="${STEP_CONSTRAINT:-amd&rome&a100}" --exclude="$avoid" \
+    --nodes=1 --ntasks=1 --cpus-per-task="${BENCH_THREADS:-16}" --mem="${STEP_MEM:-64G}" \
+    --output="$state_dir/holder-%j.out" --wrap "hostname; nvidia-smi -L; lscpu | grep 'Model name'; sleep 3600")"
+  echo "$next" > "$state_dir/current"
+  echo "$(date -Is) submitted holder $next" >> "$state_dir/holders.log"
+fi
+for ((i = 0; i < 1440; i++)); do   # wait up to 4 h for it to start
+  st="$(squeue -h -j "$next" -o %T 2>/dev/null || true)"
+  [[ $st == RUNNING ]] && { echo "$(date -Is) holder $next running" >> "$state_dir/holders.log"; echo "$next"; exit 0; }
+  [[ -z $st ]] && { echo "holder $next left the queue without running" >&2; exit 1; }
+  sleep 10
+done
+echo "holder $next did not start within 4 h" >&2
+exit 1

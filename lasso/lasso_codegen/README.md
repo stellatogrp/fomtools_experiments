@@ -13,6 +13,7 @@ constant across backends; only the emitted backend changes.
 | High-dimensional rectangular scaling | 10,000 × 40,000 | 8 nonzero slots/row; nominally 2/column | 7 interleaved rounds | [`results/rect10k40k/`](results/rect10k40k/) |
 | Large rectangular scaling | 325,000 × 1,300,000 (2.6M nonzeros) | 8 nonzeros/row; 2/column | 7 interleaved rounds, one node | [`results/rect325k1p3m/`](results/rect325k1p3m/) |
 | Large rectangular scaling, tolerance `1e-5` | 325,000 × 1,300,000 (2.6M nonzeros) | 8 nonzeros/row; 2/column | 7 interleaved rounds, one node | [`results/rect325k1p3m_tol1e-5/`](results/rect325k1p3m_tol1e-5/) |
+| Large rectangular scaling, `D` and `D^T` separate (sepA), with hand-written baselines | 325,000 × 1,300,000 (2.6M nonzeros) | 8 nonzeros/row; 2/column | 7 interleaved rounds, one node, whole node per round | [`results/rect325k1p3m_sepA/`](results/rect325k1p3m_sepA/) |
 
 Both studies solve
 
@@ -20,10 +21,14 @@ $$
 \min_{z}\; \frac{1}{2}\lVert A z - b \rVert_2^2 + 0.02\lVert z \rVert_1.
 $$
 
+In every study `A` is a synthetic sparse random matrix with Gaussian values.
+
 ## Results
 
 Each row reports the median of the interleaved round-level per-solve values,
-in milliseconds. The raw files in the linked result directories retain the
+in milliseconds. The NumPy column is FOMTools' reference execution of the
+extracted iteration, not a hand-written implementation; the sepA study below
+adds hand-written SciPy and CuPy/cuSPARSE baselines. The raw files in the linked result directories retain the
 underlying microsecond measurements and are the
 authoritative records.
 
@@ -62,6 +67,32 @@ Same problem and generated operators as the previous study, with all four
 solvers verified at tolerance `1e-5` and the agent driven by FOMTools'
 built-in translation and code optimization instructions. All rounds ran on
 one AMD EPYC 7H12 + A100 node (`della-i12g2`) with 16-thread OpenMP builds.
+
+### Large rectangular scaling: 325,000 × 1,300,000, `D` and `D^T` separate (sepA)
+
+The same instance, step size and algorithms, written so that FOMTools extracts
+products with `D` and `D^T` (2.6M nonzeros each) instead of the merged operator
+`I - eta D^T D` (19.5M; FISTA about 69M). All columns come from the same seven
+interleaved rounds on one AMD EPYC 7H12 + A100 node (`della-i12g1`), each round
+holding the whole node; seconds per 200-iteration solve.
+
+| method | FOMTools reference (NumPy) | Hand-written SciPy | Generated OpenMP, original | Generated OpenMP, sepA | Hand-written CuPy | Generated CUDA, original | Generated CUDA, sepA |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| ISTA | 7.304 | 4.368 | 1.133 | **0.4339** | 0.05050 | 0.1261 | **0.02368** |
+| FISTA | 18.55 | 4.622 | 1.252 | **0.5517** | 0.05941 | 0.1289 | **0.02672** |
+
+| speedup of sepA over | hand-written SciPy | hand-written CuPy (cuSPARSE) | original-form OpenMP | original-form CUDA |
+|---|---:|---:|---:|---:|
+| ISTA | 10.1× | 2.1× | 2.6× | 5.3× |
+| FISTA | 8.4× | 2.2× | 2.3× | 4.8× |
+
+The hand-written baselines keep `D` and `D^T` separate: SciPy on one CPU core
+and CuPy on the GPU, whose sparse products call cuSPARSE. The FOMTools
+reference column executes the sepA iteration. The original-form generated
+CUDA solvers are 2.5× (ISTA) and 2.2× (FISTA) slower than CuPy, because every
+iteration reads the merged operators. The original-form OpenMP and FISTA CUDA
+solvers are those of `rect325k1p3m_tol1e-5`; the original-form ISTA CUDA
+solver was generated for this comparison with the same pipeline.
 
 The studies ran on different Della nodes and GPU models. They demonstrate
 backend-specific generation within each study; their absolute timing numbers
@@ -116,6 +147,21 @@ job (node in parentheses).
 | FISTA OpenMP (della-i12g2) | 5.828 | 1.254 | 4.65× |
 | FISTA CUDA (della-i12g2) | 0.525 | 0.128 | 4.11× |
 
+### Large rectangular scaling: 325,000 × 1,300,000, `D` and `D^T` separate (sepA)
+
+Fresh builds of the translated and code-optimized sources, timed in the same
+job on `della-i12g1`.
+
+| solver | translation (s) | code optimization (s) | speedup |
+|---|---:|---:|---:|
+| ISTA OpenMP | 0.633 | 0.434 | 1.46× |
+| ISTA CUDA | 0.0464 | 0.0227 | 2.04× |
+| FISTA OpenMP | 1.925 | 0.550 | 3.50× |
+| FISTA CUDA | 0.1467 | 0.0259 | 5.66× |
+
+The original-form ISTA CUDA solver of this comparison went from 0.1344 s to
+0.1065 s (1.26×) in the same kind of head-to-head on `della-l09g6`.
+
 ### Optimization tricks used
 
 Both studies applied the following algebra- and layout-aware transformations:
@@ -168,6 +214,19 @@ non-temporal stores for the next iterate; on CUDA they kept the state vector in
 an L2 persisting window. The fixed matrix-vector product is about 93%
 (OpenMP) and 95% (CUDA) of the optimized ISTA solve, which limits the gains.
 
+The sepA study's agents checked the extracted operators numerically and
+exploited the identity blocks of the sepA iteration: the residual and
+state-update identity products became in-place updates or pointer rotations,
+behind setup-time probes with a generic fallback, and the loop-invariant
+parameter term was hoisted. For FISTA both backends folded the two momentum
+terms, which share one block of `D`, into one product with `D` on the
+extrapolated point, and fused the soft-threshold with the next extrapolation.
+On CUDA they kept the iteration vectors in an L2 persisting window and
+page-locked the solution buffer. The two products with `D` and `D^T` in the
+fixed operator files remain most of the solve (about 94% for OpenMP ISTA, 81%
+for CUDA FISTA).
+
 All archived solvers passed their eight-sample generated-oracle verification
-checks with tolerance `1e-6` (`1e-5` for `rect325k1p3m_tol1e-5`); exact error
-lines are retained in each `verify_*.log` file.
+checks with tolerance `1e-6` (`1e-5` for `rect325k1p3m_tol1e-5` and
+`rect325k1p3m_sepA`); exact error lines are retained in each `verify_*.log`
+file.

@@ -67,6 +67,10 @@ worst max-abs error over 8 samples: 8.704e-14 (tol 1.000e-05)
 
 ## Agent summary (end of the code-optimization transcript)
 
+The summary below is the agent's own report, quoted verbatim. Its numbers, for example the
+L2 window's 150.1 -> 125.4 ms, are the agent's measurements, partly from earlier sessions,
+and were not re-measured in this run.
+
 ### Whole-solve timing
 
 | | mean_us | min_us |

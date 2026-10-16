@@ -1,0 +1,83 @@
+{
+  "experiment": "rectangular_sparse_lasso_ista_fista_openmp_cuda_sepA",
+  "problem": {
+    "m": 325000,
+    "n": 1300000,
+    "nnz_A": 2600000,
+    "seed": 0,
+    "lambda": 0.02,
+    "iterations": 200,
+    "numeric_type": "float64",
+    "nonzero_slots_per_row": 8,
+    "column_occurrences": 2,
+    "matrix": "two seeded permutations of 1300000 columns assigned to 325000 rows",
+    "step_size": 0.07308955543183375,
+    "step_size_bound": "1 / (||A||_1 * ||A||_infinity)"
+  },
+  "formulation": "sepA: residual r = D w - x materialized as its own step, gradient applied as D^T r; D^T D never formed",
+  "iteration_matrix_nnz": {
+    "ista": {
+      "t0_state (D)": 2600000,
+      "t0_p_p0 (-I)": 325000,
+      "t1_state (I)": 1300000,
+      "t1_t_t0 (-eta D^T)": 2600000,
+      "su_t_t1 (I)": 1300000
+    },
+    "fista": {
+      "t0_state": 3980241,
+      "t0_state__d_gamma": 5200000,
+      "t0_p_p0": 325000,
+      "t1_state": 1300000,
+      "t1_state__d_gamma": 2600000,
+      "t1_t_t0": 2600000,
+      "su_state": 1300000,
+      "su_t_t1": 1300000
+    }
+  },
+  "equivalence_check": "sepa_check.txt: identical step size; FOMTools reference iterates agree to 9.770e-14 (ISTA) and 3.511e-07 (FISTA) after 200 iterations",
+  "backends": {
+    "cpu": {
+      "version": "large_scale",
+      "backend": "openmp",
+      "threads": 16,
+      "flags": "-O3 -mcmodel=medium -fopenmp"
+    },
+    "gpu": {
+      "version": "large_scale",
+      "backend": "cuda",
+      "flags": "-O3 -gencode arch=compute_80,code=sm_80"
+    }
+  },
+  "baselines": {
+    "scipy": "hand-written ISTA/FISTA with D and D^T (CSR), one CPU core, 1 warm-up + 3 solves, median",
+    "cupy": "hand-written ISTA/FISTA with D and D^T on the GPU (cuSPARSE), 8 warm-ups + 10 solves, mean, includes solution download"
+  },
+  "compared_solvers": {
+    "sepa": "generated here (FOMTools built-in instructions and default driver)",
+    "original_form": "OpenMP and FISTA CUDA: verified solvers of rect325k1p3m_tol1e-5; ISTA CUDA: generated for this comparison with the same pipeline from the original-form scaffold; all timed in the same rounds"
+  },
+  "measurement": {
+    "interleaved_rounds": 7,
+    "generated_solves_per_round": 10,
+    "generated_warmups_per_round": 8,
+    "numpy_repetitions_per_round": 3,
+    "numpy_warmups_per_round": 1,
+    "reported_statistic": "median of round-level per-solve values",
+    "omp_env": "OMP_NUM_THREADS=16 OMP_PLACES=cores OMP_PROC_BIND=close",
+    "round_isolation": "all seven rounds in one job holding the whole node (Slurm --exclusive); rounds_audit.txt"
+  },
+  "verification_samples": 8,
+  "verification_tolerance": 1e-05,
+  "fomtools_commit": "b41c10a5b266f431079840a687f808dac3046bbc",
+  "agent": "Claude Code CLI 2.1.287 (headless), FOMTools default agent driver with built-in phase_a_instructions / phase_b_instructions",
+  "generation_window": "sepA solvers 2026-10-16T05:53:53-04:00/2026-10-16T08:33:12-04:00; original-form ISTA CUDA 2026-10-16T11:20:52-04:00/2026-10-16T12:16:25-04:00",
+  "benchmark_window": "2026-10-16T12:40:34-04:00/2026-10-16T13:19:49-04:00",
+  "benchmark_host": "della-i12g1",
+  "benchmark_cpu": "AMD EPYC 7H12 64-Core Processor (2 sockets)",
+  "benchmark_gpu": "NVIDIA A100-PCIE-40GB",
+  "python": "3.14.6",
+  "numpy": "2.5.3",
+  "scipy": "1.18.1",
+  "gcc": "11.5.0",
+  "cuda": "12.9.86"
+}
