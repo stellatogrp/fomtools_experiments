@@ -1,0 +1,7 @@
+make: Entering directory '/scratch/gpfs/BSTELLATO/dd7022/fomtools_codegen_runs/full_m10000_n40000_k260_sepA/fista/cuda'
+nvcc -O3 -gencode arch=compute_80,code=sm_80 -Iinclude -Itest -Xcompiler -mcmodel=medium -c src/fom_solver.cu -o fom_solver.o
+nvcc -O3 -gencode arch=compute_80,code=sm_80 -Iinclude -Itest -Xcompiler -mcmodel=medium fom_solver.o fom_ops.o fom_data.o fom_linsolve.o verify_main.o -o verify_bin
+./verify_bin
+worst max-abs error over 8 samples: 3.132e-08 (tol 1.000e-05)
+VERIFY OK
+make: Leaving directory '/scratch/gpfs/BSTELLATO/dd7022/fomtools_codegen_runs/full_m10000_n40000_k260_sepA/fista/cuda'

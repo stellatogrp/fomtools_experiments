@@ -14,6 +14,7 @@ constant across backends; only the emitted backend changes.
 | Large rectangular scaling | 325,000 × 1,300,000 (2.6M nonzeros) | 8 nonzeros/row; 2/column | 7 interleaved rounds, one node | [`results/rect325k1p3m/`](results/rect325k1p3m/) |
 | Large rectangular scaling, tolerance `1e-5` | 325,000 × 1,300,000 (2.6M nonzeros) | 8 nonzeros/row; 2/column | 7 interleaved rounds, one node | [`results/rect325k1p3m_tol1e-5/`](results/rect325k1p3m_tol1e-5/) |
 | Large rectangular scaling, `D` and `D^T` separate (sepA), with hand-written baselines | 325,000 × 1,300,000 (2.6M nonzeros) | 8 nonzeros/row; 2/column | 7 interleaved rounds, one node, whole node per round | [`results/rect325k1p3m_sepA/`](results/rect325k1p3m_sepA/) |
+| Dense rectangular, `D` and `D^T` separate (sepA), with hand-written baselines | 10,000 × 40,000 (2.6M nonzeros, 0.65%) | 260 nonzeros/row; 65/column | 7 interleaved rounds, one node | [`results/rect10k40k_dense_sepA/`](results/rect10k40k_dense_sepA/) |
 
 Both studies solve
 
@@ -94,6 +95,26 @@ iteration reads the merged operators. The original-form OpenMP and FISTA CUDA
 solvers are those of `rect325k1p3m_tol1e-5`; the original-form ISTA CUDA
 solver was generated for this comparison with the same pipeline.
 
+### Dense rectangular: 10,000 × 40,000 with 260 nonzeros per row, `D` and `D^T` separate (sepA)
+
+`D` has 260 nonzeros per row (0.65% of its entries, 2.6M in total). `D^T D` would
+have 551M nonzeros (34.4% dense), so only the separated formulation is generated.
+The generated solvers are compared with hand-written baselines that keep `D` and
+`D^T` separate: SciPy (1 core) against the generated OpenMP solvers on the CPU,
+and CuPy, whose sparse products call cuSPARSE, against the generated CUDA solvers
+on the GPU. Seven interleaved rounds in one job on one AMD EPYC 7H12 + A100 node
+(`della-i12g1`); seconds per 200-iteration solve.
+
+| method | Hand-written SciPy (1 core) | Generated OpenMP (16 threads) | Hand-written CuPy (cuSPARSE) | Generated CUDA |
+|---|---:|---:|---:|---:|
+| ISTA | 1.250 | **0.08411** | 0.04781 | **0.02192** |
+| FISTA | 1.264 | **0.08431** | 0.05585 | **0.02690** |
+
+| speedup | CPU: generated OpenMP over SciPy (1 core) | GPU: generated CUDA over CuPy (cuSPARSE) |
+|---|---:|---:|
+| ISTA | 14.9× | 2.18× |
+| FISTA | 15.0× | 2.08× |
+
 The studies ran on different Della nodes and GPU models. They demonstrate
 backend-specific generation within each study; their absolute timing numbers
 should not be used as a controlled cross-hardware comparison.
@@ -162,6 +183,29 @@ job on `della-i12g1`.
 The original-form ISTA CUDA solver of this comparison went from 0.1344 s to
 0.1065 s (1.26×) in the same kind of head-to-head on `della-l09g6`.
 
+### Dense rectangular: 10,000 × 40,000 with 260 nonzeros per row, `D` and `D^T` separate (sepA)
+
+Fresh builds of the translated and code-optimized sources, timed in the same
+job on the agent's node (AMD EPYC 7413 + A100 SXM4 80 GB), in milliseconds.
+
+| solver | translation (ms) | code optimization (ms) | speedup |
+|---|---:|---:|---:|
+| ISTA OpenMP | 63.77 | 58.92 | 1.08× |
+| ISTA CUDA | 28.29 | 21.45 | 1.32× |
+| FISTA OpenMP | 231.47 | 100.37 | 2.31× |
+| FISTA CUDA | 67.92 | 26.67 | 2.55× |
+
+Agent wall-clock time per solver, in minutes, including the controller's checks
+after each phase and the queueing of the short build jobs:
+
+| solver | translation | code optimization | total |
+|---|---:|---:|---:|
+| ISTA OpenMP | 6.3 | 17.7 | 24.3 |
+| ISTA CUDA | 8.0 | 30.4 | 38.8 |
+| FISTA OpenMP | 8.1 | 20.6 | 29.1 |
+| FISTA CUDA | 8.8 | 25.9 | 35.1 |
+| all four | 31.2 | 94.7 | 127.3 |
+
 ### Optimization tricks used
 
 Both studies applied the following algebra- and layout-aware transformations:
@@ -226,7 +270,20 @@ page-locked the solution buffer. The two products with `D` and `D^T` in the
 fixed operator files remain most of the solve (about 94% for OpenMP ISTA, 81%
 for CUDA FISTA).
 
+The dense sepA study's agents found the same structure: all four solvers drop
+the soft-threshold at zero and seed the accumulator with the loop-invariant
+parameter term; the OpenMP solvers and the FISTA CUDA solver turn the identity
+products into in-place updates or pointer bookkeeping, and both FISTA solvers
+fold the two momentum terms into one product per iteration (on CUDA, one
+2.6M-nonzero product replaces 7.8M nonzeros of products, with the iterates in a
+three-buffer ring). The ISTA CUDA solver instead re-launches the fixed CSR
+kernels with launch shapes tuned for the A100 (435 blocks of 23 threads instead
+of 40 blocks of 256 for the 10,000-row product with `D`), captures the whole
+solve as one CUDA graph and chooses an L2 persisting window at setup. The two
+products with `D` and `D^T` remain most of the solve (about 99% for OpenMP ISTA,
+91% for OpenMP FISTA).
+
 All archived solvers passed their eight-sample generated-oracle verification
-checks with tolerance `1e-6` (`1e-5` for `rect325k1p3m_tol1e-5` and
-`rect325k1p3m_sepA`); exact error lines are retained in each `verify_*.log`
-file.
+checks with tolerance `1e-6` (`1e-5` for `rect325k1p3m_tol1e-5`,
+`rect325k1p3m_sepA` and `rect10k40k_dense_sepA`); exact error lines are retained
+in each `verify_*.log` file.

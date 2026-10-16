@@ -1,0 +1,14 @@
+compared against 427 solver files under /scratch/gpfs/BSTELLATO/dd7022, /home/dd7022
+== phase_a_solver.c sha256=eab95c25cd824c55
+   0.345  /scratch/gpfs/BSTELLATO/dd7022/fomtools_codegen_runs/full_m325000_n1300000_k8/fista/openmp/phase_a_solver.c
+   0.339  /scratch/gpfs/BSTELLATO/dd7022/fomtools_codegen_runs/full_750k3p75m_retry1/fista/openmp_optimized/src/fom_solver.c
+   0.315  /scratch/gpfs/BSTELLATO/dd7022/fomtools_codegen_runs/full_m325000_n1300000_k8_sepA/fista/openmp/src/fom_solver_v5.c
+   0.314  /scratch/gpfs/BSTELLATO/dd7022/fomtools_codegen_runs/full_m10000_n40000_k260_sepA/ista/openmp/phase_a_solver.c
+   0.308  /scratch/gpfs/BSTELLATO/dd7022/fomtools_codegen_runs/full_m325000_n1300000_k8_sepA/fista/openmp/phase_a_solver.c
+== src/fom_solver.c sha256=86828963fdc088b5
+   0.297  /scratch/gpfs/BSTELLATO/dd7022/fomtools_codegen_runs/full_m10000_n40000_k260_sepA/ista/openmp/phase_b_solver.c
+   0.297  /scratch/gpfs/BSTELLATO/dd7022/fomtools_codegen_runs/full_m10000_n40000_k260_sepA/ista/openmp/src/fom_solver.c
+   0.284  /scratch/gpfs/BSTELLATO/dd7022/fomtools_codegen_runs/full_m10000_n40000_k260_sepA/ista/openmp/phase_a_solver.c
+   0.277  /scratch/gpfs/BSTELLATO/dd7022/fomtools_codegen_runs/full_m325000_n1300000_k8_sepA/fista/openmp/phase_b_solver.c
+   0.277  /scratch/gpfs/BSTELLATO/dd7022/fomtools_codegen_runs/full_m325000_n1300000_k8_sepA/fista/openmp/src/fom_solver.c
+PROVENANCE_OK

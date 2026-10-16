@@ -1,0 +1,14 @@
+compared against 449 solver files under /scratch/gpfs/BSTELLATO/dd7022, /home/dd7022
+== phase_a_solver.cu sha256=b7fc69a55820a45b
+   0.249  /scratch/gpfs/BSTELLATO/dd7022/fomtools_codegen_runs/full_m325000_n1300000_k8_sepA/fista/cuda/phase_a_solver.cu
+   0.232  /scratch/gpfs/BSTELLATO/dd7022/fomtools_codegen_runs/full_m10000_n40000_k260_sepA/fista/cuda/phase_a_solver.cu
+   0.230  /scratch/gpfs/BSTELLATO/dd7022/fomtools_codegen_runs/full_m325000_n1300000_k8_builtin/fista/cuda/phase_a_solver.cu
+   0.230  /scratch/gpfs/BSTELLATO/dd7022/fomtools_codegen_runs/full_m325000_n1300000_k8_sepA/orig_fista/cuda/phase_a_solver.cu
+   0.224  /scratch/gpfs/BSTELLATO/dd7022/fomtools_codegen_runs/full_m325000_n1300000_k8_builtin/fista/cuda/src/fom_solver_prof.cu
+== src/fom_solver.cu sha256=9893f3d9b0856bd3
+   0.171  /scratch/gpfs/BSTELLATO/dd7022/fomtools_codegen_runs/full_m325000_n1300000_k8_sepA/fista/cuda/phase_a_solver.cu
+   0.159  /home/dd7022/fomtools_codegen_runs/rect10k40k_study/prod_ista_cuda_optimized/src/fom_solver.cu
+   0.157  /home/dd7022/fomtools_codegen_runs/rect10k40k_study/prod_ista_cuda_optimized/release/fom_solver.cu
+   0.154  /scratch/gpfs/BSTELLATO/dd7022/fomtools_codegen_runs/full_m325000_n1300000_k8_sepA/fista/cuda/phase_b_solver.cu
+   0.154  /scratch/gpfs/BSTELLATO/dd7022/fomtools_codegen_runs/full_m325000_n1300000_k8_sepA/fista/cuda/src/fom_solver.cu
+PROVENANCE_OK

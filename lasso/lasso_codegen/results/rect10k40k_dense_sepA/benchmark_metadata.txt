@@ -1,0 +1,24 @@
+RUN_DATE=2026-10-16T18:34:38-04:00
+SLURM_JOB_ID=15709081
+HOST=della-i12g1
+GPU 0: NVIDIA A100-PCIE-40GB (UUID: GPU-3348bc6f-b6b9-6190-9542-d7e98c64b5e8)
+CPU(s):                                  128
+On-line CPU(s) list:                     0-127
+Model name:                              AMD EPYC 7H12 64-Core Processor
+Thread(s) per core:                      1
+Core(s) per socket:                      64
+Socket(s):                               2
+CPU(s) scaling MHz:                      80%
+NUMA node(s):                            2
+NUMA node0 CPU(s):                       0-63
+NUMA node1 CPU(s):                       64-127
+SHAPE=10000x40000 nnz_per_row=260 iterations=200 lambda=0.02 seed=0 dtype=float64
+REPO_COMMIT=b41c10a5b266f431079840a687f808dac3046bbc
+OMP_NUM_THREADS=16 OMP_PLACES=cores OMP_PROC_BIND=close
+ROUNDS=7 BENCH_NUMPY=1 GEN_SOLVES=10 NUMPY_REPS=3 TARGETS=[ista/openmp ista/cuda fista/openmp fista/cuda] EXTRA_TARGETS=[] BASELINES=1
+PROBLEM_DIR=/home/dd7022/fomtools_full_pipeline/problems_v2
+MODE= PIN_LOCAL=0
+gcc (GCC) 11.5.0 20240719 (Red Hat 11.5.0-14)
+Build cuda_12.9.r12.9/compiler.36037853_0
+Python 3.14.6
+numpy 2.5.3 scipy 1.18.1
