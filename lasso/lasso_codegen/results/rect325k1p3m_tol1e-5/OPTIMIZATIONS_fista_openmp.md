@@ -354,6 +354,18 @@ worst max-abs error over 8 samples: 1.403e-06 (tol 1.000e-05)
 
 ```
 
+## Note on thread placement
+
+Every OpenMP timing in this study used the same settings: 16 threads with
+`OMP_PLACES=cores` and `OMP_PROC_BIND=close`, inside a 16-core Slurm allocation.
+This covers the agent's `make bench` runs, the translation and code optimization
+head-to-head, and the seven benchmark rounds. The agent's remark below that
+pinning was 1.65x slower and that it left the threads unbound comes from a test
+outside that setup: every `make` it ran went through a Slurm step that sets these
+values, and it describes 128 cores with no restriction, whereas Della confines
+each job to its allocated cores. The remark does not describe the configuration
+that was tuned or timed, and the solver source sets no thread placement.
+
 ## Agent summary (end of the code-optimization transcript)
 
 ### Result
