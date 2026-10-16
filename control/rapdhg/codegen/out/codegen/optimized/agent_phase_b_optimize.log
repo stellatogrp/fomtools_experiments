@@ -1,0 +1,76 @@
+I'll start by looking at the project structure and the solver code, then run a baseline profile.
+The ops are CSR matvecs with data baked into `fom_ops.c`. Let me get a baseline profile and bench, and inspect the workspace and data structure.
+Baseline is ~1540 µs mean. `fom_ops.c` is only 266 lines — let me read the full ops data (sparsity patterns are key) and `fom_data.c`.
+Let me analyze the structure with Python: schedule values, CSR patterns, and value distributions.
+Let me do a proper structural analysis quietly in Python.
+Tolerance is a loose 1e-4 absolute — plenty of freedom to fuse and reassociate. Now let me extract the exact patterns to design a fully specialized solver.
+Now I'll write the new specialized `fom_solver.c` (assembled via a small script since the constant tables are ~56KB).
+Now splice the new tables and rewrite the t1 pass.
+244 µs now (from 348). Let me profile to see the new breakdown.
+t1 is still 50% and t0 40%. The t0/t1 CSR loops have suspicious paired-value structure (e.g. `+v,(−v)` on adjacent even columns). Let me analyze A and C for exploitable regularity.
+139.7 µs — 11× from baseline. Profile again:
+The even/odd symmetry recurses! Let me check how deep — if it goes all levels (40 = 5×8), B is Hadamard-diagonalizable down to eight 5×5 blocks.
+Depth-2 recursion holds: B factors into four symmetric 10×10 leaves via a 2-level Hadamard butterfly — 400 fma instead of 800 (originally 1600). Implementing:
+Only a marginal gain (139.7 → 137.2) — the dense part is no longer dominant. Profile:
+Regression (137 → 172) — likely aliasing through `acc` blocking vectorization. Let me use local stack arrays (provably non-aliasing) instead:
+97.8 µs — aliasing was indeed the blocker. Let me convert the remaining `acc`-based scratch (`c`, `uu/uw/wu/ww`, `pe/pm`) to locals too:
+94.7 µs (16.3×). Let me check KD's internal pattern — the row lengths looked triangular, which would let the axpy loops shrink their inner range:
+Variable trip counts killed vectorization — big regression (94.7 → 146.7). Reverting both:
+Fusion hurt (105 vs 99) — likely broke vectorization of the clean loops. Reverting:
+Stable at ~94 µs (the IDE diagnostics are just clangd missing `-Iinclude`; the real build is fine). Profile breakdown:
+Exact. Implementing the Toeplitz-kernel form for both passes (single shared 10-value kernel `FOM_TA`, replacing both 400-entry tables):
+80.7 µs (min 72), verify unchanged at 1.25e-7. Profile:
+~78 µs stable. t1's biggest remaining piece is the 4-leaf 10×10 matvec. Let me check whether the leaves themselves have exploitable structure (low rank / mutual relations):
+Nearly identical but not bit-exact — keeping both tables. Now the micro-round. Let me view the current t1 pass:
+Applying the micro-round: peel first leaf-matvec step (drop zero-inits), peel `l=0` in both Toeplitz loops, restructure the final loop over pairs without sign multiplies, and drop a stale comment:
+Same performance (77 µs) but cleaner; keeping it. Let me profile and check the t0 pass for the same init-fold opportunity:
+Apply the same init-peel to t0's convolution, then final measurement round:
+Diminishing returns now. Let me check for compiler warnings, confirm the workspace `acc` situation is clean, and take final measurements:
+Done. The solver is fully optimized and stable — two final rounds gave <3% so I'm stopping per the loop criteria. `VERIFY OK` holds with worst error 1.251e-7 against the 1e-4 tolerance, and all `FOM_PROF_BEGIN/END` markers remain in place.
+
+FOMTOOLS-SUMMARY-BEGIN
+**Whole-solve performance:** initial `mean_us` = 1542.1 → final `mean_us` = 74.9 (best runs 74.7–75.2, min 69–72), an overall **~20.6× speedup**. Verification unchanged throughout: worst max-abs error 1.251e-07 vs tolerance 1e-04.
+
+**Final profiling breakdown** (`make profile`; percentages include per-region timer overhead):
+| region | total_us | pct |
+|---|---|---|
+| t1_pass | 224973 | 49.3% |
+| state_update | 119537 | 26.2% |
+| t0_pass | 110944 | 24.3% |
+| residual | 987 | 0.2% |
+
+**Optimizations applied** (each validated by the exact numeric data in `fom_ops.c`, re-derived as compile-time constants inside `fom_solver.c`):
+
+1. **Full specialization of the generic CSR interpreter loop** (1542 → 348 µs). Structure exploited: `t0_state`, `t1_state`, `su_state` and every scaled `su_*` term are identity/selection blocks with all-ones values → replaced by direct block copies and scaled block sums (`next[200:320] = d1*x[200:320] + d2*t0`, etc.); `t0_p_p1`, `t1_p_p0`, `t1_t_t0`, `su_t_t0`, `su_t_t1` are all-zero matrices → dropped; `t0_p_p1__d_tau` and `t1_p_p0__d_eta` are −I → plain `−tau*p1[i]` / `−eta*p0[i]` terms. This eliminated every 400-row CSR sweep, all `fom_zero`/`fom_scale` full-vector passes, and all function-call overhead.
+2. **Shared adjoint pass for the taux/tth terms.** `t0_state__d_tth` equals −`t0_state__d_taux` acting on state slot s4 instead of s0 (same row pattern), so both terms use one pass over a combined 40-wide source `c = taux*s0 − tth*s4`.
+3. **2-level Hadamard factorization of the dense 40×40 block** (`t1_state__d_eta`). It has recursive 2×2 `[[a,b],[b,a]]` symmetry two levels deep, so a butterfly transform of s5 reduces it to four symmetric 10×10 leaf matvecs: 1600 → 400 multiply-adds, recombined with a single exact power-of-two factor 0.25 (division-free).
+4. **Toeplitz-kernel collapse of the coupling block** (biggest structural win, 98 → 78 µs). The 40×40 coupling block inside `t1_t_t0__d_eta` factors as KD⊗σx with KD = [L | −L], alternating-sign row pairs, and L's even rows a *single 10-value upper-triangular Toeplitz kernel*; `t0_state__d_taux`'s lower block is exactly −KD^T. Both 520-nnz matvecs collapse to two zero-padded 10-point convolutions each (~200 fma per side), with the mirrored halves obtained as exact negations.
+5. **Vectorization enablers under strict (non-fast-math) FP.** All matvecs run in axpy/column order — independent accumulators per output — so clang can SIMD-vectorize without reassociating any single accumulation chain; accumulators moved from workspace pointers to stack locals so the compiler can prove no aliasing (this alone: 137 → 98 µs); per-iteration `restrict` views of the read state and written state (scoped inside the iteration so the ping-pong swap stays standards-compliant); dropped `FP_CONTRACT OFF` to allow FMA fusion (safe within the 1e-4 tolerance).
+6. **Micro-cleanups:** first accumulation step peeled to an assignment (no zero-init passes), pair-structured output loops using the sign-mirror property instead of sign multiplies.
+
+Tried and reverted (slower, kept correctness discipline): trapezoid inner-loop bounds on the staircase sparsity (variable trip counts broke vectorization) and fusing the state update into the t0/t1 loops (hurt the clean vector loops).
+FOMTOOLS-SUMMARY-END
+Done. The solver is fully optimized and stable — two final rounds gave <3% so I'm stopping per the loop criteria. `VERIFY OK` holds with worst error 1.251e-7 against the 1e-4 tolerance, and all `FOM_PROF_BEGIN/END` markers remain in place.
+
+FOMTOOLS-SUMMARY-BEGIN
+**Whole-solve performance:** initial `mean_us` = 1542.1 → final `mean_us` = 74.9 (best runs 74.7–75.2, min 69–72), an overall **~20.6× speedup**. Verification unchanged throughout: worst max-abs error 1.251e-07 vs tolerance 1e-04.
+
+**Final profiling breakdown** (`make profile`; percentages include per-region timer overhead):
+| region | total_us | pct |
+|---|---|---|
+| t1_pass | 224973 | 49.3% |
+| state_update | 119537 | 26.2% |
+| t0_pass | 110944 | 24.3% |
+| residual | 987 | 0.2% |
+
+**Optimizations applied** (each validated by the exact numeric data in `fom_ops.c`, re-derived as compile-time constants inside `fom_solver.c`):
+
+1. **Full specialization of the generic CSR interpreter loop** (1542 → 348 µs). Structure exploited: `t0_state`, `t1_state`, `su_state` and every scaled `su_*` term are identity/selection blocks with all-ones values → replaced by direct block copies and scaled block sums (`next[200:320] = d1*x[200:320] + d2*t0`, etc.); `t0_p_p1`, `t1_p_p0`, `t1_t_t0`, `su_t_t0`, `su_t_t1` are all-zero matrices → dropped; `t0_p_p1__d_tau` and `t1_p_p0__d_eta` are −I → plain `−tau*p1[i]` / `−eta*p0[i]` terms. This eliminated every 400-row CSR sweep, all `fom_zero`/`fom_scale` full-vector passes, and all function-call overhead.
+2. **Shared adjoint pass for the taux/tth terms.** `t0_state__d_tth` equals −`t0_state__d_taux` acting on state slot s4 instead of s0 (same row pattern), so both terms use one pass over a combined 40-wide source `c = taux*s0 − tth*s4`.
+3. **2-level Hadamard factorization of the dense 40×40 block** (`t1_state__d_eta`). It has recursive 2×2 `[[a,b],[b,a]]` symmetry two levels deep, so a butterfly transform of s5 reduces it to four symmetric 10×10 leaf matvecs: 1600 → 400 multiply-adds, recombined with a single exact power-of-two factor 0.25 (division-free).
+4. **Toeplitz-kernel collapse of the coupling block** (biggest structural win, 98 → 78 µs). The 40×40 coupling block inside `t1_t_t0__d_eta` factors as KD⊗σx with KD = [L | −L], alternating-sign row pairs, and L's even rows a *single 10-value upper-triangular Toeplitz kernel*; `t0_state__d_taux`'s lower block is exactly −KD^T. Both 520-nnz matvecs collapse to two zero-padded 10-point convolutions each (~200 fma per side), with the mirrored halves obtained as exact negations.
+5. **Vectorization enablers under strict (non-fast-math) FP.** All matvecs run in axpy/column order — independent accumulators per output — so clang can SIMD-vectorize without reassociating any single accumulation chain; accumulators moved from workspace pointers to stack locals so the compiler can prove no aliasing (this alone: 137 → 98 µs); per-iteration `restrict` views of the read state and written state (scoped inside the iteration so the ping-pong swap stays standards-compliant); dropped `FP_CONTRACT OFF` to allow FMA fusion (safe within the 1e-4 tolerance).
+6. **Micro-cleanups:** first accumulation step peeled to an assignment (no zero-init passes), pair-structured output loops using the sign-mirror property instead of sign multiplies.
+
+Tried and reverted (slower, kept correctness discipline): trapezoid inner-loop bounds on the staircase sparsity (variable trip counts broke vectorization) and fusing the state update into the t0/t1 loops (hurt the clean vector loops).
+FOMTOOLS-SUMMARY-END

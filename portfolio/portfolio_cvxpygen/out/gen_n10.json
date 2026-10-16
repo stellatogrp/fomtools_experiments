@@ -1,0 +1,35 @@
+{
+  "osqp": {
+    "wall_s": 4.184663166990504
+  },
+  "sizes": {
+    "n": 20,
+    "n_eq": 1,
+    "n_ineq": 40,
+    "nnz_P": 100,
+    "nnz_A": 70,
+    "param_dependent": [
+      "u_ineq"
+    ]
+  },
+  "fom": {
+    "wall_s": 177.47588499996345,
+    "fom_options": {},
+    "auto_equilibrate": true,
+    "code_optimization": false,
+    "out_dir": "cpg_n10_fom/c/solver_code"
+  },
+  "fom_opt": {
+    "wall_s": 500.7052966670017,
+    "fom_options": {},
+    "auto_equilibrate": true,
+    "code_optimization": true,
+    "out_dir": "cpg_n10_fom_opt/c/solver_code",
+    "optimization_kept": true,
+    "timing": {
+      "python_us": 7259.229489136487,
+      "c_initial_us": 133.6776,
+      "c_final_us": 21.7446
+    }
+  }
+}

@@ -1,0 +1,31 @@
+I'll start by reading the spec and headers to understand what to implement.
+Now let me check `fom_data.h` for the state init, clip bounds, and schedule accessors.
+There's an existing `src/fom_solver.c` — let me check what's there, plus the Makefile and verify harness to understand expected status/residual semantics.
+An implementation already exists in `src/fom_solver.c` and looks consistent with the SPEC. Let me run the verifier to see where it stands.
+Baseline is ~1833 µs/solve. Let me profile and check how often coefficients are exactly 0 or 1 (skippable terms), and how fom_ops computes rows.
+Done — `make verify` prints `VERIFY OK`, and the optimized solver is ~17% faster than the straightforward version. (The IDE diagnostics are just the editor's clangd missing the `-Iinclude` path; the actual build compiles cleanly with `-Wall`.)
+
+**Result:** `src/fom_solver.c` implements the full ABI (`fom_set_default_settings`, `fom_setup`, `fom_update_params`, `fom_solve`, `fom_cleanup`) with no allocation, no VLAs, and no `/` operator. Both `fom_setup` and `fom_update_params` reset the state to `FOM_STATE_INIT` so every solve reproduces the reference exactly. The iteration follows SPEC term order: `t0 = relu(...)`, `t1 = clip(..., t1_lo, t1_hi)`, then the state update, with all matvecs going through the `fom_apply_*` CSR helpers and all constants read from `fom_data.c`. State/new-state are pointer-swapped per iteration, and the residual (max-abs difference) is only computed on the final iteration since termination is max-iters-only.
+
+**Verification:** worst max-abs error over 8 samples is 1.251e-07 against a 1e-04 tolerance — VERIFY OK, exit 0.
+
+**Performance:** the operator matrices are tiny (0–1600 nonzeros), so the solve is memory-pass bound rather than flop bound. Three optimizations cut the mean solve time from 1833 µs to 1531 µs (min 1480 µs, 512 iterations):
+
+1. Terms whose schedule coefficient is exactly 0 are skipped — `g2` is 0 on 504 of 512 iterations, which drops a 400-row pass almost every iteration (`tth`, `d1`, `m1` also hit 0 occasionally).
+2. Coefficient-exactly-1 terms accumulate directly into the destination — bit-identical to the zero/apply/axpy detour because each CSR row performs a single `out[i] += s`; `g1` is 1 on 504 of 512 iterations.
+3. Scaled terms whose source is no wider than the output scale the source once and apply directly (`M @ (c·x)` instead of `c · (M @ x)`), e.g. the 40-wide `t1` feeding the 400-wide state update. This reassociates one rounding per nonzero but left the verification error unchanged at 1.251e-07.
+
+Terms where the source is wider than the output (the 400-wide state feeding `t0`/`t1`) keep the accumulator form, which is both cheaper and closest to the reference rounding.
+Done — `make verify` prints `VERIFY OK`, and the optimized solver is ~17% faster than the straightforward version. (The IDE diagnostics are just the editor's clangd missing the `-Iinclude` path; the actual build compiles cleanly with `-Wall`.)
+
+**Result:** `src/fom_solver.c` implements the full ABI (`fom_set_default_settings`, `fom_setup`, `fom_update_params`, `fom_solve`, `fom_cleanup`) with no allocation, no VLAs, and no `/` operator. Both `fom_setup` and `fom_update_params` reset the state to `FOM_STATE_INIT` so every solve reproduces the reference exactly. The iteration follows SPEC term order: `t0 = relu(...)`, `t1 = clip(..., t1_lo, t1_hi)`, then the state update, with all matvecs going through the `fom_apply_*` CSR helpers and all constants read from `fom_data.c`. State/new-state are pointer-swapped per iteration, and the residual (max-abs difference) is only computed on the final iteration since termination is max-iters-only.
+
+**Verification:** worst max-abs error over 8 samples is 1.251e-07 against a 1e-04 tolerance — VERIFY OK, exit 0.
+
+**Performance:** the operator matrices are tiny (0–1600 nonzeros), so the solve is memory-pass bound rather than flop bound. Three optimizations cut the mean solve time from 1833 µs to 1531 µs (min 1480 µs, 512 iterations):
+
+1. Terms whose schedule coefficient is exactly 0 are skipped — `g2` is 0 on 504 of 512 iterations, which drops a 400-row pass almost every iteration (`tth`, `d1`, `m1` also hit 0 occasionally).
+2. Coefficient-exactly-1 terms accumulate directly into the destination — bit-identical to the zero/apply/axpy detour because each CSR row performs a single `out[i] += s`; `g1` is 1 on 504 of 512 iterations.
+3. Scaled terms whose source is no wider than the output scale the source once and apply directly (`M @ (c·x)` instead of `c · (M @ x)`), e.g. the 40-wide `t1` feeding the 400-wide state update. This reassociates one rounding per nonzero but left the verification error unchanged at 1.251e-07.
+
+Terms where the source is wider than the output (the 400-wide state feeding `t0`/`t1`) keep the accumulator form, which is both cheaper and closest to the reference rounding.
