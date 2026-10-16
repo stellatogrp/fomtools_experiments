@@ -37,7 +37,7 @@ from portfolio_cvxpygen.model import (
     build,
     code_dir,
     prefix,
-    x_bounds,
+    param_bounds,
 )
 
 ARMS = ("osqp", "fom", "fom_opt")
@@ -78,7 +78,7 @@ def generate_fom(N: int, arm: str) -> dict:
             prefix=prefix(N, arm),
             fom="admm",
             fom_options=FOM_OPTIONS,
-            param_bounds={x: x_bounds(N)},
+            param_bounds=param_bounds(N, x),
             config=config,
             auto_equilibrate=True,
             code_optimization=optimize,
@@ -106,7 +106,7 @@ def canonical_sizes(N: int) -> dict:
 
     problem, x, _ = build(N)
     canon, _ = Canonicalizer(solver="OSQP").canonicalize(problem)
-    qp = extract_qp_data(canon, param_bounds={x: x_bounds(N)})
+    qp = extract_qp_data(canon, param_bounds=param_bounds(N, x))
     return dict(
         n=qp.n,
         n_eq=qp.n_eq,

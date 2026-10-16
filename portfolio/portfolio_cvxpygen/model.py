@@ -32,7 +32,12 @@ OUT = Path(__file__).parent / "out_factor"
 RESULTS = Path(__file__).parent / "results_factor"
 
 SIZES = (200, 500, 1000, 3000)
-FACTORS = 100  # k: Sigma = F F'/k + sigma_ridge I with F of size N x k
+FACTORS = 100  # k: Sigma = F F' + sigma_ridge I with F of size N x k
+# Return forecasts vary between solves (Grinold and Kahn's alpha = IC x volatility x
+# score): mu_t = mu_bar + IC * sigma * s_t, sigma_i = sqrt(Sigma_ii), s_t ~ N(0, I)
+# truncated to [-S_MAX, S_MAX], which also gives the box the front end needs.
+IC = 0.1
+S_MAX = 3.0
 ITERATIONS = 200
 N_SOLVES = 100  # back-test length per timing round
 DRIFT = 0.15
@@ -115,20 +120,54 @@ def x_bounds(N: int) -> tuple[np.ndarray, np.ndarray]:
     return drift_interval(np.ones(N) / N, DRIFT)
 
 
+class Parameters:
+    """The holdings ``x`` and the return forecast ``mu`` as one stacked vector
+    ``[x; mu]``, so callers set both with ``params.value = v``."""
+
+    def __init__(self, x: cp.Parameter, mu: cp.Parameter):
+        self.x, self.mu = x, mu
+
+    @property
+    def value(self) -> np.ndarray:
+        return np.concatenate([self.x.value, self.mu.value])
+
+    @value.setter
+    def value(self, v: np.ndarray) -> None:
+        n = self.x.size
+        self.x.value, self.mu.value = v[:n], v[n:]
+
+
+def forecast_scale(N: int) -> tuple[np.ndarray, np.ndarray]:
+    """``(mu_bar, IC * sigma)``: the mean forecast and the scale of its updates."""
+    data = factor_instance(N)
+    sigma = np.sqrt(np.sum(data.F**2, axis=1) + data.d)
+    return data.mu, IC * sigma
+
+
+def param_bounds(N: int, params: Parameters) -> dict:
+    """Boxes for the front end: the verified drift box for ``x``, the truncated
+    forecast box for ``mu``."""
+    mu_bar, scale = forecast_scale(N)
+    return {params.x: x_bounds(N), params.mu: (mu_bar - S_MAX * scale, mu_bar + S_MAX * scale)}
+
+
 def build(N: int):
-    """``(problem, x, z)``: the parametric CVXPY problem, its parameter and variable."""
+    """``(problem, params, z)``: the parametric CVXPY problem, its parameters ``[x; mu]``
+    and its variable."""
     data = factor_instance(N)
     x = cp.Parameter(N, name="x")
     x.value = np.ones(N) / N
+    mu = cp.Parameter(N, name="mu")
+    mu.value = data.mu
     z = cp.Variable(N, name="z")
     y = cp.Variable(data.F.shape[1], name="y")  # factor exposures, as in the CVXPYgen paper
     objective = (
         0.5 * data.kappa * (cp.sum_squares(y) + data.d * cp.sum_squares(z))
-        - data.mu @ z
+        - mu @ z
         + data.lambd * cp.norm1(z - x)
     )
     constraints = [y == data.F.T @ z, cp.sum(z) == 1, z >= 0, z <= data.z_bar]
-    return cp.Problem(cp.Minimize(objective), constraints), x, z
+    return cp.Problem(cp.Minimize(objective), constraints), Parameters(x, mu), z
 
 
 def code_dir(N: int, arm: str) -> str:
@@ -149,7 +188,12 @@ def load_cpg_solve(N: int, arm: str):
 
 
 def holdings_sequence(N: int, count: int = N_SOLVES, seed: int = 1) -> np.ndarray:
-    """``count`` drifted equal-weight portfolios ``(1 + r) / sum(1 + r)``, ``r ~ U[-drift, drift]``."""
+    """``count`` parameter vectors ``[x; mu]`` (shape ``count x 2N``): drifted equal-weight
+    holdings ``(1 + r) / sum(1 + r)``, ``r ~ U[-drift, drift]``, and return forecasts
+    ``mu_bar + IC * sigma * s``, ``s ~ N(0, I)`` truncated to ``[-S_MAX, S_MAX]``."""
     rng = np.random.default_rng([seed, N])
     growth = 1.0 + rng.uniform(-DRIFT, DRIFT, size=(count, N))
-    return growth / growth.sum(axis=1, keepdims=True)
+    X = growth / growth.sum(axis=1, keepdims=True)
+    mu_bar, scale = forecast_scale(N)
+    S = np.clip(rng.standard_normal(size=(count, N)), -S_MAX, S_MAX)
+    return np.hstack([X, mu_bar + scale * S])
