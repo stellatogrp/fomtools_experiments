@@ -28,8 +28,8 @@ import numpy as np  # noqa: E402
 from portfolio_cvxpygen.model import RESULTS  # noqa: E402
 
 ARMS = {
-    "cvxpy_osqp_on": ("C0", "--", "CVXPY + OSQP, defaults"),
-    "cpg_osqp": ("C1", "-", "CVXPYgen + OSQP, defaults"),
+    "cvxpy_osqp_on": ("C0", "--", r"CVXPY + OSQP, $\rho = 1$"),
+    "cpg_osqp": ("C1", "-", r"CVXPYgen + OSQP, $\rho = 1$"),
     "cpg_fom": ("#74c476", "-", "CVXPYgen + fomtools, translated"),
     "cpg_fom_opt": ("#006d2c", "-", "CVXPYgen + fomtools, optimized"),
 }

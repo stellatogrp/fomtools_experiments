@@ -3,9 +3,11 @@
  * Built once per solver by CMakeLists.txt with -DPREFIX=<cvxpygen prefix> (the
  * generated symbols are PREFIX##_cpg_solve etc.) and one of
  *   -DMODE_OFF  OSQP defaults with a fixed max_iter, no termination check, cold start;
- *               with -DBENCH_RHO=<value>, OSQP starts from that rho instead of 0.1
- *               (osqp_update_rho once before the first solve: CVXPYgen generates
- *               OSQP at rho 0.1 and exposes no setting for it)
+ *               with -DBENCH_RHO=<value>, OSQP runs at that fixed rho instead of
+ *               0.1 with adaptive rho (osqp_update_rho once before the first solve,
+ *               adaptive rho off: CVXPYgen generates OSQP at rho 0.1 and exposes no
+ *               setting for it, and the C solver carries an adapted rho from one
+ *               solve to the next)
  *   -DMODE_FOM  the fomtools solver as generated (fixed iteration count, cold start)
  *
  * Usage: bench_cpg <holdings.bin> <count> <N> <passes> [iters]
@@ -84,6 +86,7 @@ int main(int argc, char *argv[]) {
   F(_cpg_set_solver_default_settings)();
 #if defined(BENCH_RHO)
   osqp_update_rho(&solver, BENCH_RHO);
+  solver.settings->adaptive_rho = OSQP_ADAPTIVE_RHO_UPDATE_DISABLED;
 #endif
   F(_cpg_set_solver_warm_starting)(0);
   if (strncmp(arg, "search=", 7) == 0) {

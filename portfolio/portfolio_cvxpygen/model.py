@@ -62,9 +62,11 @@ PROBLEM = dict(
 # 1e-4 at N = 200 / 1000 are 447 / ~620 at 0.1, 83 / 149 at 1, 78 / 116 at the
 # best value 0.7; 1 is used so the result does not rest on a finely tuned rho.
 FOM_OPTIONS: dict = dict(rho=1.0)
-# OSQP starts from the same rho (then adapts it as usual), so the comparison is
-# between implementations, not initial step sizes: starting from 0.1 it needs
-# about twice the iterations to 1e-4 (157 vs 81 at N = 200, 259 vs 95 at N = 500).
+# OSQP runs at the same fixed rho (adaptive rho off), so OSQP and fomtools run the
+# same ADMM and the comparison is between implementations, not step sizes. From
+# its default 0.1 OSQP needs about twice the iterations to 1e-4 (157 vs 81 at
+# N = 200, 259 vs 95 at N = 500), and the generated C OSQP carries its adapted rho
+# from one solve to the next, drifting to 204 iterations at N = 500.
 OSQP_RHO = FOM_OPTIONS["rho"]
 STEP_SIZES = dict(rho=0.1, sigma=1.0e-6, alpha=1.6)
 
@@ -86,6 +88,7 @@ OSQP_OFF = dict(
 # starting from the previous solve would let OSQP skip most of the work.
 OSQP_ON = dict(
     rho=OSQP_RHO,
+    adaptive_rho=False,
     polishing=True,
     warm_starting=False,
     warm_start=False,
