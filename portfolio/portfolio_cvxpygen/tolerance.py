@@ -59,7 +59,7 @@ from portfolio_cvxpygen.model import (
 
 TOL = 1e-4
 CAP = 20000  # largest iteration count searched
-ARMS = ("cvxpy_osqp_off", "cvxpy_osqp_on", "cpg_osqp", "cpg_fom", "cpg_fom_opt")
+ARMS = ("cvxpy_osqp_on", "cpg_osqp", "cpg_fom", "cpg_fom_opt")
 C_ARMS = ("cpg_osqp", "cpg_fom", "cpg_fom_opt")
 #: Which generated solver (``model.code_dir``) each CVXPYgen arm runs.
 GENERATED = {"cpg_osqp": "osqp", "cpg_fom": "fom", "cpg_fom_opt": "fom_opt"}
@@ -138,7 +138,7 @@ def search(N: int, tol: float, reuse: dict | None = None) -> dict[str, list[int]
     do not depend on the fomtools solver), the fomtools arms are always searched."""
     X = holdings_sequence(N)
     iters: dict[str, list[int]] = {}
-    for arm in ("cvxpy_osqp_off", "cvxpy_osqp_on", "cpg_fom_opt"):
+    for arm in ("cvxpy_osqp_on", "cpg_fom_opt"):
         if reuse and arm in reuse and not arm.startswith("cpg_fom"):
             iters[arm] = list(reuse[arm])
             continue
