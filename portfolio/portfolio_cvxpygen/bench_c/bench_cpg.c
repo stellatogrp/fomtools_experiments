@@ -26,6 +26,14 @@
  *                   test checked every iteration (eps_abs = tol, eps_rel = 0, so
  *                   both unscaled residuals <= tol), printing each solve's
  *                   iteration count; nothing is timed
+ *   stop=<tol>,<check>,<max_iter>
+ *                   every solver stops itself: OSQP with eps_abs = tol,
+ *                   eps_rel = 0, unscaled residuals; fomtools (generated with
+ *                   TerminationKind.OBJECTIVE) with its runtime tol; both checked
+ *                   every <check> iterations, at most <max_iter>. Timed as above;
+ *                   the residual pass also prints each solve's iteration count
+ *                   (iters=), max(pri_res, dua_res) at the stop (res=) and the
+ *                   number of solves not reported solved (unsolved=)
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -82,6 +90,17 @@ int main(int argc, char *argv[]) {
     fclose(g);
   }
 
+  int stop = strncmp(arg, "stop=", 5) == 0;
+  double stop_tol = 0.0;
+  int stop_check = 0, stop_max_iter = 0;
+  if (stop && sscanf(arg + 5, "%lf,%d,%d", &stop_tol, &stop_check, &stop_max_iter) != 3) {
+    fprintf(stderr, "expected stop=<tol>,<check>,<max_iter>, got %s\n", arg);
+    return 2;
+  }
+  int *stop_iters = stop ? malloc(sizeof(int) * (size_t)count) : NULL;
+  double *stop_res = stop ? malloc(sizeof(double) * (size_t)count) : NULL;
+  int unsolved = 0;
+
 #if defined(MODE_OFF)
   F(_cpg_set_solver_default_settings)();
 #if defined(BENCH_RHO)
@@ -103,10 +122,26 @@ int main(int argc, char *argv[]) {
     }
     return 0;
   }
-  F(_cpg_set_solver_check_termination)(0);
-  if (!per_solve) F(_cpg_set_solver_max_iter)(atoi(arg));
+  if (stop) {
+    F(_cpg_set_solver_max_iter)(stop_max_iter);
+    F(_cpg_set_solver_check_termination)(stop_check);
+    F(_cpg_set_solver_eps_abs)(stop_tol);
+    F(_cpg_set_solver_eps_rel)(0.0);
+    F(_cpg_set_solver_scaled_termination)(0);
+  } else {
+    F(_cpg_set_solver_check_termination)(0);
+    if (!per_solve) F(_cpg_set_solver_max_iter)(atoi(arg));
+  }
+#define SOLVED() (strcmp(F(_CPG_Info).status, "solved") == 0)
 #elif defined(MODE_FOM)
-  if (!per_solve && strcmp(arg, "200") != 0) F(_cpg_set_solver_max_iter)(atoi(arg));
+  if (stop) {
+    F(_cpg_set_solver_max_iter)(stop_max_iter);
+    F(_cpg_set_solver_tol)(stop_tol);
+    F(_cpg_set_solver_check_termination)(stop_check);
+  } else if (!per_solve && strcmp(arg, "200") != 0) {
+    F(_cpg_set_solver_max_iter)(atoi(arg));
+  }
+#define SOLVED() (F(_CPG_Info).status == 0) /* FOM_SOLVED */
 #else
 #error "define one of MODE_OFF, MODE_FOM"
 #endif
@@ -130,10 +165,22 @@ int main(int argc, char *argv[]) {
     F(_cpg_solve)();
     if (F(_CPG_Info).pri_res > max_pri) max_pri = F(_CPG_Info).pri_res;
     if (F(_CPG_Info).dua_res > max_dua) max_dua = F(_CPG_Info).dua_res;
+    if (stop) {
+      stop_iters[k] = (int)F(_CPG_Info).iter;
+      stop_res[k] = F(_CPG_Info).pri_res > F(_CPG_Info).dua_res ? F(_CPG_Info).pri_res
+                                                               : F(_CPG_Info).dua_res;
+      unsolved += !SOLVED();
+    }
   }
   int solves = passes * count;
   printf("us_per_solve=%.6f mean_iters=%.3f checksum=%.6e max_pri_res=%.3e max_dua_res=%.3e\n",
          1e6 * elapsed / solves, iters / solves, checksum, max_pri, max_dua);
+  if (stop) {
+    printf("unsolved=%d\niters=", unsolved);
+    for (int k = 0; k < count; k++) printf("%d%s", stop_iters[k], k + 1 < count ? "," : "\n");
+    printf("res=");
+    for (int k = 0; k < count; k++) printf("%.3e%s", stop_res[k], k + 1 < count ? "," : "\n");
+  }
   free(x);
   return 0;
 }

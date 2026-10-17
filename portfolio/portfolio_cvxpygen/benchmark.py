@@ -113,9 +113,10 @@ def build_c(N: int, arm: str) -> Path:
     build_dir = OUT / "bench_build" / f"n{N}_{arm}"
     exe = build_dir / "bench_cpg"
     gen_dir = OUT / code_dir(N, generated)
-    newest = max(f.stat().st_mtime for f in gen_dir.rglob("*") if f.is_file())
-    # Rebuild when the generated solver changed since the last build: a stale
-    # binary would time a different solver than the one being searched.
+    sources = [*gen_dir.rglob("*"), *BENCH_SRC.iterdir()]
+    newest = max(f.stat().st_mtime for f in sources if f.is_file())
+    # Rebuild when the generated solver or the driver changed since the last
+    # build: a stale binary would time a different solver than the one searched.
     if not exe.exists() or exe.stat().st_mtime < newest:
         subprocess.run(
             [
