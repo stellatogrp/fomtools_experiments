@@ -104,3 +104,25 @@ process.
   generated directory's own source lists, without modifying them. It runs one
   warm-up pass, then 20 timed passes over the sequence. Each solve updates every
   entry of `x`, then calls `cpg_solve()`.
+
+## Solve time to a tolerance, every solver stopping itself
+
+Factor-model sweep (`model.SIZES`, outputs in `out_factor/`, `results_factor/`).
+`generate` builds the fomtools solvers with `TerminationKind.OBJECTIVE`: they stop
+on OSQP's unscaled residuals at `model.TOL = 1e-4`, checked every
+`model.CHECK_TERMINATION = 25` iterations, at most `model.MAX_ITER = 4000`. (The
+fixed-iteration `benchmark` and the search-based `tolerance` predate this; the
+`fom` arms of `benchmark` now stop at the tolerance too.)
+
+```bash
+python -m portfolio_cvxpygen.tolerance_stop    # -> results_factor/timings_stop.csv, out_factor/stop_n{N}.json
+python -m portfolio_cvxpygen.scaling_check     # OSQP iterations with Ruiz scaling per draw / nominal / off
+```
+
+`tolerance_stop` runs every arm with OSQP's test (`eps_abs = 1e-4`, `eps_rel = 0`,
+`scaled_termination = False`, no polishing) and the same ADMM (rho = 1 fixed,
+adaptive rho off), and reports per solve the iterations at the stop and
+`max(pri_res, dua_res)` there, from the timed runs themselves. Each Python round
+of each arm runs in its own process. The CVXPYgen + OSQP Python wrapper resets
+OSQP's settings before every solve, so the script fixes rho through `ctypes` on
+the wrapper's own extension module (see `fixed_rho_osqp`).
