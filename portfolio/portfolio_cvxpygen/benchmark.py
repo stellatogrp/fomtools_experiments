@@ -111,7 +111,11 @@ def build_c(N: int, arm: str) -> Path:
     generated, mode = C_ARMS[arm]
     build_dir = OUT / "bench_build" / f"n{N}_{arm}"
     exe = build_dir / "bench_cpg"
-    if not exe.exists():
+    gen_dir = OUT / code_dir(N, generated)
+    newest = max(f.stat().st_mtime for f in gen_dir.rglob("*") if f.is_file())
+    # Rebuild when the generated solver changed since the last build: a stale
+    # binary would time a different solver than the one being searched.
+    if not exe.exists() or exe.stat().st_mtime < newest:
         subprocess.run(
             [
                 "cmake",
