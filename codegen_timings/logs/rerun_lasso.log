@@ -1,0 +1,16 @@
+warning: Missing version constraint (e.g., a lower bound) for `clarabel`
+warning: Missing version constraint (e.g., a lower bound) for `cvxpy`
+warning: Missing version constraint (e.g., a lower bound) for `imageio`
+warning: Missing version constraint (e.g., a lower bound) for `matplotlib`
+warning: Missing version constraint (e.g., a lower bound) for `numpy`
+warning: Missing version constraint (e.g., a lower bound) for `osqp`
+warning: Missing version constraint (e.g., a lower bound) for `pillow`
+warning: Missing version constraint (e.g., a lower bound) for `scipy`
+[lasso_ista] oracle vs NumPy (rel): 8.91e-15
+[lasso_ista] numpy_vs_verify_recurrence: 0.0
+wrote /Users/vranjan/Research/2026/fomtools_experiments/codegen_timings/lasso/ista/optimized/OPTIMIZATIONS.md
+[lasso_ista] NumPy 882.88 us | translated 90.105 us | optimized 23.665 us (kept=True) | speedups 9.8x, 3.81x, 37.3x | max|C-NumPy| {'translated': {'verified_set': 2.042810365310288e-14}, 'optimized': {'verified_set': 2.275957200481571e-14}}
+[lasso_fista] oracle vs NumPy (rel): 1.30e-11
+[lasso_fista] numpy_vs_verify_recurrence: 0.0
+wrote /Users/vranjan/Research/2026/fomtools_experiments/codegen_timings/lasso/fista/optimized/OPTIMIZATIONS.md
+[lasso_fista] NumPy 1037.71 us | translated 362.072 us | optimized 28.113 us (kept=True) | speedups 2.9x, 12.88x, 36.9x | max|C-NumPy| {'translated': {'verified_set': 1.378598363938055e-10}, 'optimized': {'verified_set': 1.1062584008569853e-10}}

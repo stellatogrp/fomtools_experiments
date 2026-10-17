@@ -17,8 +17,8 @@ verify: $(SRC) test/verify_main.c
 	./verify_bin
 
 # Build the shared library from the marker-free production source.
-release: release/fom_solver.c src/fom_data.c src/fom_linsolve.c src/fom_ops.c
-	$(CC) $(CFLAGS) -shared -fPIC release/fom_solver.c src/fom_data.c src/fom_linsolve.c src/fom_ops.c -o libfomsolver.$(LIBEXT) -lm
+release: release/fom_solver.c src/fom_data.c release/fom_linsolve.c src/fom_ops.c
+	$(CC) $(CFLAGS) -shared -fPIC release/fom_solver.c src/fom_data.c release/fom_linsolve.c src/fom_ops.c -o libfomsolver.$(LIBEXT) -lm
 
 bench: $(SRC) test/bench_main.c
 	$(CC) $(BENCHFLAGS) -Itest $(SRC) test/bench_main.c -o bench_bin -lm

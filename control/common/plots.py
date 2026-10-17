@@ -64,6 +64,9 @@ def still_comparison(
     show_tilt: bool = False,
     show_hud: bool = False,
     suptitle: str | None = None,
+    title_size: float = 15,
+    suptitle_size: float = 19,
+    suptitle_y: float = 0.905,
 ) -> Path:
     """A single image with one pane per rollout, whole trajectories drawn.
 
@@ -80,6 +83,9 @@ def still_comparison(
         show_tilt=show_tilt,
         show_hud=show_hud,
         suptitle=suptitle,
+        title_size=title_size,
+        suptitle_size=suptitle_size,
+        suptitle_y=suptitle_y,
     )
 
 

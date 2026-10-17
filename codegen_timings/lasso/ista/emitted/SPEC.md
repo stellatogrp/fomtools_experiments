@@ -3,15 +3,15 @@
 One iteration of a first-order method, to be implemented as a fixed loop.
 
 - dtype: `float64`
-- state dimension: 15
+- state dimension: 50
 - termination: max_iters (max_iters=200, tol=None, check_termination=1)
 
 ## Parameters (supplied at solve time)
-- `p0`: dimension 10
+- `p0`: dimension 25
 
 ## State layout
 
-- `s0`: dimension 15
+- `s0`: dimension 50
 
 ## Iteration body
 
@@ -28,9 +28,9 @@ Compute every `matrix @ source` via the accumulating helpers in
 for each term (these are sparse CSR where the matrix is structured, so
 do not write your own dense matrix-vector loops):
 
-### `t0` (dim 15)
+### `t0` (dim 50)
 - linear_op (rhs) = t0_state @ state + t0_p_p0 @ param:p0
-- activation = soft_threshold(., lambda=0.029093587409024832)
+- activation = soft_threshold(., lambda=0.0002212861544693803)
 
 ## State update
 - `state <- su_t_t0 @ tmp:t0`

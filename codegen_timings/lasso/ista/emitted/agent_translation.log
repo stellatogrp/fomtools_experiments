@@ -1,28 +1,27 @@
-I wrote `src/fom_solver.c`, and `make verify` now prints `VERIFY OK`. The worst error over the 8 samples is 5.2e-15, against a tolerance of 1e-6.
+A solver already exists in `src/fom_solver.c` and looks correct. I'll run the check against it.
+`src/fom_solver.c` already held a complete solver, and `make verify` passes with it: `VERIFY OK`, exit 0. The worst error across the 8 test samples is 1.5e-14, well inside the 1e-6 tolerance. I didn't change the file.
 
-Each iteration computes `t0 = soft_threshold(t0_state @ state + t0_p_p0 @ p0, λ)` and then sets `state ← su_t_t0 @ t0`. All products go through the provided `fom_apply_*` helpers, and λ comes from `FOM_T0_LAMBDA`. There's no linear solve, because this method has no step that needs one.
+I checked it against the rules:
+- **ABI:** all five functions in `fom_solver.h` are implemented. `fom_setup` and `fom_update_params` both reset the state to `FOM_STATE_INIT`.
+- **Embedded rules:** no `malloc`/`free`, no variable-length arrays, and no `/` operator outside comments. It only uses the buffers already in the workspace.
+- **Data:** every number comes from the generated data files (`FOM_T0_LAMBDA` and the matrices through the `fom_apply_*` helpers); nothing is hardcoded.
 
-The constraints are met: no dynamic memory, no variable-length arrays, no `/` anywhere, and only the workspace buffers are used. Every solve starts from `FOM_STATE_INIT`, which `fom_setup` and `fom_update_params` both reset.
+Each iteration computes `t0 = soft_threshold(t0_state @ state + t0_p_p0 @ p0)` and then sets `state <- su_t_t0 @ t0`. It has these speed-ups:
+- The `t0_p_p0 @ p0` term doesn't change between iterations, so it is computed once per solve and reused.
+- `state` and `new_state` are swapped by pointer instead of copied.
+- The residual is only computed when it's needed: on the last iteration, since tolerance-based stopping is off for this problem.
 
-Speed-ups:
-- **Parameter term computed once:** `t0_p_p0 @ p0` doesn't change between iterations, so it's computed once per solve into `acc` rather than every iteration.
-- **Buffer swap:** the current and new state buffers are swapped by pointer each iteration instead of copied.
-- **Residual only at the end:** the default tolerance is 0, so the residual is only calculated on the last iteration. If you set a positive `tol`, it is checked every `check_termination` iterations and the solve can stop early.
+`su_t_t0` is the identity matrix, so skipping that multiply would be faster. I left it in because the spec says to go through the provided helpers.
+`src/fom_solver.c` already held a complete solver, and `make verify` passes with it: `VERIFY OK`, exit 0. The worst error across the 8 test samples is 1.5e-14, well inside the 1e-6 tolerance. I didn't change the file.
 
-The editor shows "header not found" errors on this file. That's only because the editor isn't given the `include/` directory; the Makefile passes it, so the build is clean.
+I checked it against the rules:
+- **ABI:** all five functions in `fom_solver.h` are implemented. `fom_setup` and `fom_update_params` both reset the state to `FOM_STATE_INIT`.
+- **Embedded rules:** no `malloc`/`free`, no variable-length arrays, and no `/` operator outside comments. It only uses the buffers already in the workspace.
+- **Data:** every number comes from the generated data files (`FOM_T0_LAMBDA` and the matrices through the `fom_apply_*` helpers); nothing is hardcoded.
 
-I haven't run `make bench`, so I have no timing numbers.
-I wrote `src/fom_solver.c`, and `make verify` now prints `VERIFY OK`. The worst error over the 8 samples is 5.2e-15, against a tolerance of 1e-6.
+Each iteration computes `t0 = soft_threshold(t0_state @ state + t0_p_p0 @ p0)` and then sets `state <- su_t_t0 @ t0`. It has these speed-ups:
+- The `t0_p_p0 @ p0` term doesn't change between iterations, so it is computed once per solve and reused.
+- `state` and `new_state` are swapped by pointer instead of copied.
+- The residual is only computed when it's needed: on the last iteration, since tolerance-based stopping is off for this problem.
 
-Each iteration computes `t0 = soft_threshold(t0_state @ state + t0_p_p0 @ p0, λ)` and then sets `state ← su_t_t0 @ t0`. All products go through the provided `fom_apply_*` helpers, and λ comes from `FOM_T0_LAMBDA`. There's no linear solve, because this method has no step that needs one.
-
-The constraints are met: no dynamic memory, no variable-length arrays, no `/` anywhere, and only the workspace buffers are used. Every solve starts from `FOM_STATE_INIT`, which `fom_setup` and `fom_update_params` both reset.
-
-Speed-ups:
-- **Parameter term computed once:** `t0_p_p0 @ p0` doesn't change between iterations, so it's computed once per solve into `acc` rather than every iteration.
-- **Buffer swap:** the current and new state buffers are swapped by pointer each iteration instead of copied.
-- **Residual only at the end:** the default tolerance is 0, so the residual is only calculated on the last iteration. If you set a positive `tol`, it is checked every `check_termination` iterations and the solve can stop early.
-
-The editor shows "header not found" errors on this file. That's only because the editor isn't given the `include/` directory; the Makefile passes it, so the build is clean.
-
-I haven't run `make bench`, so I have no timing numbers.
+`su_t_t0` is the identity matrix, so skipping that multiply would be faster. I left it in because the spec says to go through the provided helpers.

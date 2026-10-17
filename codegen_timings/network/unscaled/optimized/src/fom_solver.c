@@ -4,149 +4,9 @@
 #include "fom_linsolve.h"
 #include "fom_profile.h"
 
-/* Structure (verified at setup by probing the operators with unit vectors):
-   state x = [s0 (NI x NJ grid, r = NJ*i + j), s1 (NI), s2 (NJ)].
-     t0[r]      = clip(c0[r] + d0[r] x[r] + a0[r] s1[i] + w0[r] s2[j])
-     t1[i]      = relu(c1[i] + sum_j e1[r] x[r] + f1[i] s1[i] + sum_j g1[r] t0[r])
-     xn[r]      = h[r] t0[r]
-     xn[NG+i]   = k1[i] t1[i]
-     xn[NG+NI+j]= pc[j] + q[j] s2[j] + sum_i (u[r] x[r] + v[r] t0[r])
-   If the probed pattern differs, the generic sparse path is used. */
-#define NI FOM_T1_DIM
-#define NJ FOM_PARAM_P0_DIM
-#define NG FOM_T0_DIM
-#define S1 NG
-#define S2 (NG + NI)
-
-#if defined(__clang__)
-#define FOM_VEC _Pragma("clang loop vectorize(enable) interleave(disable)")
-#else
-#define FOM_VEC
-#endif
-
-static fom_float c_d0[NG], c_a0[NG], c_w0[NG];
-static fom_float c_e1[NG], c_g1[NG], c_f1[NI];
-static fom_float c_h[NG], c_k1[NI];
-static fom_float c_u[NG], c_v[NG], c_q[NJ];
-static int fast_ok = 0;
-/* Specialized kernel: valid when d0 == 1, h == 1, lo == 0, u == w0 (elementwise)
-   and a0, e1, g1 are uniform scalars (checked in fom_setup). */
-static int spec_ok = 0;
-static fom_float s_a0, s_e1, s_g1;
-
-static fom_float probe_in[FOM_STATE_DIM];
-static fom_float probe_out[FOM_STATE_DIM];
-
-typedef void (*fom_op_fn)(const fom_float *, fom_float *);
-
-/* Probe column `col` of op (in_dim inputs, out_dim outputs) into probe_out. */
-static void probe_col(fom_op_fn op, fom_int in_dim, fom_int out_dim, fom_int col) {
-    fom_int i;
-    for (i = 0; i < in_dim; ++i) probe_in[i] = 0.0;
-    for (i = 0; i < out_dim; ++i) probe_out[i] = 0.0;
-    probe_in[col] = 1.0;
-    op(probe_in, probe_out);
-}
-
-/* Grid row / column of flat index r = NJ*i + j (division-free). */
-static fom_int grid_row(fom_int r) { fom_int i = 0; while (r >= NJ) { r -= NJ; ++i; } return i; }
-static fom_int grid_col(fom_int r) { while (r >= NJ) r -= NJ; return r; }
-
-static int fom_extract_structure(void) {
-    fom_int i, j, c, k;
-    int ok = 1;
-    fom_float *dst;
-
-    /* t0_state: col r -> row r (d0); col S1+i -> rows NJ*i+j (a0); col S2+j -> rows NJ*i+j (w0) */
-    for (c = 0; c < FOM_STATE_DIM; ++c) {
-        probe_col(fom_apply_t0_state, FOM_STATE_DIM, NG, c);
-        for (k = 0; k < NG; ++k) {
-            i = grid_row(k); j = grid_col(k);
-            dst = 0;
-            if (c < NG) { if (k == c) dst = &c_d0[k]; }
-            else if (c < S2) { if (c - S1 == i) dst = &c_a0[k]; }
-            else { if (c - S2 == j) dst = &c_w0[k]; }
-            if (dst) *dst = probe_out[k];
-            else if (probe_out[k] != 0.0) ok = 0;
-        }
-    }
-    /* t1_state: col r -> row i (e1); col S1+i -> row i (f1); col S2+j -> nothing */
-    for (c = 0; c < FOM_STATE_DIM; ++c) {
-        probe_col(fom_apply_t1_state, FOM_STATE_DIM, NI, c);
-        for (k = 0; k < NI; ++k) {
-            dst = 0;
-            if (c < NG) { if (grid_row(c) == k) dst = &c_e1[c]; }
-            else if (c < S2) { if (c - S1 == k) dst = &c_f1[k]; }
-            if (dst) *dst = probe_out[k];
-            else if (probe_out[k] != 0.0) ok = 0;
-        }
-    }
-    /* t1_t_t0: col r -> row i (g1) */
-    for (c = 0; c < NG; ++c) {
-        probe_col(fom_apply_t1_t_t0, NG, NI, c);
-        for (k = 0; k < NI; ++k) {
-            if (grid_row(c) == k) c_g1[c] = probe_out[k];
-            else if (probe_out[k] != 0.0) ok = 0;
-        }
-    }
-    /* su_state: col r -> row S2+j (u); col S2+j -> row S2+j (q); else zero */
-    for (c = 0; c < FOM_STATE_DIM; ++c) {
-        probe_col(fom_apply_su_state, FOM_STATE_DIM, FOM_STATE_DIM, c);
-        for (k = 0; k < FOM_STATE_DIM; ++k) {
-            dst = 0;
-            if (c < NG) { if (k == S2 + grid_col(c)) dst = &c_u[c]; }
-            else if (c >= S2) { if (k == c) dst = &c_q[c - S2]; }
-            if (dst) *dst = probe_out[k];
-            else if (probe_out[k] != 0.0) ok = 0;
-        }
-    }
-    /* su_t_t0: col r -> row r (h), row S2+j (v) */
-    for (c = 0; c < NG; ++c) {
-        probe_col(fom_apply_su_t_t0, NG, FOM_STATE_DIM, c);
-        for (k = 0; k < FOM_STATE_DIM; ++k) {
-            if (k == c) c_h[c] = probe_out[k];
-            else if (k == S2 + grid_col(c)) c_v[c] = probe_out[k];
-            else if (probe_out[k] != 0.0) ok = 0;
-        }
-    }
-    /* su_t_t1: col i -> row S1+i (k1) */
-    for (c = 0; c < NI; ++c) {
-        probe_col(fom_apply_su_t_t1, NI, FOM_STATE_DIM, c);
-        for (k = 0; k < FOM_STATE_DIM; ++k) {
-            if (k == S1 + c) c_k1[c] = probe_out[k];
-            else if (probe_out[k] != 0.0) ok = 0;
-        }
-    }
-    /* su_p_p0: only rows S2.. may be touched */
-    for (c = 0; c < NJ; ++c) {
-        probe_col(fom_apply_su_p_p0, NJ, FOM_STATE_DIM, c);
-        for (k = 0; k < S2; ++k)
-            if (probe_out[k] != 0.0) ok = 0;
-    }
-    return ok;
-}
-
-static int fom_check_special(void) {
-    fom_int r;
-    s_a0 = c_a0[0]; s_e1 = c_e1[0]; s_g1 = c_g1[0];
-    for (r = 0; r < NG; ++r) {
-        if (c_d0[r] != 1.0 || c_h[r] != 1.0 || FOM_MAT_t0_lo[r] != 0.0) return 0;
-        if (c_u[r] != c_w0[r]) return 0;
-        if (c_a0[r] != s_a0 || c_e1[r] != s_e1 || c_g1[r] != s_g1) return 0;
-    }
-    return 1;
-}
-
 static void fom_reset_state(FomWorkspace *work) {
     fom_int i;
     for (i = 0; i < FOM_STATE_DIM; ++i) work->state[i] = FOM_STATE_INIT[i];
-}
-
-/* pc = su_p_p0 @ p0 (iteration-invariant), stored in work->acc */
-static void fom_param_const(FomWorkspace *work) {
-    fom_int i;
-    for (i = 0; i < FOM_STATE_DIM; ++i) work->acc[i] = 0.0;
-    fom_apply_su_p_p0(work->params.p0, work->acc);
 }
 
 void fom_set_default_settings(FomSettings *settings) {
@@ -160,9 +20,6 @@ void fom_setup(FomWorkspace *work, const FomSettings *settings) {
     work->settings = *settings;
     for (i = 0; i < FOM_PARAM_P0_DIM; ++i) work->params.p0[i] = 0.0;
     fom_reset_state(work);
-    fom_param_const(work);
-    fast_ok = fom_extract_structure();
-    spec_ok = fast_ok && fom_check_special();
     work->solution.iter = 0;
     work->solution.residual = 0.0;
     work->solution.status = FOM_MAX_ITER_REACHED;
@@ -171,108 +28,14 @@ void fom_setup(FomWorkspace *work, const FomSettings *settings) {
 void fom_update_params(FomWorkspace *work, const FomParams *params) {
     work->params = *params;
     fom_reset_state(work);
-    fom_param_const(work);
-}
-
-/* Per iteration: elementwise t0 pass over the grid, column (over i) accumulation
-   into s2, and row (over j) reductions for t1. Phases kept separate so each is
-   a simple vectorizable loop. */
-static void fom_iter_fast(const fom_float *restrict x, fom_float *restrict xn,
-                          const fom_float *restrict pc) {
-    fom_int i, j;
-    fom_float acc[NJ];
-    const fom_float *restrict x2 = x + S2;
-
-    FOM_PROF_BEGIN(t0_s2);
-    for (j = 0; j < NJ; ++j) acc[j] = pc[S2 + j] + c_q[j] * x2[j];
-    for (i = 0; i < NI; ++i) {
-        const fom_int b = i * NJ;
-        const fom_float xs1 = x[S1 + i];
-        fom_float se = 0.0, t1;
-        FOM_VEC
-        for (j = 0; j < NJ; ++j) {
-            const fom_int r = b + j;
-            const fom_float xr = x[r];
-            fom_float t = FOM_MAT_t0_c[r] + ((c_d0[r] * xr + c_a0[r] * xs1) + c_w0[r] * x2[j]);
-            t = t < FOM_MAT_t0_lo[r] ? FOM_MAT_t0_lo[r] : t;
-            t = t > FOM_MAT_t0_hi[r] ? FOM_MAT_t0_hi[r] : t;
-            xn[r] = c_h[r] * t;
-            acc[j] += c_u[r] * xr + c_v[r] * t;
-            se += c_e1[r] * xr + c_g1[r] * t;
-        }
-        t1 = FOM_MAT_t1_c[i] + c_f1[i] * xs1 + se;
-        t1 = t1 > 0 ? t1 : 0.0;
-        xn[S1 + i] = c_k1[i] * t1;
-    }
-    for (j = 0; j < NJ; ++j) xn[S2 + j] = acc[j];
-    FOM_PROF_END(t0_s2);
-
-}
-
-/* Same pass as fom_iter_fast with the unit / zero / uniform / shared
-   coefficients folded in: 5 streamed arrays per grid point instead of 11. */
-static void fom_iter_special(const fom_float *restrict x, fom_float *restrict xn,
-                             const fom_float *restrict pc) {
-    fom_int i, j;
-    fom_float acc[NJ];
-    const fom_float *restrict x2 = x + S2;
-    const fom_float a0 = s_a0, e1 = s_e1, g1 = s_g1;
-
-    FOM_PROF_BEGIN(grid_special);
-    for (j = 0; j < NJ; ++j) acc[j] = pc[S2 + j] + c_q[j] * x2[j];
-    for (i = 0; i < NI; ++i) {
-        const fom_int b = i * NJ;
-        const fom_float xs1 = x[S1 + i];
-        const fom_float as1 = a0 * xs1;
-        fom_float sx = 0.0, st = 0.0, t1;
-        FOM_VEC
-        for (j = 0; j < NJ; ++j) {
-            const fom_int r = b + j;
-            const fom_float xr = x[r];
-            const fom_float w = c_w0[r];
-            fom_float t = FOM_MAT_t0_c[r] + ((xr + as1) + w * x2[j]);
-            t = t < 0.0 ? 0.0 : t;
-            t = t > FOM_MAT_t0_hi[r] ? FOM_MAT_t0_hi[r] : t;
-            xn[r] = t;
-            acc[j] += w * xr + c_v[r] * t;
-            sx += xr;
-            st += t;
-        }
-        t1 = FOM_MAT_t1_c[i] + c_f1[i] * xs1 + (e1 * sx + g1 * st);
-        t1 = t1 > 0 ? t1 : 0.0;
-        xn[S1 + i] = c_k1[i] * t1;
-    }
-    for (j = 0; j < NJ; ++j) xn[S2 + j] = acc[j];
-    FOM_PROF_END(grid_special);
-}
-
-static void fom_iter_generic(FomWorkspace *work, const fom_float *x, fom_float *xn,
-                             const fom_float *pc) {
-    fom_float *t0 = work->t0;
-    fom_float *t1 = work->t1;
-    fom_int i;
-    for (i = 0; i < FOM_T0_DIM; ++i) t0[i] = FOM_MAT_t0_c[i];
-    fom_apply_t0_state(x, t0);
-    for (i = 0; i < FOM_T0_DIM; ++i) {
-        fom_float v = t0[i];
-        v = v < FOM_MAT_t0_lo[i] ? FOM_MAT_t0_lo[i] : v;
-        v = v > FOM_MAT_t0_hi[i] ? FOM_MAT_t0_hi[i] : v;
-        t0[i] = v;
-    }
-    for (i = 0; i < FOM_T1_DIM; ++i) t1[i] = FOM_MAT_t1_c[i];
-    fom_apply_t1_state(x, t1);
-    fom_apply_t1_t_t0(t0, t1);
-    for (i = 0; i < FOM_T1_DIM; ++i) t1[i] = t1[i] > 0 ? t1[i] : 0.0;
-    for (i = 0; i < FOM_STATE_DIM; ++i) xn[i] = pc[i];
-    fom_apply_su_state(x, xn);
-    fom_apply_su_t_t0(t0, xn);
-    fom_apply_su_t_t1(t1, xn);
 }
 
 fom_int fom_solve(FomWorkspace *work) {
     fom_float *x = work->state;
     fom_float *xn = work->new_state;
-    const fom_float *pc = work->acc; /* su_p_p0 @ p0, set in fom_update_params */
+    fom_float *t0 = work->t0;
+    fom_float *t1 = work->t1;
+    fom_float *pc = work->acc; /* su_p_p0 @ p0: constant across iterations */
     const fom_int max_iter = work->settings.max_iter;
     const fom_float tol = work->settings.tol;
     const fom_int use_tol = work->settings.check_termination && tol > 0;
@@ -280,24 +43,210 @@ fom_int fom_solve(FomWorkspace *work) {
     fom_int status = FOM_MAX_ITER_REACHED;
     fom_int k, i;
 
+    for (i = 0; i < FOM_STATE_DIM; ++i) pc[i] = 0.0;
+    fom_apply_su_p_p0(work->params.p0, pc);
+
     for (k = 0; k < max_iter; ++k) {
         fom_float *sw;
 
-        FOM_PROF_BEGIN(iterate);
-        if (spec_ok) fom_iter_special(x, xn, pc);
-        else if (fast_ok) fom_iter_fast(x, xn, pc);
-        else fom_iter_generic(work, x, xn, pc);
-        FOM_PROF_END(iterate);
+        /* Fully unrolled fused iteration: sparse rows of t0_state, t1_state, t1_t_t0,
+           su_state, su_t_t0 (identity block + coupling), su_t_t1 baked in as constants. */
+        FOM_PROF_BEGIN(t0);
+        { fom_float v = FOM_MAT_t0_c[0] + (((x[0]) + (-0.08226303133234722)*x[49]) + (-0.069655061626067494)*x[59]);
+          v = v < FOM_MAT_t0_lo[0] ? FOM_MAT_t0_lo[0] : v; v = v > FOM_MAT_t0_hi[0] ? FOM_MAT_t0_hi[0] : v; t0[0] = v; }
+        { fom_float v = FOM_MAT_t0_c[1] + (((x[1]) + (-0.08226303133234722)*x[49]) + (-0.25588244633413909)*x[60]);
+          v = v < FOM_MAT_t0_lo[1] ? FOM_MAT_t0_lo[1] : v; v = v > FOM_MAT_t0_hi[1] ? FOM_MAT_t0_hi[1] : v; t0[1] = v; }
+        { fom_float v = FOM_MAT_t0_c[2] + (((x[2]) + (-0.08226303133234722)*x[49]) + (-0.13345673088354346)*x[62]);
+          v = v < FOM_MAT_t0_lo[2] ? FOM_MAT_t0_lo[2] : v; v = v > FOM_MAT_t0_hi[2] ? FOM_MAT_t0_hi[2] : v; t0[2] = v; }
+        { fom_float v = FOM_MAT_t0_c[3] + (((x[3]) + (-0.08226303133234722)*x[49]) + (-0.024964136788999065)*x[65]);
+          v = v < FOM_MAT_t0_lo[3] ? FOM_MAT_t0_lo[3] : v; v = v > FOM_MAT_t0_hi[3] ? FOM_MAT_t0_hi[3] : v; t0[3] = v; }
+        { fom_float v = FOM_MAT_t0_c[4] + (((x[4]) + (-0.08226303133234722)*x[49]) + (-0.021966725812901995)*x[71]);
+          v = v < FOM_MAT_t0_lo[4] ? FOM_MAT_t0_lo[4] : v; v = v > FOM_MAT_t0_hi[4] ? FOM_MAT_t0_hi[4] : v; t0[4] = v; }
+        { fom_float v = FOM_MAT_t0_c[5] + (((x[5]) + (-0.08226303133234722)*x[50]) + (-0.037583500758161678)*x[60]);
+          v = v < FOM_MAT_t0_lo[5] ? FOM_MAT_t0_lo[5] : v; v = v > FOM_MAT_t0_hi[5] ? FOM_MAT_t0_hi[5] : v; t0[5] = v; }
+        { fom_float v = FOM_MAT_t0_c[6] + (((x[6]) + (-0.08226303133234722)*x[50]) + (-0.61752386121652636)*x[61]);
+          v = v < FOM_MAT_t0_lo[6] ? FOM_MAT_t0_lo[6] : v; v = v > FOM_MAT_t0_hi[6] ? FOM_MAT_t0_hi[6] : v; t0[6] = v; }
+        { fom_float v = FOM_MAT_t0_c[7] + (((x[7]) + (-0.08226303133234722)*x[50]) + (-0.64483412842709398)*x[64]);
+          v = v < FOM_MAT_t0_lo[7] ? FOM_MAT_t0_lo[7] : v; v = v > FOM_MAT_t0_hi[7] ? FOM_MAT_t0_hi[7] : v; t0[7] = v; }
+        { fom_float v = FOM_MAT_t0_c[8] + (((x[8]) + (-0.08226303133234722)*x[50]) + (-0.037882339410371904)*x[65]);
+          v = v < FOM_MAT_t0_lo[8] ? FOM_MAT_t0_lo[8] : v; v = v > FOM_MAT_t0_hi[8] ? FOM_MAT_t0_hi[8] : v; t0[8] = v; }
+        { fom_float v = FOM_MAT_t0_c[9] + (((x[9]) + (-0.08226303133234722)*x[50]) + (-0.79478587733064987)*x[66]);
+          v = v < FOM_MAT_t0_lo[9] ? FOM_MAT_t0_lo[9] : v; v = v > FOM_MAT_t0_hi[9] ? FOM_MAT_t0_hi[9] : v; t0[9] = v; }
+        { fom_float v = FOM_MAT_t0_c[10] + (((x[10]) + (-0.08226303133234722)*x[50]) + (-0.017294599334807721)*x[69]);
+          v = v < FOM_MAT_t0_lo[10] ? FOM_MAT_t0_lo[10] : v; v = v > FOM_MAT_t0_hi[10] ? FOM_MAT_t0_hi[10] : v; t0[10] = v; }
+        { fom_float v = FOM_MAT_t0_c[11] + (((x[11]) + (-0.08226303133234722)*x[50]) + (-0.089618922945269686)*x[73]);
+          v = v < FOM_MAT_t0_lo[11] ? FOM_MAT_t0_lo[11] : v; v = v > FOM_MAT_t0_hi[11] ? FOM_MAT_t0_hi[11] : v; t0[11] = v; }
+        { fom_float v = FOM_MAT_t0_c[12] + (((x[12]) + (-0.08226303133234722)*x[51]) + (-0.33760783556686547)*x[59]);
+          v = v < FOM_MAT_t0_lo[12] ? FOM_MAT_t0_lo[12] : v; v = v > FOM_MAT_t0_hi[12] ? FOM_MAT_t0_hi[12] : v; t0[12] = v; }
+        { fom_float v = FOM_MAT_t0_c[13] + (((x[13]) + (-0.08226303133234722)*x[51]) + (-0.040307047471874392)*x[63]);
+          v = v < FOM_MAT_t0_lo[13] ? FOM_MAT_t0_lo[13] : v; v = v > FOM_MAT_t0_hi[13] ? FOM_MAT_t0_hi[13] : v; t0[13] = v; }
+        { fom_float v = FOM_MAT_t0_c[14] + (((x[14]) + (-0.08226303133234722)*x[51]) + (-0.00976037797556846)*x[65]);
+          v = v < FOM_MAT_t0_lo[14] ? FOM_MAT_t0_lo[14] : v; v = v > FOM_MAT_t0_hi[14] ? FOM_MAT_t0_hi[14] : v; t0[14] = v; }
+        { fom_float v = FOM_MAT_t0_c[15] + (((x[15]) + (-0.08226303133234722)*x[51]) + (-0.46831584781193331)*x[73]);
+          v = v < FOM_MAT_t0_lo[15] ? FOM_MAT_t0_lo[15] : v; v = v > FOM_MAT_t0_hi[15] ? FOM_MAT_t0_hi[15] : v; t0[15] = v; }
+        { fom_float v = FOM_MAT_t0_c[16] + (((x[16]) + (-0.08226303133234722)*x[52]) + (-0.26836501080727221)*x[59]);
+          v = v < FOM_MAT_t0_lo[16] ? FOM_MAT_t0_lo[16] : v; v = v > FOM_MAT_t0_hi[16] ? FOM_MAT_t0_hi[16] : v; t0[16] = v; }
+        { fom_float v = FOM_MAT_t0_c[17] + (((x[17]) + (-0.08226303133234722)*x[52]) + (-0.042388435165245451)*x[61]);
+          v = v < FOM_MAT_t0_lo[17] ? FOM_MAT_t0_lo[17] : v; v = v > FOM_MAT_t0_hi[17] ? FOM_MAT_t0_hi[17] : v; t0[17] = v; }
+        { fom_float v = FOM_MAT_t0_c[18] + (((x[18]) + (-0.08226303133234722)*x[52]) + (-0.029151569883073398)*x[63]);
+          v = v < FOM_MAT_t0_lo[18] ? FOM_MAT_t0_lo[18] : v; v = v > FOM_MAT_t0_hi[18] ? FOM_MAT_t0_hi[18] : v; t0[18] = v; }
+        { fom_float v = FOM_MAT_t0_c[19] + (((x[19]) + (-0.08226303133234722)*x[52]) + (-0.36011436438990652)*x[64]);
+          v = v < FOM_MAT_t0_lo[19] ? FOM_MAT_t0_lo[19] : v; v = v > FOM_MAT_t0_hi[19] ? FOM_MAT_t0_hi[19] : v; t0[19] = v; }
+        { fom_float v = FOM_MAT_t0_c[20] + (((x[20]) + (-0.08226303133234722)*x[52]) + (-0.27658369193168919)*x[65]);
+          v = v < FOM_MAT_t0_lo[20] ? FOM_MAT_t0_lo[20] : v; v = v > FOM_MAT_t0_hi[20] ? FOM_MAT_t0_hi[20] : v; t0[20] = v; }
+        { fom_float v = FOM_MAT_t0_c[21] + (((x[21]) + (-0.08226303133234722)*x[52]) + (-0.034735970917354191)*x[70]);
+          v = v < FOM_MAT_t0_lo[21] ? FOM_MAT_t0_lo[21] : v; v = v > FOM_MAT_t0_hi[21] ? FOM_MAT_t0_hi[21] : v; t0[21] = v; }
+        { fom_float v = FOM_MAT_t0_c[22] + (((x[22]) + (-0.08226303133234722)*x[52]) + (-0.022087418331416996)*x[73]);
+          v = v < FOM_MAT_t0_lo[22] ? FOM_MAT_t0_lo[22] : v; v = v > FOM_MAT_t0_hi[22] ? FOM_MAT_t0_hi[22] : v; t0[22] = v; }
+        { fom_float v = FOM_MAT_t0_c[23] + (((x[23]) + (-0.08226303133234722)*x[53]) + (-0.61132408824693363)*x[62]);
+          v = v < FOM_MAT_t0_lo[23] ? FOM_MAT_t0_lo[23] : v; v = v > FOM_MAT_t0_hi[23] ? FOM_MAT_t0_hi[23] : v; t0[23] = v; }
+        { fom_float v = FOM_MAT_t0_c[24] + (((x[24]) + (-0.08226303133234722)*x[53]) + (-0.013160484266981857)*x[68]);
+          v = v < FOM_MAT_t0_lo[24] ? FOM_MAT_t0_lo[24] : v; v = v > FOM_MAT_t0_hi[24] ? FOM_MAT_t0_hi[24] : v; t0[24] = v; }
+        { fom_float v = FOM_MAT_t0_c[25] + (((x[25]) + (-0.08226303133234722)*x[53]) + (-0.15819624000738933)*x[70]);
+          v = v < FOM_MAT_t0_lo[25] ? FOM_MAT_t0_lo[25] : v; v = v > FOM_MAT_t0_hi[25] ? FOM_MAT_t0_hi[25] : v; t0[25] = v; }
+        { fom_float v = FOM_MAT_t0_c[26] + (((x[26]) + (-0.08226303133234722)*x[54]) + (-0.037081661631488835)*x[59]);
+          v = v < FOM_MAT_t0_lo[26] ? FOM_MAT_t0_lo[26] : v; v = v > FOM_MAT_t0_hi[26] ? FOM_MAT_t0_hi[26] : v; t0[26] = v; }
+        { fom_float v = FOM_MAT_t0_c[27] + (((x[27]) + (-0.08226303133234722)*x[54]) + (-0.083276300544647269)*x[60]);
+          v = v < FOM_MAT_t0_lo[27] ? FOM_MAT_t0_lo[27] : v; v = v > FOM_MAT_t0_hi[27] ? FOM_MAT_t0_hi[27] : v; t0[27] = v; }
+        { fom_float v = FOM_MAT_t0_c[28] + (((x[28]) + (-0.08226303133234722)*x[54]) + (-0.58435958348428074)*x[63]);
+          v = v < FOM_MAT_t0_lo[28] ? FOM_MAT_t0_lo[28] : v; v = v > FOM_MAT_t0_hi[28] ? FOM_MAT_t0_hi[28] : v; t0[28] = v; }
+        { fom_float v = FOM_MAT_t0_c[29] + (((x[29]) + (-0.08226303133234722)*x[54]) + (-0.051091074244933282)*x[64]);
+          v = v < FOM_MAT_t0_lo[29] ? FOM_MAT_t0_lo[29] : v; v = v > FOM_MAT_t0_hi[29] ? FOM_MAT_t0_hi[29] : v; t0[29] = v; }
+        { fom_float v = FOM_MAT_t0_c[30] + (((x[30]) + (-0.08226303133234722)*x[54]) + (-0.014854938892497713)*x[66]);
+          v = v < FOM_MAT_t0_lo[30] ? FOM_MAT_t0_lo[30] : v; v = v > FOM_MAT_t0_hi[30] ? FOM_MAT_t0_hi[30] : v; t0[30] = v; }
+        { fom_float v = FOM_MAT_t0_c[31] + (((x[31]) + (-0.08226303133234722)*x[54]) + (-0.60372695765338591)*x[69]);
+          v = v < FOM_MAT_t0_lo[31] ? FOM_MAT_t0_lo[31] : v; v = v > FOM_MAT_t0_hi[31] ? FOM_MAT_t0_hi[31] : v; t0[31] = v; }
+        { fom_float v = FOM_MAT_t0_c[32] + (((x[32]) + (-0.08226303133234722)*x[54]) + (-0.021590409041307837)*x[71]);
+          v = v < FOM_MAT_t0_lo[32] ? FOM_MAT_t0_lo[32] : v; v = v > FOM_MAT_t0_hi[32] ? FOM_MAT_t0_hi[32] : v; t0[32] = v; }
+        { fom_float v = FOM_MAT_t0_c[33] + (((x[33]) + (-0.08226303133234722)*x[54]) + (-0.011556395626565408)*x[72]);
+          v = v < FOM_MAT_t0_lo[33] ? FOM_MAT_t0_lo[33] : v; v = v > FOM_MAT_t0_hi[33] ? FOM_MAT_t0_hi[33] : v; t0[33] = v; }
+        { fom_float v = FOM_MAT_t0_c[34] + (((x[34]) + (-0.08226303133234722)*x[55]) + (-0.38643208723267541)*x[68]);
+          v = v < FOM_MAT_t0_lo[34] ? FOM_MAT_t0_lo[34] : v; v = v > FOM_MAT_t0_hi[34] ? FOM_MAT_t0_hi[34] : v; t0[34] = v; }
+        { fom_float v = FOM_MAT_t0_c[35] + (((x[35]) + (-0.08226303133234722)*x[55]) + (-0.25854119370877737)*x[69]);
+          v = v < FOM_MAT_t0_lo[35] ? FOM_MAT_t0_lo[35] : v; v = v > FOM_MAT_t0_hi[35] ? FOM_MAT_t0_hi[35] : v; t0[35] = v; }
+        { fom_float v = FOM_MAT_t0_c[36] + (((x[36]) + (-0.08226303133234722)*x[55]) + (-0.41032977319887487)*x[73]);
+          v = v < FOM_MAT_t0_lo[36] ? FOM_MAT_t0_lo[36] : v; v = v > FOM_MAT_t0_hi[36] ? FOM_MAT_t0_hi[36] : v; t0[36] = v; }
+        { fom_float v = FOM_MAT_t0_c[37] + (((x[37]) + (-0.08226303133234722)*x[56]) + (-0.023067940734351828)*x[60]);
+          v = v < FOM_MAT_t0_lo[37] ? FOM_MAT_t0_lo[37] : v; v = v > FOM_MAT_t0_hi[37] ? FOM_MAT_t0_hi[37] : v; t0[37] = v; }
+        { fom_float v = FOM_MAT_t0_c[38] + (((x[38]) + (-0.08226303133234722)*x[56]) + (-0.018156664303604776)*x[66]);
+          v = v < FOM_MAT_t0_lo[38] ? FOM_MAT_t0_lo[38] : v; v = v > FOM_MAT_t0_hi[38] ? FOM_MAT_t0_hi[38] : v; t0[38] = v; }
+        { fom_float v = FOM_MAT_t0_c[39] + (((x[39]) + (-0.08226303133234722)*x[57]) + (-0.37063781296154064)*x[59]);
+          v = v < FOM_MAT_t0_lo[39] ? FOM_MAT_t0_lo[39] : v; v = v > FOM_MAT_t0_hi[39] ? FOM_MAT_t0_hi[39] : v; t0[39] = v; }
+        { fom_float v = FOM_MAT_t0_c[40] + (((x[40]) + (-0.08226303133234722)*x[57]) + (-0.13174930294003487)*x[67]);
+          v = v < FOM_MAT_t0_lo[40] ? FOM_MAT_t0_lo[40] : v; v = v > FOM_MAT_t0_hi[40] ? FOM_MAT_t0_hi[40] : v; t0[40] = v; }
+        { fom_float v = FOM_MAT_t0_c[41] + (((x[41]) + (-0.08226303133234722)*x[57]) + (-0.14484430995648803)*x[69]);
+          v = v < FOM_MAT_t0_lo[41] ? FOM_MAT_t0_lo[41] : v; v = v > FOM_MAT_t0_hi[41] ? FOM_MAT_t0_hi[41] : v; t0[41] = v; }
+        { fom_float v = FOM_MAT_t0_c[42] + (((x[42]) + (-0.08226303133234722)*x[57]) + (-0.034846066829944282)*x[71]);
+          v = v < FOM_MAT_t0_lo[42] ? FOM_MAT_t0_lo[42] : v; v = v > FOM_MAT_t0_hi[42] ? FOM_MAT_t0_hi[42] : v; t0[42] = v; }
+        { fom_float v = FOM_MAT_t0_c[43] + (((x[43]) + (-0.08226303133234722)*x[57]) + (-0.098520275933536933)*x[72]);
+          v = v < FOM_MAT_t0_lo[43] ? FOM_MAT_t0_lo[43] : v; v = v > FOM_MAT_t0_hi[43] ? FOM_MAT_t0_hi[43] : v; t0[43] = v; }
+        { fom_float v = FOM_MAT_t0_c[44] + (((x[44]) + (-0.08226303133234722)*x[58]) + (-0.03036587998612799)*x[65]);
+          v = v < FOM_MAT_t0_lo[44] ? FOM_MAT_t0_lo[44] : v; v = v > FOM_MAT_t0_hi[44] ? FOM_MAT_t0_hi[44] : v; t0[44] = v; }
+        { fom_float v = FOM_MAT_t0_c[45] + (((x[45]) + (-0.08226303133234722)*x[58]) + (-0.14046939723165486)*x[67]);
+          v = v < FOM_MAT_t0_lo[45] ? FOM_MAT_t0_lo[45] : v; v = v > FOM_MAT_t0_hi[45] ? FOM_MAT_t0_hi[45] : v; t0[45] = v; }
+        { fom_float v = FOM_MAT_t0_c[46] + (((x[46]) + (-0.08226303133234722)*x[58]) + (-0.32653085943273191)*x[71]);
+          v = v < FOM_MAT_t0_lo[46] ? FOM_MAT_t0_lo[46] : v; v = v > FOM_MAT_t0_hi[46] ? FOM_MAT_t0_hi[46] : v; t0[46] = v; }
+        { fom_float v = FOM_MAT_t0_c[47] + (((x[47]) + (-0.08226303133234722)*x[58]) + (-0.17994004051645768)*x[72]);
+          v = v < FOM_MAT_t0_lo[47] ? FOM_MAT_t0_lo[47] : v; v = v > FOM_MAT_t0_hi[47] ? FOM_MAT_t0_hi[47] : v; t0[47] = v; }
+        { fom_float v = FOM_MAT_t0_c[48] + (((x[48]) + (-0.08226303133234722)*x[58]) + (-0.22496888289546163)*x[73]);
+          v = v < FOM_MAT_t0_lo[48] ? FOM_MAT_t0_lo[48] : v; v = v > FOM_MAT_t0_hi[48] ? FOM_MAT_t0_hi[48] : v; t0[48] = v; }
+        FOM_PROF_END(t0);
+        FOM_PROF_BEGIN(t1);
+        { fom_float v = ((FOM_MAT_t1_c[0] + (((((((-0.08226303133234722)*x[0]) + (-0.08226303133234722)*x[1]) + (-0.08226303133234722)*x[2]) + (-0.08226303133234722)*x[3]) + (-0.08226303133234722)*x[4]) + x[49])) + ((((((0.16452606266469444)*t0[0]) + (0.16452606266469444)*t0[1]) + (0.16452606266469444)*t0[2]) + (0.16452606266469444)*t0[3]) + (0.16452606266469444)*t0[4])); t1[0] = v > 0 ? v : 0.0; }
+        { fom_float v = ((FOM_MAT_t1_c[1] + (((((((((-0.08226303133234722)*x[5]) + (-0.08226303133234722)*x[6]) + (-0.08226303133234722)*x[7]) + (-0.08226303133234722)*x[8]) + (-0.08226303133234722)*x[9]) + (-0.08226303133234722)*x[10]) + (-0.08226303133234722)*x[11]) + x[50])) + ((((((((0.16452606266469444)*t0[5]) + (0.16452606266469444)*t0[6]) + (0.16452606266469444)*t0[7]) + (0.16452606266469444)*t0[8]) + (0.16452606266469444)*t0[9]) + (0.16452606266469444)*t0[10]) + (0.16452606266469444)*t0[11])); t1[1] = v > 0 ? v : 0.0; }
+        { fom_float v = ((FOM_MAT_t1_c[2] + ((((((-0.08226303133234722)*x[12]) + (-0.08226303133234722)*x[13]) + (-0.08226303133234722)*x[14]) + (-0.08226303133234722)*x[15]) + x[51])) + (((((0.16452606266469444)*t0[12]) + (0.16452606266469444)*t0[13]) + (0.16452606266469444)*t0[14]) + (0.16452606266469444)*t0[15])); t1[2] = v > 0 ? v : 0.0; }
+        { fom_float v = ((FOM_MAT_t1_c[3] + (((((((((-0.08226303133234722)*x[16]) + (-0.08226303133234722)*x[17]) + (-0.08226303133234722)*x[18]) + (-0.08226303133234722)*x[19]) + (-0.08226303133234722)*x[20]) + (-0.08226303133234722)*x[21]) + (-0.08226303133234722)*x[22]) + x[52])) + ((((((((0.16452606266469444)*t0[16]) + (0.16452606266469444)*t0[17]) + (0.16452606266469444)*t0[18]) + (0.16452606266469444)*t0[19]) + (0.16452606266469444)*t0[20]) + (0.16452606266469444)*t0[21]) + (0.16452606266469444)*t0[22])); t1[3] = v > 0 ? v : 0.0; }
+        { fom_float v = ((FOM_MAT_t1_c[4] + (((((-0.08226303133234722)*x[23]) + (-0.08226303133234722)*x[24]) + (-0.08226303133234722)*x[25]) + x[53])) + ((((0.16452606266469444)*t0[23]) + (0.16452606266469444)*t0[24]) + (0.16452606266469444)*t0[25])); t1[4] = v > 0 ? v : 0.0; }
+        { fom_float v = ((FOM_MAT_t1_c[5] + ((((((((((-0.08226303133234722)*x[26]) + (-0.08226303133234722)*x[27]) + (-0.08226303133234722)*x[28]) + (-0.08226303133234722)*x[29]) + (-0.08226303133234722)*x[30]) + (-0.08226303133234722)*x[31]) + (-0.08226303133234722)*x[32]) + (-0.08226303133234722)*x[33]) + x[54])) + (((((((((0.16452606266469444)*t0[26]) + (0.16452606266469444)*t0[27]) + (0.16452606266469444)*t0[28]) + (0.16452606266469444)*t0[29]) + (0.16452606266469444)*t0[30]) + (0.16452606266469444)*t0[31]) + (0.16452606266469444)*t0[32]) + (0.16452606266469444)*t0[33])); t1[5] = v > 0 ? v : 0.0; }
+        { fom_float v = ((FOM_MAT_t1_c[6] + (((((-0.08226303133234722)*x[34]) + (-0.08226303133234722)*x[35]) + (-0.08226303133234722)*x[36]) + x[55])) + ((((0.16452606266469444)*t0[34]) + (0.16452606266469444)*t0[35]) + (0.16452606266469444)*t0[36])); t1[6] = v > 0 ? v : 0.0; }
+        { fom_float v = ((FOM_MAT_t1_c[7] + ((((-0.08226303133234722)*x[37]) + (-0.08226303133234722)*x[38]) + x[56])) + (((0.16452606266469444)*t0[37]) + (0.16452606266469444)*t0[38])); t1[7] = v > 0 ? v : 0.0; }
+        { fom_float v = ((FOM_MAT_t1_c[8] + (((((((-0.08226303133234722)*x[39]) + (-0.08226303133234722)*x[40]) + (-0.08226303133234722)*x[41]) + (-0.08226303133234722)*x[42]) + (-0.08226303133234722)*x[43]) + x[57])) + ((((((0.16452606266469444)*t0[39]) + (0.16452606266469444)*t0[40]) + (0.16452606266469444)*t0[41]) + (0.16452606266469444)*t0[42]) + (0.16452606266469444)*t0[43])); t1[8] = v > 0 ? v : 0.0; }
+        { fom_float v = ((FOM_MAT_t1_c[9] + (((((((-0.08226303133234722)*x[44]) + (-0.08226303133234722)*x[45]) + (-0.08226303133234722)*x[46]) + (-0.08226303133234722)*x[47]) + (-0.08226303133234722)*x[48]) + x[58])) + ((((((0.16452606266469444)*t0[44]) + (0.16452606266469444)*t0[45]) + (0.16452606266469444)*t0[46]) + (0.16452606266469444)*t0[47]) + (0.16452606266469444)*t0[48])); t1[9] = v > 0 ? v : 0.0; }
+        FOM_PROF_END(t1);
+        FOM_PROF_BEGIN(su);
+        xn[0] = (t0[0]);
+        xn[1] = (t0[1]);
+        xn[2] = (t0[2]);
+        xn[3] = (t0[3]);
+        xn[4] = (t0[4]);
+        xn[5] = (t0[5]);
+        xn[6] = (t0[6]);
+        xn[7] = (t0[7]);
+        xn[8] = (t0[8]);
+        xn[9] = (t0[9]);
+        xn[10] = (t0[10]);
+        xn[11] = (t0[11]);
+        xn[12] = (t0[12]);
+        xn[13] = (t0[13]);
+        xn[14] = (t0[14]);
+        xn[15] = (t0[15]);
+        xn[16] = (t0[16]);
+        xn[17] = (t0[17]);
+        xn[18] = (t0[18]);
+        xn[19] = (t0[19]);
+        xn[20] = (t0[20]);
+        xn[21] = (t0[21]);
+        xn[22] = (t0[22]);
+        xn[23] = (t0[23]);
+        xn[24] = (t0[24]);
+        xn[25] = (t0[25]);
+        xn[26] = (t0[26]);
+        xn[27] = (t0[27]);
+        xn[28] = (t0[28]);
+        xn[29] = (t0[29]);
+        xn[30] = (t0[30]);
+        xn[31] = (t0[31]);
+        xn[32] = (t0[32]);
+        xn[33] = (t0[33]);
+        xn[34] = (t0[34]);
+        xn[35] = (t0[35]);
+        xn[36] = (t0[36]);
+        xn[37] = (t0[37]);
+        xn[38] = (t0[38]);
+        xn[39] = (t0[39]);
+        xn[40] = (t0[40]);
+        xn[41] = (t0[41]);
+        xn[42] = (t0[42]);
+        xn[43] = (t0[43]);
+        xn[44] = (t0[44]);
+        xn[45] = (t0[45]);
+        xn[46] = (t0[46]);
+        xn[47] = (t0[47]);
+        xn[48] = (t0[48]);
+        xn[49] = (t1[0]);
+        xn[50] = (t1[1]);
+        xn[51] = (t1[2]);
+        xn[52] = (t1[3]);
+        xn[53] = (t1[4]);
+        xn[54] = (t1[5]);
+        xn[55] = (t1[6]);
+        xn[56] = (t1[7]);
+        xn[57] = (t1[8]);
+        xn[58] = (t1[9]);
+        xn[59] = ((pc[59] + (((((((-0.069655061626067494)*x[0]) + (-0.33760783556686547)*x[12]) + (-0.26836501080727221)*x[16]) + (-0.037081661631488835)*x[26]) + (-0.37063781296154064)*x[39]) + x[59])) + ((((((0.13931012325213499)*t0[0]) + (0.67521567113373093)*t0[12]) + (0.53673002161454442)*t0[16]) + (0.074163323262977671)*t0[26]) + (0.74127562592308127)*t0[39]));
+        xn[60] = ((pc[60] + ((((((-0.25588244633413909)*x[1]) + (-0.037583500758161678)*x[5]) + (-0.083276300544647269)*x[27]) + (-0.023067940734351828)*x[37]) + x[60])) + (((((0.51176489266827818)*t0[1]) + (0.075167001516323356)*t0[5]) + (0.16655260108929454)*t0[27]) + (0.046135881468703656)*t0[37]));
+        xn[61] = ((pc[61] + ((((-0.61752386121652636)*x[6]) + (-0.042388435165245451)*x[17]) + x[61])) + (((1.2350477224330527)*t0[6]) + (0.084776870330490903)*t0[17]));
+        xn[62] = ((pc[62] + ((((-0.13345673088354346)*x[2]) + (-0.61132408824693363)*x[23]) + x[62])) + (((0.26691346176708691)*t0[2]) + (1.2226481764938673)*t0[23]));
+        xn[63] = ((pc[63] + (((((-0.040307047471874392)*x[13]) + (-0.029151569883073398)*x[18]) + (-0.58435958348428074)*x[28]) + x[63])) + ((((0.080614094943748785)*t0[13]) + (0.058303139766146796)*t0[18]) + (1.1687191669685615)*t0[28]));
+        xn[64] = ((pc[64] + (((((-0.64483412842709398)*x[7]) + (-0.36011436438990652)*x[19]) + (-0.051091074244933282)*x[29]) + x[64])) + ((((1.289668256854188)*t0[7]) + (0.72022872877981303)*t0[19]) + (0.10218214848986656)*t0[29]));
+        xn[65] = ((pc[65] + (((((((-0.024964136788999065)*x[3]) + (-0.037882339410371904)*x[8]) + (-0.00976037797556846)*x[14]) + (-0.27658369193168919)*x[20]) + (-0.03036587998612799)*x[44]) + x[65])) + ((((((0.049928273577998131)*t0[3]) + (0.075764678820743808)*t0[8]) + (0.01952075595113692)*t0[14]) + (0.55316738386337838)*t0[20]) + (0.06073175997225598)*t0[44]));
+        xn[66] = ((pc[66] + (((((-0.79478587733064987)*x[9]) + (-0.014854938892497713)*x[30]) + (-0.018156664303604776)*x[38]) + x[66])) + ((((1.5895717546612997)*t0[9]) + (0.029709877784995425)*t0[30]) + (0.036313328607209552)*t0[38]));
+        xn[67] = ((pc[67] + ((((-0.13174930294003487)*x[40]) + (-0.14046939723165486)*x[45]) + x[67])) + (((0.26349860588006974)*t0[40]) + (0.28093879446330972)*t0[45]));
+        xn[68] = ((pc[68] + ((((-0.013160484266981857)*x[24]) + (-0.38643208723267541)*x[34]) + x[68])) + (((0.026320968533963714)*t0[24]) + (0.77286417446535083)*t0[34]));
+        xn[69] = ((pc[69] + ((((((-0.017294599334807721)*x[10]) + (-0.60372695765338591)*x[31]) + (-0.25854119370877737)*x[35]) + (-0.14484430995648803)*x[41]) + x[69])) + (((((0.034589198669615441)*t0[10]) + (1.2074539153067718)*t0[31]) + (0.51708238741755475)*t0[35]) + (0.28968861991297606)*t0[41]));
+        xn[70] = ((pc[70] + ((((-0.034735970917354191)*x[21]) + (-0.15819624000738933)*x[25]) + x[70])) + (((0.069471941834708381)*t0[21]) + (0.31639248001477865)*t0[25]));
+        xn[71] = ((pc[71] + ((((((-0.021966725812901995)*x[4]) + (-0.021590409041307837)*x[32]) + (-0.034846066829944282)*x[42]) + (-0.32653085943273191)*x[46]) + x[71])) + (((((0.04393345162580399)*t0[4]) + (0.043180818082615674)*t0[32]) + (0.069692133659888564)*t0[42]) + (0.65306171886546382)*t0[46]));
+        xn[72] = ((pc[72] + (((((-0.011556395626565408)*x[33]) + (-0.098520275933536933)*x[43]) + (-0.17994004051645768)*x[47]) + x[72])) + ((((0.023112791253130816)*t0[33]) + (0.19704055186707387)*t0[43]) + (0.35988008103291536)*t0[47]));
+        xn[73] = ((pc[73] + (((((((-0.089618922945269686)*x[11]) + (-0.46831584781193331)*x[15]) + (-0.022087418331416996)*x[22]) + (-0.41032977319887487)*x[36]) + (-0.22496888289546163)*x[48]) + x[73])) + ((((((0.17923784589053937)*t0[11]) + (0.93663169562386661)*t0[15]) + (0.044174836662833991)*t0[22]) + (0.82065954639774974)*t0[36]) + (0.44993776579092326)*t0[48]));
+        FOM_PROF_END(su);
 
         if (use_tol || k == max_iter - 1) {
-            FOM_PROF_BEGIN(residual);
             res = 0.0;
             for (i = 0; i < FOM_STATE_DIM; ++i) {
                 fom_float d = xn[i] - x[i];
                 d = d < 0 ? -d : d;
                 res = d > res ? d : res;
             }
-            FOM_PROF_END(residual);
         }
 
         sw = x; x = xn; xn = sw;

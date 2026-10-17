@@ -11,7 +11,7 @@ import numpy as np
 
 fom_float = ctypes.c_double
 
-STATE_DIM = 175
+STATE_DIM = 74
 PARAM_NAMES = ['p0']
 PARAM_DIMS = {'p0': 15}
 
@@ -44,10 +44,10 @@ class FomWorkspace(ctypes.Structure):
         ("settings", FomSettings),
         ("params", FomParams),
         ("solution", FomSolution),
-        ("state", fom_float * 175),
-        ("new_state", fom_float * 175),
-        ("acc", fom_float * 175),
-        ("t0", fom_float * 150),
+        ("state", fom_float * 74),
+        ("new_state", fom_float * 74),
+        ("acc", fom_float * 74),
+        ("t0", fom_float * 49),
         ("t1", fom_float * 10),
     ]
 

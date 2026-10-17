@@ -4,20 +4,20 @@
 typedef double fom_float;
 typedef int fom_int;
 
-#define FOM_STATE_DIM 15
+#define FOM_STATE_DIM 50
 #define FOM_MAX_ITER 200
 #define FOM_TOL ((fom_float)0)
 #define FOM_USE_TOL 0
 #define FOM_CHECK_TERMINATION 1
 #define FOM_NUM_PARAMS 1
-#define FOM_MAX_VEC_DIM 15
+#define FOM_MAX_VEC_DIM 50
 #define FOM_UNROLLED 0
 
 #define FOM_SOLVED 0
 #define FOM_MAX_ITER_REACHED 1
 
-#define FOM_PARAM_P0_DIM 10
-#define FOM_T0_DIM 15
+#define FOM_PARAM_P0_DIM 25
+#define FOM_T0_DIM 50
 
 typedef struct {
     fom_int max_iter;

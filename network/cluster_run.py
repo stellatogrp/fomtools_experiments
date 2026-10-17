@@ -18,7 +18,21 @@ def make_problem(cfg, K: int) -> NetworkProblem:
     """``problem.make_problem`` with every constant from ``cfg``, drawing in the same order."""
     ns, nd = int(cfg.ns), int(cfg.nd)
     rng = np.random.default_rng(int(cfg.seed))
-    edges = [(i, j) for i in range(ns) for j in range(nd)]
+    edge_prob = float(cfg.get("edge_prob", 1.0))
+    if edge_prob >= 1.0:
+        # Complete bipartite graph; draws nothing, so the data match problem.make_problem.
+        edges = [(i, j) for i in range(ns) for j in range(nd)]
+    else:
+        # Random bipartite graph: each edge with probability edge_prob, then one random
+        # edge added to any demand node with no supplier and any supply node with no edge.
+        mask = rng.random((ns, nd)) < edge_prob
+        for j in range(nd):
+            if not mask[:, j].any():
+                mask[rng.integers(ns), j] = True
+        for i in range(ns):
+            if not mask[i].any():
+                mask[i, rng.integers(nd)] = True
+        edges = [(i, j) for i in range(ns) for j in range(nd) if mask[i, j]]
     ne = len(edges)
     half = np.log(float(cfg.gain_spread)) / 2
     g = np.exp(rng.uniform(-half, half, ne))

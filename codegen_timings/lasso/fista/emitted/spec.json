@@ -12,28 +12,28 @@
   "params": [
     {
       "name": "p0",
-      "dim": 10
+      "dim": 25
     }
   ],
   "state": {
-    "dim": 30,
+    "dim": 100,
     "slots": [
       [
         "s0",
-        15
+        50
       ],
       [
         "s1",
-        15
+        50
       ]
     ]
   },
   "body": [
     {
       "name": "t0",
-      "out_dim": 15,
+      "out_dim": 50,
       "linear_op": {
-        "out_dim": 15,
+        "out_dim": 50,
         "terms": [
           {
             "source": "state",
@@ -55,7 +55,7 @@
       },
       "activation": {
         "kind": "soft_threshold",
-        "lambd": 0.029093587409024832,
+        "lambd": 0.0002212861544693803,
         "lower": null,
         "upper": null,
         "lower_scalar": null,
@@ -65,7 +65,7 @@
     }
   ],
   "state_update": {
-    "out_dim": 30,
+    "out_dim": 100,
     "terms": [
       {
         "source": "state",
@@ -83,36 +83,36 @@
   "matrices": {
     "t0_state": {
       "shape": [
-        15,
-        30
+        50,
+        100
       ],
       "sparse": false
     },
     "t0_p_p0": {
       "shape": [
-        15,
-        10
+        50,
+        25
       ],
       "sparse": false
     },
     "su_state": {
       "shape": [
-        30,
-        30
+        100,
+        100
       ],
       "sparse": false
     },
     "su_t_t0": {
       "shape": [
-        30,
-        15
+        100,
+        50
       ],
       "sparse": false
     },
     "t0_state__d_gamma": {
       "shape": [
-        15,
-        30
+        50,
+        100
       ],
       "sparse": false
     }

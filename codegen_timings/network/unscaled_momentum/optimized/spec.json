@@ -16,11 +16,11 @@
     }
   ],
   "state": {
-    "dim": 175,
+    "dim": 74,
     "slots": [
       [
         "s0",
-        150
+        49
       ],
       [
         "s1",
@@ -35,9 +35,9 @@
   "body": [
     {
       "name": "t0",
-      "out_dim": 150,
+      "out_dim": 49,
       "linear_op": {
-        "out_dim": 150,
+        "out_dim": 49,
         "terms": [
           {
             "source": "state",
@@ -98,7 +98,7 @@
     }
   ],
   "state_update": {
-    "out_dim": 175,
+    "out_dim": 74,
     "terms": [
       {
         "source": "state",
@@ -136,40 +136,40 @@
   "matrices": {
     "t0_state": {
       "shape": [
-        150,
-        175
+        49,
+        74
       ],
       "sparse": false
     },
     "t0_c": {
       "shape": [
-        150
+        49
       ],
       "sparse": false
     },
     "t0_lo": {
       "shape": [
-        150
+        49
       ],
       "sparse": false
     },
     "t0_hi": {
       "shape": [
-        150
+        49
       ],
       "sparse": false
     },
     "t1_state": {
       "shape": [
         10,
-        175
+        74
       ],
       "sparse": false
     },
     "t1_t_t0": {
       "shape": [
         10,
-        150
+        49
       ],
       "sparse": false
     },
@@ -181,28 +181,28 @@
     },
     "su_state": {
       "shape": [
-        175,
-        175
+        74,
+        74
       ],
       "sparse": false
     },
     "su_t_t0": {
       "shape": [
-        175,
-        150
+        74,
+        49
       ],
       "sparse": false
     },
     "su_t_t1": {
       "shape": [
-        175,
+        74,
         10
       ],
       "sparse": false
     },
     "su_p_p0": {
       "shape": [
-        175,
+        74,
         15
       ],
       "sparse": false
@@ -210,28 +210,28 @@
     "t1_state__d_xi": {
       "shape": [
         10,
-        175
+        74
       ],
       "sparse": false
     },
     "t1_t_t0__d_xi": {
       "shape": [
         10,
-        150
+        49
       ],
       "sparse": false
     },
     "su_state__d_xi": {
       "shape": [
-        175,
-        175
+        74,
+        74
       ],
       "sparse": false
     },
     "su_t_t0__d_xi": {
       "shape": [
-        175,
-        150
+        74,
+        49
       ],
       "sparse": false
     }

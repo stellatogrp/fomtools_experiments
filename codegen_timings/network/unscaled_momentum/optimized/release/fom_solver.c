@@ -38,6 +38,11 @@ fom_int fom_solve(FomWorkspace *work) {
     fom_float res = 0.0;
     const fom_int max_iter = work->settings.max_iter;
     fom_int it, i;
+    fom_float pterm[FOM_STATE_DIM];
+
+    /* su_p_p0 @ p0 is iteration-invariant: hoist it. */
+    for (i = 0; i < FOM_STATE_DIM; ++i) pterm[i] = 0.0;
+    fom_apply_su_p_p0(work->params.p0, pterm);
 
     for (it = 0; it < max_iter; ++it) {
         const fom_float xi = fom_sched_xi(it);
@@ -66,11 +71,10 @@ fom_int fom_solve(FomWorkspace *work) {
         }
 
         /* State update */
-        for (i = 0; i < FOM_STATE_DIM; ++i) { xn[i] = 0.0; acc[i] = 0.0; }
+        for (i = 0; i < FOM_STATE_DIM; ++i) { xn[i] = pterm[i]; acc[i] = 0.0; }
         fom_apply_su_state(x, xn);
         fom_apply_su_t_t0(t0, xn);
         fom_apply_su_t_t1(t1, xn);
-        fom_apply_su_p_p0(work->params.p0, xn);
         fom_apply_su_state__d_xi(x, acc);
         fom_apply_su_t_t0__d_xi(t0, acc);
         for (i = 0; i < FOM_STATE_DIM; ++i) xn[i] += xi * acc[i];

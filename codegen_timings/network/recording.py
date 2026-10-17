@@ -1,4 +1,4 @@
-"""PDHG and momentum PDHG, unscaled and Ruiz, on the verified network (run_001: 10 x 15).
+"""PDHG and momentum PDHG, unscaled and Ruiz, on the verified network (run_005: 10 x 15, 49 edges, supply 6, eta 0.8/||A||).
 
 The data, scaling, warm start and samples come from ``network/cluster_run.py``.
 The plain variants are stationary. The momentum variants extrapolate with

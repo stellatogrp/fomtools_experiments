@@ -6,6 +6,7 @@ variants: [unscaled, ruiz, unscaled_momentum, ruiz_momentum]
 problem:
   ns: 3                # supply nodes
   nd: 4                # demand nodes
+  edge_prob: 1.0       # each supply-demand edge present with this probability; 1 = complete bipartite
   seed: 20
   gain_spread: 100.0   # gains log-uniform on [1/sqrt(spread), sqrt(spread)]
   cost_range: [1.0, 10.0]

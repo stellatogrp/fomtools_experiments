@@ -1,92 +1,52 @@
-Down from 109 µs to about 27 µs, and it still verifies. Next I'll profile and break the serial reduction chains, since without -ffast-math they block vectorization.
-Restrict-qualified block kernel vectorizes: ~18.5 µs. Next I'll pad each 15-wide group to 16 lanes so the vector loops have no scalar remainder, then fuse the reductions into the same pass.
-The clip compiles to compare+select pairs. I'll try `fmax`/`fmin`, which map to single `fmaxnm`/`fminnm` instructions:
-`fmax`/`fmin` brings it to 12.9 µs. Now I'll try specializing for the all-zero `t0_lo` (a [0, hi] box projection), with a generic fallback:
-Dropping the lower-bound load gives 11.5 µs. Next experiment: interleave the coefficient tables per 2-lane chunk (AoS) so each chunk's loads can pair into `ldp`.
-Interleaved layout: 10.75 µs. I'll check whether a different chunk width does better:
-CW=4 stays. Next I'll accumulate the y-dot with FMAs into 4 lane accumulators instead of a multiply followed by a reduction tree:
-That's about 1% better, so I'll keep it. Two consecutive rounds have now gained under 2%, so I'm stopping here. Final checks: no division operators left, then a clean verify, bench and profile.
-I cut the whole-solve time from about 105 µs to 10.7 µs, roughly 9.9× faster, and `make verify` still prints `VERIFY OK`. The worst error is 6.7e-15 against a tolerance of 1e-6. Only `src/fom_solver.c` was changed, and it still has no dynamic allocation and no floating-point division.
+I fully unrolled the solver iteration and cut the whole-solve time from about 49 µs to about 11 µs, roughly 4.4× faster. `make verify` still prints `VERIFY OK`, with a worst error of 5.3e-15 against a tolerance of 1e-6.
 
-`make bench` (5,000 solves) is noisy on this machine: the same code read anywhere from 13.5 to 15 µs. So the before/after figures come from running both builds alternately, 5 × 20,000 solves each.
+The speedup is from a single change in `src/fom_solver.c`; `src/fom_linsolve.c` is untouched because this problem has no linear solves. I didn't try a second optimization round, so I can't say whether more is available.
 
-Two design choices you should know about:
-- **Static coefficient tables.** About 9 KB of coefficients are pulled out of the existing operator functions once, on the first `fom_setup`, into tables at file scope. They are read-only after that and the same for every workspace, but the first setup isn't thread-safe.
-- **Stack scratch in `fom_solve`.** The solve keeps a padded copy of the state in about 1.4 KB of local arrays.
+The bench timer only resolves whole microseconds (min_us reads 6–8), so single runs are noisy: my two runs of the new code gave 14.6 µs and 11.3 µs. `make profile` reports a higher mean (34.2 µs) because the timing markers inside each iteration cost time themselves; use its percentages, not its absolute numbers.
 
-The profile is coarse: one fused kernel takes 98.7% of the time. Timing inside it would cost about as much as the work itself (around 54 ns per iteration), so I put markers around the kernel, setup, residual and write-back instead.
+I generated the unrolled code with a throwaway script at `/tmp/gen/gen.py`, which reads the sparsity pattern and values from `src/fom_ops.c`. It isn't part of the build. Since that file can't change, the inlined values in `src/fom_solver.c` stay valid.
 
 FOMTOOLS-SUMMARY-BEGIN
-**Whole-solve time** (Apple M5, `-O3`; both builds run alternately, 5 × 20,000 solves each):
-- Initial: `mean_us` ≈ 105.0 (first `make bench` run: 109.2)
-- Final: `mean_us` ≈ 10.7 (`make bench` at 5,000 solves is noisy and reads 10.6–15 µs)
-- **Speedup: about 9.9×.** `make verify` still prints `VERIFY OK`, with a worst error of 6.7e-15.
+**Whole-solve mean_us:** initial 49.4 µs → final 11.3 µs (14.6 µs on a second run) — about **4.4× faster** (3.4× on the slower run). `make verify`: VERIFY OK, worst max-abs error 5.3e-15 (tol 1e-6).
 
-**Profile of the final solver** (`make profile`, hottest first; profiling overhead included):
+**Final profile breakdown** (`make profile`, 200 iterations × 5000 solves; the absolute times include the profiler's own overhead):
+| region | total_us | pct |
+|---|---|---|
+| t0 (49-row clip of `t0_c + t0_state·x`) | 35448 | 38.0% |
+| state_update (`pc + su_state·x + su_t_t0·t0 + su_t_t1·t1`) | 30188 | 32.4% |
+| t1 (10-row relu of `t1_c + t1_state·x + t1_t_t0·t0`) | 27644 | 29.6% |
 
-| Region | total_us | calls | pct |
-|---|---|---|---|
-| iteration (fused t0 / t1 / state-update pass) | 85,859 | 1,000,000 | 98.68% |
-| residual (last iteration only) | 645 | 5,000 | 0.74% |
-| writeback (unpack state into solution) | 343 | 5,000 | 0.39% |
-| setup (`su_p_p0 @ p0`, pack state) | 158 | 5,000 | 0.18% |
+**Optimizations applied:**
+1. **Fully unrolled each iteration over the fixed CSR sparsity.** The six iteration matrices (`t0_state`, `t1_state`, `t1_t_t0`, `su_state`, `su_t_t0`, `su_t_t1`) are constant and sparse, with 3 to 8 nonzeros per row. The new code is one straight-line function, `fom_iterate`, with the coefficients written in as literals. That removes all row-pointer and column-index loads and the per-row loop overhead, and lets the compiler schedule across rows. It is valid because the sparsity pattern and values are compile-time data.
+2. **Dropped empty rows and unit coefficients.** In `su_state`, rows 0–58 are all zero, and `su_t_t1` has nonzeros only in rows 49–58. `su_t_t0` is the identity on rows 0–48, and every `su_t_t1` coefficient is 1. Rows that add nothing are skipped, and ±1 coefficients become plain adds or subtracts. Both changes give bit-identical results.
+3. **Fused each affine map with its activation and with the state accumulation in one pass.** Constant + matrix product + clip (or relu) is computed per row in a register, and xn is built in one pass instead of an initialise-then-accumulate pass per operator. The summation order of the original CSR ops is kept. This works because each output row depends only on the previous stage's vectors (x, then t0, then t1).
+4. **Kept the existing hoisting:** `su_p_p0·p0` is computed once per solve because p0 is constant across iterations, and the residual is computed only on the last iteration because termination is max-iterations only.
 
-**Optimizations applied** (each one is followed by the structure it relies on):
-1. **Replaced 7 general CSR operator applies with one fused pass over the state (105 → 24.7 µs).** *Structure:* the state splits into x(150), y(10) and z(15), with element i = 15g + j. I checked every non-zero against the operators:
-   - Each t0 row touches only x_i (coefficient 1), y_g and z_j.
-   - `t1_state` and `t1_t_t0` are block-row reductions over group g, and `t1_t_t0` equals exactly −2 × the x-block of `t1_state`.
-   - In `su_state` and `su_t_t0`, the rows for x are an identity on t0, and `su_t_t0`'s z rows equal exactly −2 × the x-columns of `su_state`.
-   - `su_t_t1` is an identity on y, and `su_p_p0` is diagonal into z.
-
-   So one iteration becomes: t = clip(c + x + ay·y_g + bz·z_j), then w = x − 2t, then y' = relu(t1c + ty·y + P·w) and z' = sz·z + R·w + d·p. There are no multiplies by identity blocks, the update happens in place, and nothing is swapped. The per-element coefficients are pulled out once by probing the existing operator functions with unit vectors.
-2. **Split the pass into restrict-qualified block kernels (24.7 → 15.4 µs).** *Structure:* the state is updated in place and z/y are read-only within an iteration. Copying z into a local and adding `restrict` removed the possible aliasing that was blocking the compiler from vectorizing.
-3. **Padded each 15-wide group to 16 lanes, with z-accumulation and the y dot-product fused into the same pass (15.4 → 14.1 µs).** *Structure:* the 10 × 15 block layout. Padding coefficients and bounds are zero, so the padded lanes stay exactly 0. Vector loops have no scalar remainder, and the 16 z accumulators stay in registers across groups.
-4. **Clipped with `fmax`/`fmin` instead of compare-and-select (14.1 → 12.9 µs).** *Structure:* the box projection. Each bound becomes a single `fmaxnm`/`fminnm` instruction, and the result is the same for non-NaN data.
-5. **Specialized the kernel for an all-zero lower bound (12.9 → 11.5 µs).** *Structure:* `t0_lo` is all zero here, so the clip is a projection onto [0, hi]. This is detected at setup, removes one load per element, and keeps a general fallback.
-6. **Interleaved the coefficient tables in 4-lane chunks (11.5 → 10.75 µs).** *Structure:* every field is read with the same stride. Laying out c, ay, bz, lo, hi, P and R contiguously per chunk lets the loads pair into `ldp` and improves locality. Chunk widths of 2, 8 and 16 were tested and were not faster.
-7. **Computed `su_p_p0 @ p0` as a 15-element diagonal product (about 1% faster).** *Structure:* `su_p_p0` is diagonal into the z rows, so this replaces a 175-row CSR apply in each solve.
-
-Rejected: FMA-accumulating the y dot-product, because it was not faster. I stopped after two consecutive rounds gained under 2%.
+`FOM_PROF_BEGIN/END` markers stay around the t0, t1 and state_update regions; they compile to nothing in the normal build.
 FOMTOOLS-SUMMARY-END
-I cut the whole-solve time from about 105 µs to 10.7 µs, roughly 9.9× faster, and `make verify` still prints `VERIFY OK`. The worst error is 6.7e-15 against a tolerance of 1e-6. Only `src/fom_solver.c` was changed, and it still has no dynamic allocation and no floating-point division.
+I fully unrolled the solver iteration and cut the whole-solve time from about 49 µs to about 11 µs, roughly 4.4× faster. `make verify` still prints `VERIFY OK`, with a worst error of 5.3e-15 against a tolerance of 1e-6.
 
-`make bench` (5,000 solves) is noisy on this machine: the same code read anywhere from 13.5 to 15 µs. So the before/after figures come from running both builds alternately, 5 × 20,000 solves each.
+The speedup is from a single change in `src/fom_solver.c`; `src/fom_linsolve.c` is untouched because this problem has no linear solves. I didn't try a second optimization round, so I can't say whether more is available.
 
-Two design choices you should know about:
-- **Static coefficient tables.** About 9 KB of coefficients are pulled out of the existing operator functions once, on the first `fom_setup`, into tables at file scope. They are read-only after that and the same for every workspace, but the first setup isn't thread-safe.
-- **Stack scratch in `fom_solve`.** The solve keeps a padded copy of the state in about 1.4 KB of local arrays.
+The bench timer only resolves whole microseconds (min_us reads 6–8), so single runs are noisy: my two runs of the new code gave 14.6 µs and 11.3 µs. `make profile` reports a higher mean (34.2 µs) because the timing markers inside each iteration cost time themselves; use its percentages, not its absolute numbers.
 
-The profile is coarse: one fused kernel takes 98.7% of the time. Timing inside it would cost about as much as the work itself (around 54 ns per iteration), so I put markers around the kernel, setup, residual and write-back instead.
+I generated the unrolled code with a throwaway script at `/tmp/gen/gen.py`, which reads the sparsity pattern and values from `src/fom_ops.c`. It isn't part of the build. Since that file can't change, the inlined values in `src/fom_solver.c` stay valid.
 
 FOMTOOLS-SUMMARY-BEGIN
-**Whole-solve time** (Apple M5, `-O3`; both builds run alternately, 5 × 20,000 solves each):
-- Initial: `mean_us` ≈ 105.0 (first `make bench` run: 109.2)
-- Final: `mean_us` ≈ 10.7 (`make bench` at 5,000 solves is noisy and reads 10.6–15 µs)
-- **Speedup: about 9.9×.** `make verify` still prints `VERIFY OK`, with a worst error of 6.7e-15.
+**Whole-solve mean_us:** initial 49.4 µs → final 11.3 µs (14.6 µs on a second run) — about **4.4× faster** (3.4× on the slower run). `make verify`: VERIFY OK, worst max-abs error 5.3e-15 (tol 1e-6).
 
-**Profile of the final solver** (`make profile`, hottest first; profiling overhead included):
+**Final profile breakdown** (`make profile`, 200 iterations × 5000 solves; the absolute times include the profiler's own overhead):
+| region | total_us | pct |
+|---|---|---|
+| t0 (49-row clip of `t0_c + t0_state·x`) | 35448 | 38.0% |
+| state_update (`pc + su_state·x + su_t_t0·t0 + su_t_t1·t1`) | 30188 | 32.4% |
+| t1 (10-row relu of `t1_c + t1_state·x + t1_t_t0·t0`) | 27644 | 29.6% |
 
-| Region | total_us | calls | pct |
-|---|---|---|---|
-| iteration (fused t0 / t1 / state-update pass) | 85,859 | 1,000,000 | 98.68% |
-| residual (last iteration only) | 645 | 5,000 | 0.74% |
-| writeback (unpack state into solution) | 343 | 5,000 | 0.39% |
-| setup (`su_p_p0 @ p0`, pack state) | 158 | 5,000 | 0.18% |
+**Optimizations applied:**
+1. **Fully unrolled each iteration over the fixed CSR sparsity.** The six iteration matrices (`t0_state`, `t1_state`, `t1_t_t0`, `su_state`, `su_t_t0`, `su_t_t1`) are constant and sparse, with 3 to 8 nonzeros per row. The new code is one straight-line function, `fom_iterate`, with the coefficients written in as literals. That removes all row-pointer and column-index loads and the per-row loop overhead, and lets the compiler schedule across rows. It is valid because the sparsity pattern and values are compile-time data.
+2. **Dropped empty rows and unit coefficients.** In `su_state`, rows 0–58 are all zero, and `su_t_t1` has nonzeros only in rows 49–58. `su_t_t0` is the identity on rows 0–48, and every `su_t_t1` coefficient is 1. Rows that add nothing are skipped, and ±1 coefficients become plain adds or subtracts. Both changes give bit-identical results.
+3. **Fused each affine map with its activation and with the state accumulation in one pass.** Constant + matrix product + clip (or relu) is computed per row in a register, and xn is built in one pass instead of an initialise-then-accumulate pass per operator. The summation order of the original CSR ops is kept. This works because each output row depends only on the previous stage's vectors (x, then t0, then t1).
+4. **Kept the existing hoisting:** `su_p_p0·p0` is computed once per solve because p0 is constant across iterations, and the residual is computed only on the last iteration because termination is max-iterations only.
 
-**Optimizations applied** (each one is followed by the structure it relies on):
-1. **Replaced 7 general CSR operator applies with one fused pass over the state (105 → 24.7 µs).** *Structure:* the state splits into x(150), y(10) and z(15), with element i = 15g + j. I checked every non-zero against the operators:
-   - Each t0 row touches only x_i (coefficient 1), y_g and z_j.
-   - `t1_state` and `t1_t_t0` are block-row reductions over group g, and `t1_t_t0` equals exactly −2 × the x-block of `t1_state`.
-   - In `su_state` and `su_t_t0`, the rows for x are an identity on t0, and `su_t_t0`'s z rows equal exactly −2 × the x-columns of `su_state`.
-   - `su_t_t1` is an identity on y, and `su_p_p0` is diagonal into z.
-
-   So one iteration becomes: t = clip(c + x + ay·y_g + bz·z_j), then w = x − 2t, then y' = relu(t1c + ty·y + P·w) and z' = sz·z + R·w + d·p. There are no multiplies by identity blocks, the update happens in place, and nothing is swapped. The per-element coefficients are pulled out once by probing the existing operator functions with unit vectors.
-2. **Split the pass into restrict-qualified block kernels (24.7 → 15.4 µs).** *Structure:* the state is updated in place and z/y are read-only within an iteration. Copying z into a local and adding `restrict` removed the possible aliasing that was blocking the compiler from vectorizing.
-3. **Padded each 15-wide group to 16 lanes, with z-accumulation and the y dot-product fused into the same pass (15.4 → 14.1 µs).** *Structure:* the 10 × 15 block layout. Padding coefficients and bounds are zero, so the padded lanes stay exactly 0. Vector loops have no scalar remainder, and the 16 z accumulators stay in registers across groups.
-4. **Clipped with `fmax`/`fmin` instead of compare-and-select (14.1 → 12.9 µs).** *Structure:* the box projection. Each bound becomes a single `fmaxnm`/`fminnm` instruction, and the result is the same for non-NaN data.
-5. **Specialized the kernel for an all-zero lower bound (12.9 → 11.5 µs).** *Structure:* `t0_lo` is all zero here, so the clip is a projection onto [0, hi]. This is detected at setup, removes one load per element, and keeps a general fallback.
-6. **Interleaved the coefficient tables in 4-lane chunks (11.5 → 10.75 µs).** *Structure:* every field is read with the same stride. Laying out c, ay, bz, lo, hi, P and R contiguously per chunk lets the loads pair into `ldp` and improves locality. Chunk widths of 2, 8 and 16 were tested and were not faster.
-7. **Computed `su_p_p0 @ p0` as a 15-element diagonal product (about 1% faster).** *Structure:* `su_p_p0` is diagonal into the z rows, so this replaces a 175-row CSR apply in each solve.
-
-Rejected: FMA-accumulating the y dot-product, because it was not faster. I stopped after two consecutive rounds gained under 2%.
+`FOM_PROF_BEGIN/END` markers stay around the t0, t1 and state_update regions; they compile to nothing in the normal build.
 FOMTOOLS-SUMMARY-END

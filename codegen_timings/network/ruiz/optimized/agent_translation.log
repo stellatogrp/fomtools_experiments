@@ -1,27 +1,26 @@
-The spec matches the sibling `unscaled` variant structurally (same ops, same dims), so I'll use the same implementation (all numbers come from this directory's data/ops).
-I wrote `src/fom_solver.c`, and `make verify` passes: it prints `VERIFY OK` and exits 0. Across the 8 reference samples, the largest difference from the reference was 7.99e-15, against an allowed 1e-6.
+`src/fom_solver.c` was already written when I started. I checked it against the constraints and ran `make verify`, which printed **`VERIFY OK`** with a worst max-abs error of 5.3e-15 over 8 samples (tolerance 1e-6). I didn't change the file.
 
-The `network_ruiz` spec has the same steps and sizes as the existing `network/unscaled` variant, so I reused that solver's C code. All numbers come from this directory's own `fom_data.c` and `fom_ops.c`, so the Ruiz-scaled data is what actually gets used.
+How it meets the constraints:
+- **ABI:** it implements all five functions in `fom_solver.h`. `fom_setup` and `fom_update_params` both reset the state from `FOM_STATE_INIT`.
+- **No allocation and no `/`:** it only uses the buffers already in the workspace (`state`, `new_state`, `acc`, `t0`, `t1`), and the only `/` in the file is inside a comment. There are no matrix inverses, no hardcoded numbers, and no hand-written matvec loops.
+- **Iteration:** each step follows SPEC. `t0` is `clip(t0_c + t0_state·x, lo, hi)`, `t1` is `relu(t1_c + t1_state·x + t1_t_t0·t0)`, and the state update uses the accumulating `fom_apply_*` helpers. SPEC has no affine-solve steps, so it never calls `fom_lin_solve_*`.
 
-How it works:
-- **No allocation and no division:** it uses only the buffers already in the workspace. I checked for `/` and `malloc`/`free` and found neither.
-- **Parameter term computed once:** `su_p_p0 @ p0` doesn't change between iterations, so it's computed once per solve into `work->acc` and reused.
-- **Steps per iteration:** `t0` is `t0_c + t0_state @ x` clipped to the `lo`/`hi` bounds. `t1` is ReLU applied to `t1_c + t1_state @ x + t1_t_t0 @ t0`. The new state is built with the provided sparse helpers.
-- **No copying between iterations:** the current and new state buffers are swapped by pointer each iteration.
-- **Residual only on the last iteration:** tolerance is 0 here, so it runs the full 200 iterations and only computes the residual at the end. If a positive tolerance is set, it checks every iteration and can stop early.
-- **State reset:** `fom_setup` and `fom_update_params` both reset the state to `FOM_STATE_INIT`, so each solve starts from the same point.
+What makes it fast:
+- `su_p_p0 @ p0` is the same every iteration, so it's computed once before the loop and kept in `acc`.
+- `state` and `new_state` are swapped by pointer each iteration instead of copied; if the result ends up in `new_state`, it's copied back once at the end.
+- The max-abs residual is only computed when the tolerance check is active, or on the last iteration. With the defaults (`tol = 0`, 200 iterations), that's just the final iteration.
 
-There are no linear solves in this spec, so `fom_linsolve` isn't called. I didn't run `make bench`, so I have no timing numbers yet.
-I wrote `src/fom_solver.c`, and `make verify` passes: it prints `VERIFY OK` and exits 0. Across the 8 reference samples, the largest difference from the reference was 7.99e-15, against an allowed 1e-6.
+I didn't run `make bench`, so I don't have timing numbers.
+`src/fom_solver.c` was already written when I started. I checked it against the constraints and ran `make verify`, which printed **`VERIFY OK`** with a worst max-abs error of 5.3e-15 over 8 samples (tolerance 1e-6). I didn't change the file.
 
-The `network_ruiz` spec has the same steps and sizes as the existing `network/unscaled` variant, so I reused that solver's C code. All numbers come from this directory's own `fom_data.c` and `fom_ops.c`, so the Ruiz-scaled data is what actually gets used.
+How it meets the constraints:
+- **ABI:** it implements all five functions in `fom_solver.h`. `fom_setup` and `fom_update_params` both reset the state from `FOM_STATE_INIT`.
+- **No allocation and no `/`:** it only uses the buffers already in the workspace (`state`, `new_state`, `acc`, `t0`, `t1`), and the only `/` in the file is inside a comment. There are no matrix inverses, no hardcoded numbers, and no hand-written matvec loops.
+- **Iteration:** each step follows SPEC. `t0` is `clip(t0_c + t0_state·x, lo, hi)`, `t1` is `relu(t1_c + t1_state·x + t1_t_t0·t0)`, and the state update uses the accumulating `fom_apply_*` helpers. SPEC has no affine-solve steps, so it never calls `fom_lin_solve_*`.
 
-How it works:
-- **No allocation and no division:** it uses only the buffers already in the workspace. I checked for `/` and `malloc`/`free` and found neither.
-- **Parameter term computed once:** `su_p_p0 @ p0` doesn't change between iterations, so it's computed once per solve into `work->acc` and reused.
-- **Steps per iteration:** `t0` is `t0_c + t0_state @ x` clipped to the `lo`/`hi` bounds. `t1` is ReLU applied to `t1_c + t1_state @ x + t1_t_t0 @ t0`. The new state is built with the provided sparse helpers.
-- **No copying between iterations:** the current and new state buffers are swapped by pointer each iteration.
-- **Residual only on the last iteration:** tolerance is 0 here, so it runs the full 200 iterations and only computes the residual at the end. If a positive tolerance is set, it checks every iteration and can stop early.
-- **State reset:** `fom_setup` and `fom_update_params` both reset the state to `FOM_STATE_INIT`, so each solve starts from the same point.
+What makes it fast:
+- `su_p_p0 @ p0` is the same every iteration, so it's computed once before the loop and kept in `acc`.
+- `state` and `new_state` are swapped by pointer each iteration instead of copied; if the result ends up in `new_state`, it's copied back once at the end.
+- The max-abs residual is only computed when the tolerance check is active, or on the last iteration. With the defaults (`tol = 0`, 200 iterations), that's just the final iteration.
 
-There are no linear solves in this spec, so `fom_linsolve` isn't called. I didn't run `make bench`, so I have no timing numbers yet.
+I didn't run `make bench`, so I don't have timing numbers.

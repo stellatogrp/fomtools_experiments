@@ -11,9 +11,9 @@ import numpy as np
 
 fom_float = ctypes.c_double
 
-STATE_DIM = 30
+STATE_DIM = 100
 PARAM_NAMES = ['p0']
-PARAM_DIMS = {'p0': 10}
+PARAM_DIMS = {'p0': 25}
 
 
 class FomSettings(ctypes.Structure):
@@ -26,7 +26,7 @@ class FomSettings(ctypes.Structure):
 
 class FomParams(ctypes.Structure):
     _fields_ = [
-        ("p0", fom_float * 10),
+        ("p0", fom_float * 25),
     ]
 
 
@@ -44,10 +44,10 @@ class FomWorkspace(ctypes.Structure):
         ("settings", FomSettings),
         ("params", FomParams),
         ("solution", FomSolution),
-        ("state", fom_float * 30),
-        ("new_state", fom_float * 30),
-        ("acc", fom_float * 30),
-        ("t0", fom_float * 15),
+        ("state", fom_float * 100),
+        ("new_state", fom_float * 100),
+        ("acc", fom_float * 100),
+        ("t0", fom_float * 50),
     ]
 
 

@@ -31,8 +31,8 @@ fom_int fom_solve(FomWorkspace *work) {
     fom_float *x = work->state;
     fom_float *xn = work->new_state;
     fom_float *t0 = work->t0;
-    fom_float *dg = work->acc;                    /* D_gamma @ state (15) */
-    fom_float *cp = work->acc + FOM_T0_DIM;       /* t0_p_p0 @ p0, constant (15) */
+    fom_float *dg = work->acc;                    /* D_gamma @ state (50) */
+    fom_float *cp = work->acc + FOM_T0_DIM;       /* t0_p_p0 @ p0, constant (50) */
     const fom_int max_iter = work->settings.max_iter;
     const fom_int use_tol = work->settings.check_termination && work->settings.tol > 0;
     const fom_float tol = work->settings.tol;

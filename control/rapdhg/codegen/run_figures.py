@@ -14,6 +14,7 @@ overwrites the reported results.
     python -m codegen.run_figures                       # quasi-periodic, 63 us
     python -m codegen.run_figures --budget 100
     python -m codegen.run_figures --reference figure8
+    python -m codegen.run_figures --reference figure8 --iterations 3 13 275 --no-gif  # paper figure
 
 Writes ``figures_<reference>_flight.pdf``, ``figures_<reference>_error.pdf``, and
 ``figures_<reference>.gif`` to ``out/``.
@@ -28,6 +29,14 @@ from common import plots
 from common import study as pipeline
 from common.reference import bspline_waypoints, figure_eight, quasi_periodic
 from common.simulate import closed_loop
+
+#: Names shown in the figures; the translation phase writes the "emitted" solver.
+DISPLAY = {"emitted C": "translated C"}
+
+#: Font sizes of the still, in points before it is scaled to the page width.
+TITLE_SIZE, SUPTITLE_SIZE = 26, 30
+#: Height of the header, raised above the pane titles at these sizes.
+SUPTITLE_Y = 0.995
 
 #: The reference paths this can draw on.  ``quasi`` is the default because it is
 #: the one the figure eight cannot show: an unrepeating path, so the tracking
@@ -59,6 +68,13 @@ def parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--dpi", type=int, default=100, help="resolution of the animation frames")
     p.add_argument("--no-gif", action="store_true")
+    p.add_argument(
+        "--iterations",
+        type=int,
+        nargs="+",
+        default=None,
+        help="iteration count per arm, in arm order; overrides the count the budget buys",
+    )
     return p
 
 
@@ -80,11 +96,13 @@ def main() -> None:
         f"{'':16}max tilt   over {pipeline.TILT_LIMIT_DEG:.0f} deg"
     )
     rollouts, labels, colors = [], [], []
-    for arm in arms:
-        count = arm.iterations_for(args.budget)
+    if args.iterations is not None and len(args.iterations) != len(arms):
+        raise SystemExit(f"--iterations needs {len(arms)} counts, one per arm")
+    for i, arm in enumerate(arms):
+        count = arm.iterations_for(args.budget) if args.iterations is None else args.iterations[i]
         roll = closed_loop(arm.controller, ref, count, duration=args.duration)
         rollouts.append(roll)
-        labels.append(f"{arm.name} ({count} iterations)")
+        labels.append(f"{DISPLAY.get(arm.name, arm.name)} ({count} iterations)")
         colors.append(pipeline.COLORS[arm.name])
         outcome = "CRASHED" if roll.crashed else f"{roll.steady_error():.3f} m steady"
         print(
@@ -105,6 +123,9 @@ def main() -> None:
             labels,
             colors=colors,
             suptitle=plots.budget_title(args.budget),
+            title_size=TITLE_SIZE,
+            suptitle_size=SUPTITLE_SIZE,
+            suptitle_y=SUPTITLE_Y,
         ),
     )
     print("wrote", plots.error_vs_time(rollouts, out / f"{stem}_error.pdf", labels, colors=colors))

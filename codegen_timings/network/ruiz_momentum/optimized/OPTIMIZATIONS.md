@@ -3,9 +3,9 @@
 ## Timing
 
 ```
-translated (emitted)     177.7 us/solve
-optimized                 28.4 us/solve
-speedup                  6.25x
+translated (emitted)      63.9 us/solve
+optimized                 18.7 us/solve
+speedup                  3.42x
 ```
 
 Optimization outcome: **kept (re-verified correct)**.
@@ -15,378 +15,240 @@ Optimization outcome: **kept (re-verified correct)**.
 ```diff
 --- translated (emitted)
 +++ optimized
-@@ -2,6 +2,157 @@
+@@ -2,6 +2,151 @@
  #include "fom_data.h"
  #include "fom_ops.h"
  #include "fom_linsolve.h"
 +#include "fom_profile.h"
 +
-+/* ------------------------------------------------------------------
-+   Grid structure.
-+
-+   The state is x = [s0 (NR*NC) | s1 (NR) | s2 (NC)] with NR = 10,
-+   NC = 15, and s0 index i = NC*r + c lives on an NR x NC grid. Every
-+   operator in this method only couples grid cell i to its row r and
-+   column c:
-+     t0[i]    = clip(t0_c[i] + a[i] x[i] + b[i] s1[r] + g[i] s2[c])
-+     t1[r]    = relu(t1_c[r] + sum_c (A + xi Ad)[i] s0[i]
-+                             + sum_c (B + xi Bd)[i] t0[i] + (h + xi hd)[r] s1[r])
-+     s0+      = t0,  s1+ = t1            (identity blocks)
-+     s2+[c]   = (q + xi qd)[c] s2[c] + sum_r (S + xi Sd)[i] s0[i]
-+               + sum_r (T + xi Td)[i] t0[i] + (su_p_p0 @ p0)[c]
-+   so one sweep over the grid with contiguous, index-free coefficient
-+   arrays computes the whole iteration.
-+
-+   The coefficients are recovered once (first fom_setup) by probing the
-+   provided fom_apply_* helpers with unit vectors. Every probed nonzero
-+   must land in one of the slots above (identity blocks exactly 1);
-+   otherwise the solver falls back to the reference helper loop.
-+   ------------------------------------------------------------------ */
-+
-+#define NR FOM_T1_DIM
-+#define NC (FOM_STATE_DIM - FOM_T0_DIM - FOM_T1_DIM)
-+#define S1 FOM_T0_DIM
-+#define S2 (FOM_T0_DIM + FOM_T1_DIM)
-+
-+typedef char fom_grid_check[(NR * NC == FOM_T0_DIM) ? 1 : -1];
-+
-+/* Internal layout pads each grid row to NCP columns (zero coefficients,
-+   zero bounds) so every inner loop has a fixed, SIMD-friendly length:
-+   [s0 (NR*NCP) | s1 (NR) | s2 (NCP)]. */
-+#define NCP 16
-+#define G   (NR * NCP)
-+#define PS1 G
-+#define PS2 (G + NR)
-+#define PLEN (PS2 + NCP)
-+
-+typedef void (*fom_apply_fn)(const fom_float *, fom_float *);
-+
-+/* t0 */
-+static fom_float g_c0[G], g_lo[G], g_hi[G];
-+static fom_float g_a[G], g_b[G], g_g[G];
-+/* t1 */
-+static fom_float g_A[G], g_Ad[G], g_B[G], g_Bd[G];
-+static fom_float g_h[NR], g_hd[NR];
-+/* s2 update */
-+static fom_float g_S[G], g_Sd[G], g_T[G], g_Td[G];
-+static fom_float g_q[NCP], g_qd[NCP];
-+static fom_float g_ones_s0[FOM_T0_DIM], g_ones_s1[NR];
-+
-+static int g_struct_state = 0; /* 0 = not built, 1 = ok, -1 = fallback */
-+/* 1 if t0_state has unit diagonal on s0 and t0_lo == 0 (checked exactly). */
-+static int g_unit_lo0 = 0;
-+
-+static fom_float g_probe_in[FOM_MAX_VEC_DIM];
-+static fom_float g_probe_out[FOM_MAX_VEC_DIM];
-+static fom_int g_row_of[FOM_T0_DIM], g_col_of[FOM_T0_DIM], g_pad[FOM_T0_DIM];
-+
-+enum { M_T0, M_T1, M_T1D, M_T1T0, M_T1T0D, M_SU, M_SUD, M_SUT0, M_SUT0D, M_SUT1, M_SUP };
-+
-+/* Map entry (i, j) of matrix m to its coefficient slot, or 0 if the
-+   entry is outside the grid pattern. */
-+static fom_float *fom_slot(int m, fom_int i, fom_int j) {
-+    switch (m) {
-+    case M_T0:
-+        if (i >= FOM_T0_DIM) return 0;
-+        if (j == i) return &g_a[g_pad[i]];
-+        if (j == S1 + g_row_of[i]) return &g_b[g_pad[i]];
-+        if (j == S2 + g_col_of[i]) return &g_g[g_pad[i]];
-+        return 0;
-+    case M_T1: case M_T1D:
-+        if (i >= NR) return 0;
-+        if (j < FOM_T0_DIM && g_row_of[j] == i) return m == M_T1 ? &g_A[g_pad[j]] : &g_Ad[g_pad[j]];
-+        if (j == S1 + i) return m == M_T1 ? &g_h[i] : &g_hd[i];
-+        return 0;
-+    case M_T1T0: case M_T1T0D:
-+        if (i >= NR || g_row_of[j] != i) return 0;
-+        return m == M_T1T0 ? &g_B[g_pad[j]] : &g_Bd[g_pad[j]];
-+    case M_SU: case M_SUD:
-+        if (i < S2) return 0;
-+        if (j < FOM_T0_DIM && g_col_of[j] == i - S2) return m == M_SU ? &g_S[g_pad[j]] : &g_Sd[g_pad[j]];
-+        if (j == i) return m == M_SU ? &g_q[i - S2] : &g_qd[i - S2];
-+        return 0;
-+    case M_SUT0:
-+        if (i < FOM_T0_DIM) return j == i ? &g_ones_s0[i] : 0;
-+        if (i < S2 || g_col_of[j] != i - S2) return 0;
-+        return &g_T[g_pad[j]];
-+    case M_SUT0D:
-+        if (i < S2 || g_col_of[j] != i - S2) return 0;
-+        return &g_Td[g_pad[j]];
-+    case M_SUT1:
-+        return (i >= S1 && i < S2 && j == i - S1) ? &g_ones_s1[j] : 0;
-+    case M_SUP:
-+        return i >= S2 ? &g_probe_in[0] /* any non-null: p0 term is applied per solve */ : 0;
-+    }
-+    return 0;
++/* Fully unrolled, fused sparse kernels: CSR patterns/values of fom_ops.c
++   baked into straight-line code (empty rows skipped, unit values
++   unmultiplied, constant/activation/xi-scaling fused per row, same
++   summation order as the reference). */
++static inline void f_t1(const fom_float *x, const fom_float *t, fom_float xi, fom_float *o) {
++    { const fom_float v = ((FOM_MAT_t1_c[0] + (-0.31483425579287283*x[0] + -0.17851063193927913*x[1] + -0.31483425565100043*x[2] + -0.31483425579287283*x[3] + -0.31483425579287283*x[4] + x[49])) + (0.62966851158574555*t[0] + 0.35702126387855826*t[1] + 0.62966851130200108*t[2] + 0.62966851158574555*t[3] + 0.62966851158574555*t[4])) + xi*((-0.62966851158574533*x[0] + -0.35702126387855809*x[1] + -0.62966851130200074*x[2] + -0.62966851158574533*x[3] + -0.62966851158574533*x[4]) + (0.62966851158574533*t[0] + 0.35702126387855809*t[1] + 0.6296685113020003*t[2] + 0.62966851158574533*t[3] + 0.62966851158574533*t[4])); o[0] = v > 0.0 ? v : 0.0; }
++    { const fom_float v = ((FOM_MAT_t1_c[1] + (-0.31483425579287283*x[5] + -0.11490990424160036*x[6] + -0.11245022456106751*x[7] + -0.31483425579287283*x[8] + -0.10128829571838176*x[9] + -0.31483425579287283*x[10] + -0.31483425576776092*x[11] + x[50])) + (0.62966851158574555*t[5] + 0.22981980848320072*t[6] + 0.22490044912213497*t[7] + 0.62966851158574555*t[8] + 0.2025765914367634*t[9] + 0.62966851158574555*t[10] + 0.62966851153552161*t[11])) + xi*((-0.62966851158574533*x[5] + -0.22981980848320044*x[6] + -0.2249004491221348*x[7] + -0.62966851158574533*x[8] + -0.20257659143676332*x[9] + -0.62966851158574533*x[10] + -0.62966851153552084*x[11]) + (0.62966851158574533*t[5] + 0.22981980848320033*t[6] + 0.2249004491221348*t[7] + 0.62966851158574533*t[8] + 0.20257659143676343*t[9] + 0.62966851158574533*t[10] + 0.62966851153552084*t[11])); o[1] = v > 0.0 ? v : 0.0; }
++    { const fom_float v = ((FOM_MAT_t1_c[2] + (-0.16283459527310534*x[12] + -0.31483425579287283*x[13] + -0.31483425579287283*x[14] + -0.1319516748918157*x[15] + x[51])) + (0.3256691905462108*t[12] + 0.62966851158574555*t[13] + 0.62966851158574555*t[14] + 0.26390334978363139*t[15])) + xi*((-0.32566919054621074*x[12] + -0.62966851158574533*x[13] + -0.62966851158574533*x[14] + -0.26390334978363106*x[15]) + (0.32566919054621052*t[12] + 0.62966851158574533*t[13] + 0.62966851158574533*t[14] + 0.26390334978363095*t[15])); o[2] = v > 0.0 ? v : 0.0; }
++    { const fom_float v = ((FOM_MAT_t1_c[3] + (-0.2048487434648763*x[16] + -0.31483425579287283*x[17] + -0.31483425579287283*x[18] + -0.20135753992977132*x[19] + -0.17170029832945377*x[20] + -0.31483425579287283*x[21] + -0.31483425579287283*x[22] + x[52])) + (0.4096974869297525*t[16] + 0.62966851158574555*t[17] + 0.62966851158574555*t[18] + 0.4027150798595428*t[19] + 0.34340059665890749*t[20] + 0.62966851158574555*t[21] + 0.62966851158574555*t[22])) + xi*((-0.40969748692975222*x[16] + -0.62966851158574533*x[17] + -0.62966851158574533*x[18] + -0.40271507985954247*x[19] + -0.34340059665890715*x[20] + -0.62966851158574533*x[21] + -0.62966851158574533*x[22]) + (0.40969748692975239*t[16] + 0.62966851158574533*t[17] + 0.62966851158574533*t[18] + 0.40271507985954208*t[19] + 0.34340059665890715*t[20] + 0.62966851158574533*t[21] + 0.62966851158574533*t[22])); o[3] = v > 0.0 ? v : 0.0; }
++    { const fom_float v = ((FOM_MAT_t1_c[4] + (-0.11549111655165209*x[23] + -0.31483425579287283*x[24] + -0.22703157183385481*x[25] + x[53])) + (0.23098223310330421*t[23] + 0.62966851158574555*t[24] + 0.45406314366770961*t[25])) + xi*((-0.23098223310330407*x[23] + -0.62966851158574533*x[24] + -0.45406314366770917*x[25]) + (0.23098223310330407*t[23] + 0.62966851158574533*t[24] + 0.45406314366770895*t[25])); o[4] = v > 0.0 ? v : 0.0; }
++    { const fom_float v = ((FOM_MAT_t1_c[5] + (-0.31483425579287283*x[26] + -0.31483425578928348*x[27] + -0.11812566027056481*x[28] + -0.31483425579287283*x[29] + -0.31483425579287283*x[30] + -0.11621549871906077*x[31] + -0.31483425579287283*x[32] + -0.31483425579287283*x[33] + x[54])) + (0.62966851158574555*t[26] + 0.62966851157856663*t[27] + 0.23625132054112963*t[28] + 0.62966851158574555*t[29] + 0.62966851158574555*t[30] + 0.23243099743812143*t[31] + 0.62966851158574555*t[32] + 0.62966851158574555*t[33])) + xi*((-0.62966851158574533*x[26] + -0.62966851157856596*x[27] + -0.23625132054112963*x[28] + -0.62966851158574533*x[29] + -0.62966851158574533*x[30] + -0.2324309974381214*x[31] + -0.62966851158574533*x[32] + -0.62966851158574533*x[33]) + (0.62966851158574533*t[26] + 0.62966851157856629*t[27] + 0.23625132054112963*t[28] + 0.62966851158574533*t[29] + 0.62966851158574533*t[30] + 0.23243099743812162*t[31] + 0.62966851158574533*t[32] + 0.62966851158574533*t[33])); o[5] = v > 0.0 ? v : 0.0; }
++    { const fom_float v = ((FOM_MAT_t1_c[6] + (-0.20072699455717991*x[34] + -0.31483425579287294*x[35] + -0.20810320529794371*x[36] + x[55])) + (0.40145398911435992*t[34] + 0.62966851158574566*t[35] + 0.41620641059588726*t[36])) + xi*((-0.40145398911435987*x[34] + -0.62966851158574533*x[35] + -0.41620641059588692*x[36]) + (0.40145398911435964*t[34] + 0.62966851158574577*t[35] + 0.41620641059588714*t[36])); o[6] = v > 0.0 ? v : 0.0; }
++    { const fom_float v = ((FOM_MAT_t1_c[7] + (-0.31483425579287283*x[37] + -0.31483425579287283*x[38] + x[56])) + (0.62966851158574555*t[37] + 0.62966851158574555*t[38])) + xi*((-0.62966851158574533*x[37] + -0.62966851158574533*x[38]) + (0.62966851158574533*t[37] + 0.62966851158574533*t[38])); o[7] = v > 0.0 ? v : 0.0; }
++    { const fom_float v = ((FOM_MAT_t1_c[8] + (-0.14832333169428388*x[39] + -0.25687797426285774*x[40] + -0.31483425562699174*x[41] + -0.31483425579287283*x[42] + -0.31483425573999479*x[43] + x[57])) + (0.29664666338856793*t[39] + 0.5137559485257156*t[40] + 0.62966851125398327*t[41] + 0.62966851158574555*t[42] + 0.6296685114799897*t[43])) + xi*((-0.29664666338856782*x[39] + -0.51375594852571538*x[40] + -0.62966851125398271*x[41] + -0.62966851158574533*x[42] + -0.62966851147998915*x[43]) + (0.29664666338856738*t[39] + 0.51375594852571516*t[40] + 0.62966851125398304*t[41] + 0.62966851158574533*t[42] + 0.6296685114799887*t[43])); o[8] = v > 0.0 ? v : 0.0; }
++    { const fom_float v = ((FOM_MAT_t1_c[9] + (-0.31483425579287283*x[44] + -0.24093143929411778*x[45] + -0.15802369728139182*x[46] + -0.21287292492070606*x[47] + -0.27468270126800032*x[48] + x[58])) + (0.62966851158574555*t[44] + 0.48186287858823551*t[45] + 0.31604739456278352*t[46] + 0.42574584984141206*t[47] + 0.54936540253600075*t[48])) + xi*((-0.62966851158574533*x[44] + -0.48186287858823507*x[45] + -0.31604739456278325*x[46] + -0.42574584984141201*x[47] + -0.54936540253600064*x[48]) + (0.62966851158574533*t[44] + 0.48186287858823507*t[45] + 0.31604739456278325*t[46] + 0.42574584984141201*t[47] + 0.54936540253600041*t[48])); o[9] = v > 0.0 ? v : 0.0; }
 +}
-+
-+static int fom_probe_matrix(int m, fom_apply_fn fn, fom_int nin, fom_int nout) {
-+    fom_int i, j;
-+    for (j = 0; j < nin; ++j) {
-+        fom_float *slot;
-+        for (i = 0; i < nout; ++i) g_probe_out[i] = 0.0;
-+        g_probe_in[j] = 1.0;
-+        fn(g_probe_in, g_probe_out);
-+        g_probe_in[j] = 0.0;
-+        for (i = 0; i < nout; ++i) {
-+            if (g_probe_out[i] == 0.0) continue;
-+            slot = fom_slot(m, i, j);
-+            if (!slot) return -1;
-+            if (m != M_SUP) *slot = g_probe_out[i];
-+        }
-+    }
-+    return 0;
++static inline void f_t0(const fom_float *x, fom_float *o) {
++    { fom_float v = (FOM_MAT_t0_c[0] + (x[0] + -0.31483425579287277*x[49] + -0.12559068930987091*x[59])); v = v < FOM_MAT_t0_lo[0] ? FOM_MAT_t0_lo[0] : v; o[0] = v > FOM_MAT_t0_hi[0] ? FOM_MAT_t0_hi[0] : v; }
++    { fom_float v = (FOM_MAT_t0_c[1] + (x[1] + -0.1785106319392791*x[49] + -0.31483425579287283*x[60])); v = v < FOM_MAT_t0_lo[1] ? FOM_MAT_t0_lo[1] : v; o[1] = v > FOM_MAT_t0_hi[1] ? FOM_MAT_t0_hi[1] : v; }
++    { fom_float v = (FOM_MAT_t0_c[2] + (x[2] + -0.31483425565100043*x[49] + -0.18736322506593048*x[62])); v = v < FOM_MAT_t0_lo[2] ? FOM_MAT_t0_lo[2] : v; o[2] = v > FOM_MAT_t0_hi[2] ? FOM_MAT_t0_hi[2] : v; }
++    { fom_float v = (FOM_MAT_t0_c[3] + (x[3] + -0.31483425579287277*x[49] + -0.052105419223993081*x[65])); v = v < FOM_MAT_t0_lo[3] ? FOM_MAT_t0_lo[3] : v; o[3] = v > FOM_MAT_t0_hi[3] ? FOM_MAT_t0_hi[3] : v; }
++    { fom_float v = (FOM_MAT_t0_c[4] + (x[4] + -0.31483425579287277*x[49] + -0.042197122740314078*x[71])); v = v < FOM_MAT_t0_lo[4] ? FOM_MAT_t0_lo[4] : v; o[4] = v > FOM_MAT_t0_hi[4] ? FOM_MAT_t0_hi[4] : v; }
++    { fom_float v = (FOM_MAT_t0_c[5] + (x[5] + -0.31483425579287277*x[50] + -0.081556129918491121*x[60])); v = v < FOM_MAT_t0_lo[5] ? FOM_MAT_t0_lo[5] : v; o[5] = v > FOM_MAT_t0_hi[5] ? FOM_MAT_t0_hi[5] : v; }
++    { fom_float v = (FOM_MAT_t0_c[6] + (x[6] + -0.1149099042416003*x[50] + -0.31483425579287283*x[61])); v = v < FOM_MAT_t0_lo[6] ? FOM_MAT_t0_lo[6] : v; o[6] = v > FOM_MAT_t0_hi[6] ? FOM_MAT_t0_hi[6] : v; }
++    { fom_float v = (FOM_MAT_t0_c[7] + (x[7] + -0.11245022456106747*x[50] + -0.31483425579287277*x[64])); v = v < FOM_MAT_t0_lo[7] ? FOM_MAT_t0_lo[7] : v; o[7] = v > FOM_MAT_t0_hi[7] ? FOM_MAT_t0_hi[7] : v; }
++    { fom_float v = (FOM_MAT_t0_c[8] + (x[8] + -0.31483425579287277*x[50] + -0.079068432962314555*x[65])); v = v < FOM_MAT_t0_lo[8] ? FOM_MAT_t0_lo[8] : v; o[8] = v > FOM_MAT_t0_hi[8] ? FOM_MAT_t0_hi[8] : v; }
++    { fom_float v = (FOM_MAT_t0_c[9] + (x[9] + -0.1012882957183817*x[50] + -0.31483425579287277*x[66])); v = v < FOM_MAT_t0_lo[9] ? FOM_MAT_t0_lo[9] : v; o[9] = v > FOM_MAT_t0_hi[9] ? FOM_MAT_t0_hi[9] : v; }
++    { fom_float v = (FOM_MAT_t0_c[10] + (x[10] + -0.31483425579287277*x[50] + -0.024432609086831557*x[69])); v = v < FOM_MAT_t0_lo[10] ? FOM_MAT_t0_lo[10] : v; o[10] = v > FOM_MAT_t0_hi[10] ? FOM_MAT_t0_hi[10] : v; }
++    { fom_float v = (FOM_MAT_t0_c[11] + (x[11] + -0.31483425576776075*x[50] + -0.14375068353499568*x[73])); v = v < FOM_MAT_t0_lo[11] ? FOM_MAT_t0_lo[11] : v; o[11] = v > FOM_MAT_t0_hi[11] ? FOM_MAT_t0_hi[11] : v; }
++    { fom_float v = (FOM_MAT_t0_c[12] + (x[12] + -0.16283459527310534*x[51] + -0.31483425576550422*x[59])); v = v < FOM_MAT_t0_lo[12] ? FOM_MAT_t0_lo[12] : v; o[12] = v > FOM_MAT_t0_hi[12] ? FOM_MAT_t0_hi[12] : v; }
++    { fom_float v = (FOM_MAT_t0_c[13] + (x[13] + -0.31483425579287277*x[51] + -0.057878934426039565*x[63])); v = v < FOM_MAT_t0_lo[13] ? FOM_MAT_t0_lo[13] : v; o[13] = v > FOM_MAT_t0_hi[13] ? FOM_MAT_t0_hi[13] : v; }
++    { fom_float v = (FOM_MAT_t0_c[14] + (x[14] + -0.31483425579287277*x[51] + -0.020371967614988162*x[65])); v = v < FOM_MAT_t0_lo[14] ? FOM_MAT_t0_lo[14] : v; o[14] = v > FOM_MAT_t0_hi[14] ? FOM_MAT_t0_hi[14] : v; }
++    { fom_float v = (FOM_MAT_t0_c[15] + (x[15] + -0.13195167489181564*x[51] + -0.31483425579287283*x[73])); v = v < FOM_MAT_t0_lo[15] ? FOM_MAT_t0_lo[15] : v; o[15] = v > FOM_MAT_t0_hi[15] ? FOM_MAT_t0_hi[15] : v; }
++    { fom_float v = (FOM_MAT_t0_c[16] + (x[16] + -0.20484874346487622*x[52] + -0.31483425569820117*x[59])); v = v < FOM_MAT_t0_lo[16] ? FOM_MAT_t0_lo[16] : v; o[16] = v > FOM_MAT_t0_hi[16] ? FOM_MAT_t0_hi[16] : v; }
++    { fom_float v = (FOM_MAT_t0_c[17] + (x[17] + -0.31483425579287277*x[52] + -0.059210692177281046*x[61])); v = v < FOM_MAT_t0_lo[17] ? FOM_MAT_t0_lo[17] : v; o[17] = v > FOM_MAT_t0_hi[17] ? FOM_MAT_t0_hi[17] : v; }
++    { fom_float v = (FOM_MAT_t0_c[18] + (x[18] + -0.31483425579287277*x[52] + -0.041860218187796047*x[63])); v = v < FOM_MAT_t0_lo[18] ? FOM_MAT_t0_lo[18] : v; o[18] = v > FOM_MAT_t0_hi[18] ? FOM_MAT_t0_hi[18] : v; }
++    { fom_float v = (FOM_MAT_t0_c[19] + (x[19] + -0.20135753992977129*x[52] + -0.31483425562205569*x[64])); v = v < FOM_MAT_t0_lo[19] ? FOM_MAT_t0_lo[19] : v; o[19] = v > FOM_MAT_t0_hi[19] ? FOM_MAT_t0_hi[19] : v; }
++    { fom_float v = (FOM_MAT_t0_c[20] + (x[20] + -0.17170029832945369*x[52] + -0.31483425579287283*x[65])); v = v < FOM_MAT_t0_lo[20] ? FOM_MAT_t0_lo[20] : v; o[20] = v > FOM_MAT_t0_hi[20] ? FOM_MAT_t0_hi[20] : v; }
++    { fom_float v = (FOM_MAT_t0_c[21] + (x[21] + -0.31483425579287277*x[52] + -0.095865201522679772*x[70])); v = v < FOM_MAT_t0_lo[21] ? FOM_MAT_t0_lo[21] : v; o[21] = v > FOM_MAT_t0_hi[21] ? FOM_MAT_t0_hi[21] : v; }
++    { fom_float v = (FOM_MAT_t0_c[22] + (x[22] + -0.31483425579287277*x[52] + -0.035428694951588111*x[73])); v = v < FOM_MAT_t0_lo[22] ? FOM_MAT_t0_lo[22] : v; o[22] = v > FOM_MAT_t0_hi[22] ? FOM_MAT_t0_hi[22] : v; }
++    { fom_float v = (FOM_MAT_t0_c[23] + (x[23] + -0.11549111655165208*x[53] + -0.31483425579287277*x[62])); v = v < FOM_MAT_t0_lo[23] ? FOM_MAT_t0_lo[23] : v; o[23] = v > FOM_MAT_t0_hi[23] ? FOM_MAT_t0_hi[23] : v; }
++    { fom_float v = (FOM_MAT_t0_c[24] + (x[24] + -0.31483425579287277*x[53] + -0.023238864598874573*x[68])); v = v < FOM_MAT_t0_lo[24] ? FOM_MAT_t0_lo[24] : v; o[24] = v > FOM_MAT_t0_hi[24] ? FOM_MAT_t0_hi[24] : v; }
++    { fom_float v = (FOM_MAT_t0_c[25] + (x[25] + -0.22703157183385472*x[53] + -0.31483425579287283*x[70])); v = v < FOM_MAT_t0_lo[25] ? FOM_MAT_t0_lo[25] : v; o[25] = v > FOM_MAT_t0_hi[25] ? FOM_MAT_t0_hi[25] : v; }
++    { fom_float v = (FOM_MAT_t0_c[26] + (x[26] + -0.31483425579287277*x[54] + -0.066859627087189483*x[59])); v = v < FOM_MAT_t0_lo[26] ? FOM_MAT_t0_lo[26] : v; o[26] = v > FOM_MAT_t0_hi[26] ? FOM_MAT_t0_hi[26] : v; }
++    { fom_float v = (FOM_MAT_t0_c[27] + (x[27] + -0.31483425578928326*x[54] + -0.18070942432892551*x[60])); v = v < FOM_MAT_t0_lo[27] ? FOM_MAT_t0_lo[27] : v; o[27] = v > FOM_MAT_t0_hi[27] ? FOM_MAT_t0_hi[27] : v; }
++    { fom_float v = (FOM_MAT_t0_c[28] + (x[28] + -0.11812566027056481*x[54] + -0.31483425579287283*x[63])); v = v < FOM_MAT_t0_lo[28] ? FOM_MAT_t0_lo[28] : v; o[28] = v > FOM_MAT_t0_hi[28] ? FOM_MAT_t0_hi[28] : v; }
++    { fom_float v = (FOM_MAT_t0_c[29] + (x[29] + -0.31483425579287277*x[54] + -0.069839424573329659*x[64])); v = v < FOM_MAT_t0_lo[29] ? FOM_MAT_t0_lo[29] : v; o[29] = v > FOM_MAT_t0_hi[29] ? FOM_MAT_t0_hi[29] : v; }
++    { fom_float v = (FOM_MAT_t0_c[30] + (x[30] + -0.31483425579287277*x[54] + -0.018290493543120279*x[66])); v = v < FOM_MAT_t0_lo[30] ? FOM_MAT_t0_lo[30] : v; o[30] = v > FOM_MAT_t0_hi[30] ? FOM_MAT_t0_hi[30] : v; }
++    { fom_float v = (FOM_MAT_t0_c[31] + (x[31] + -0.11621549871906076*x[54] + -0.31483425579287277*x[69])); v = v < FOM_MAT_t0_lo[31] ? FOM_MAT_t0_lo[31] : v; o[31] = v > FOM_MAT_t0_hi[31] ? FOM_MAT_t0_hi[31] : v; }
++    { fom_float v = (FOM_MAT_t0_c[32] + (x[32] + -0.31483425579287277*x[54] + -0.041474234626015731*x[71])); v = v < FOM_MAT_t0_lo[32] ? FOM_MAT_t0_lo[32] : v; o[32] = v > FOM_MAT_t0_hi[32] ? FOM_MAT_t0_hi[32] : v; }
++    { fom_float v = (FOM_MAT_t0_c[33] + (x[33] + -0.31483425579287277*x[54] + -0.029904608409446035*x[72])); v = v < FOM_MAT_t0_lo[33] ? FOM_MAT_t0_lo[33] : v; o[33] = v > FOM_MAT_t0_hi[33] ? FOM_MAT_t0_hi[33] : v; }
++    { fom_float v = (FOM_MAT_t0_c[34] + (x[34] + -0.20072699455717991*x[55] + -0.31483425579287277*x[68])); v = v < FOM_MAT_t0_lo[34] ? FOM_MAT_t0_lo[34] : v; o[34] = v > FOM_MAT_t0_hi[34] ? FOM_MAT_t0_hi[34] : v; }
++    { fom_float v = (FOM_MAT_t0_c[35] + (x[35] + -0.31483425579287283*x[55] + -0.26432062531400063*x[69])); v = v < FOM_MAT_t0_lo[35] ? FOM_MAT_t0_lo[35] : v; o[35] = v > FOM_MAT_t0_hi[35] ? FOM_MAT_t0_hi[35] : v; }
++    { fom_float v = (FOM_MAT_t0_c[36] + (x[36] + -0.20810320529794363*x[55] + -0.31483425575411544*x[73])); v = v < FOM_MAT_t0_lo[36] ? FOM_MAT_t0_lo[36] : v; o[36] = v > FOM_MAT_t0_hi[36] ? FOM_MAT_t0_hi[36] : v; }
++    { fom_float v = (FOM_MAT_t0_c[37] + (x[37] + -0.31483425579287277*x[56] + -0.050057390438124606*x[60])); v = v < FOM_MAT_t0_lo[37] ? FOM_MAT_t0_lo[37] : v; o[37] = v > FOM_MAT_t0_hi[37] ? FOM_MAT_t0_hi[37] : v; }
++    { fom_float v = (FOM_MAT_t0_c[38] + (x[38] + -0.31483425579287277*x[56] + -0.022355820755170213*x[66])); v = v < FOM_MAT_t0_lo[38] ? FOM_MAT_t0_lo[38] : v; o[38] = v > FOM_MAT_t0_hi[38] ? FOM_MAT_t0_hi[38] : v; }
++    { fom_float v = (FOM_MAT_t0_c[39] + (x[39] + -0.14832333169428388*x[57] + -0.31483425579287277*x[59])); v = v < FOM_MAT_t0_lo[39] ? FOM_MAT_t0_lo[39] : v; o[39] = v > FOM_MAT_t0_hi[39] ? FOM_MAT_t0_hi[39] : v; }
++    { fom_float v = (FOM_MAT_t0_c[40] + (x[40] + -0.25687797426285774*x[57] + -0.3148342557740812*x[67])); v = v < FOM_MAT_t0_lo[40] ? FOM_MAT_t0_lo[40] : v; o[40] = v > FOM_MAT_t0_hi[40] ? FOM_MAT_t0_hi[40] : v; }
++    { fom_float v = (FOM_MAT_t0_c[41] + (x[41] + -0.31483425562699158*x[57] + -0.2046259837099301*x[69])); v = v < FOM_MAT_t0_lo[41] ? FOM_MAT_t0_lo[41] : v; o[41] = v > FOM_MAT_t0_hi[41] ? FOM_MAT_t0_hi[41] : v; }
++    { fom_float v = (FOM_MAT_t0_c[42] + (x[42] + -0.31483425579287277*x[57] + -0.066937775413790396*x[71])); v = v < FOM_MAT_t0_lo[42] ? FOM_MAT_t0_lo[42] : v; o[42] = v > FOM_MAT_t0_hi[42] ? FOM_MAT_t0_hi[42] : v; }
++    { fom_float v = (FOM_MAT_t0_c[43] + (x[43] + -0.31483425573999474*x[57] + -0.25494197039391109*x[72])); v = v < FOM_MAT_t0_lo[43] ? FOM_MAT_t0_lo[43] : v; o[43] = v > FOM_MAT_t0_hi[43] ? FOM_MAT_t0_hi[43] : v; }
++    { fom_float v = (FOM_MAT_t0_c[44] + (x[44] + -0.31483425579287277*x[58] + -0.063379996679072001*x[65])); v = v < FOM_MAT_t0_lo[44] ? FOM_MAT_t0_lo[44] : v; o[44] = v > FOM_MAT_t0_hi[44] ? FOM_MAT_t0_hi[44] : v; }
++    { fom_float v = (FOM_MAT_t0_c[45] + (x[45] + -0.2409314392941177*x[58] + -0.31483425579287283*x[67])); v = v < FOM_MAT_t0_lo[45] ? FOM_MAT_t0_lo[45] : v; o[45] = v > FOM_MAT_t0_hi[45] ? FOM_MAT_t0_hi[45] : v; }
++    { fom_float v = (FOM_MAT_t0_c[46] + (x[46] + -0.15802369728139173*x[58] + -0.31483425579287277*x[71])); v = v < FOM_MAT_t0_lo[46] ? FOM_MAT_t0_lo[46] : v; o[46] = v > FOM_MAT_t0_hi[46] ? FOM_MAT_t0_hi[46] : v; }
++    { fom_float v = (FOM_MAT_t0_c[47] + (x[47] + -0.21287292492070603*x[58] + -0.31483425579287277*x[72])); v = v < FOM_MAT_t0_lo[47] ? FOM_MAT_t0_lo[47] : v; o[47] = v > FOM_MAT_t0_hi[47] ? FOM_MAT_t0_hi[47] : v; }
++    { fom_float v = (FOM_MAT_t0_c[48] + (x[48] + -0.27468270126800032*x[58] + -0.31483425557789518*x[73])); v = v < FOM_MAT_t0_lo[48] ? FOM_MAT_t0_lo[48] : v; o[48] = v > FOM_MAT_t0_hi[48] ? FOM_MAT_t0_hi[48] : v; }
 +}
-+
-+static void fom_build_all(void) {
-+    fom_int r, c, i;
-+    int err = 0;
-+    for (r = 0, i = 0; r < NR; ++r)
-+        for (c = 0; c < NC; ++c, ++i) {
-+            g_row_of[i] = r; g_col_of[i] = c; g_pad[i] = r * NCP + c;
-+            g_c0[r * NCP + c] = FOM_MAT_t0_c[i];
-+            g_lo[r * NCP + c] = FOM_MAT_t0_lo[i];
-+            g_hi[r * NCP + c] = FOM_MAT_t0_hi[i];
-+        }
-+    for (i = 0; i < FOM_MAX_VEC_DIM; ++i) g_probe_in[i] = 0.0;
-+
-+    err |= fom_probe_matrix(M_T0, fom_apply_t0_state, FOM_STATE_DIM, FOM_T0_DIM);
-+    err |= fom_probe_matrix(M_T1, fom_apply_t1_state, FOM_STATE_DIM, NR);
-+    err |= fom_probe_matrix(M_T1D, fom_apply_t1_state__d_xi, FOM_STATE_DIM, NR);
-+    err |= fom_probe_matrix(M_T1T0, fom_apply_t1_t_t0, FOM_T0_DIM, NR);
-+    err |= fom_probe_matrix(M_T1T0D, fom_apply_t1_t_t0__d_xi, FOM_T0_DIM, NR);
-+    err |= fom_probe_matrix(M_SU, fom_apply_su_state, FOM_STATE_DIM, FOM_STATE_DIM);
-+    err |= fom_probe_matrix(M_SUD, fom_apply_su_state__d_xi, FOM_STATE_DIM, FOM_STATE_DIM);
-+    err |= fom_probe_matrix(M_SUT0, fom_apply_su_t_t0, FOM_T0_DIM, FOM_STATE_DIM);
-+    err |= fom_probe_matrix(M_SUT0D, fom_apply_su_t_t0__d_xi, FOM_T0_DIM, FOM_STATE_DIM);
-+    err |= fom_probe_matrix(M_SUT1, fom_apply_su_t_t1, FOM_T1_DIM, FOM_STATE_DIM);
-+    err |= fom_probe_matrix(M_SUP, fom_apply_su_p_p0, FOM_PARAM_P0_DIM, FOM_STATE_DIM);
-+    /* s0+ = t0 and s1+ = t1 must be exact identities. */
-+    for (i = 0; i < FOM_T0_DIM; ++i) if (g_ones_s0[i] != 1.0) err = 1;
-+    for (i = 0; i < NR; ++i) if (g_ones_s1[i] != 1.0) err = 1;
-+    g_unit_lo0 = 1;
-+    for (r = 0; r < NR; ++r)
-+        for (c = 0; c < NC; ++c)
-+            if (g_a[r * NCP + c] != 1.0 || g_lo[r * NCP + c] != 0.0) g_unit_lo0 = 0;
-+    g_struct_state = err ? -1 : 1;
++static inline void f_su(const fom_float *x, const fom_float *t, const fom_float *t1, const fom_float *pc, fom_float xi, fom_float *o) {
++    o[0] = (pc[0] + (t[0]));
++    o[1] = (pc[1] + (t[1]));
++    o[2] = (pc[2] + (t[2]));
++    o[3] = (pc[3] + (t[3]));
++    o[4] = (pc[4] + (t[4]));
++    o[5] = (pc[5] + (t[5]));
++    o[6] = (pc[6] + (t[6]));
++    o[7] = (pc[7] + (t[7]));
++    o[8] = (pc[8] + (t[8]));
++    o[9] = (pc[9] + (t[9]));
++    o[10] = (pc[10] + (t[10]));
++    o[11] = (pc[11] + (t[11]));
++    o[12] = (pc[12] + (t[12]));
++    o[13] = (pc[13] + (t[13]));
++    o[14] = (pc[14] + (t[14]));
++    o[15] = (pc[15] + (t[15]));
++    o[16] = (pc[16] + (t[16]));
++    o[17] = (pc[17] + (t[17]));
++    o[18] = (pc[18] + (t[18]));
++    o[19] = (pc[19] + (t[19]));
++    o[20] = (pc[20] + (t[20]));
++    o[21] = (pc[21] + (t[21]));
++    o[22] = (pc[22] + (t[22]));
++    o[23] = (pc[23] + (t[23]));
++    o[24] = (pc[24] + (t[24]));
++    o[25] = (pc[25] + (t[25]));
++    o[26] = (pc[26] + (t[26]));
++    o[27] = (pc[27] + (t[27]));
++    o[28] = (pc[28] + (t[28]));
++    o[29] = (pc[29] + (t[29]));
++    o[30] = (pc[30] + (t[30]));
++    o[31] = (pc[31] + (t[31]));
++    o[32] = (pc[32] + (t[32]));
++    o[33] = (pc[33] + (t[33]));
++    o[34] = (pc[34] + (t[34]));
++    o[35] = (pc[35] + (t[35]));
++    o[36] = (pc[36] + (t[36]));
++    o[37] = (pc[37] + (t[37]));
++    o[38] = (pc[38] + (t[38]));
++    o[39] = (pc[39] + (t[39]));
++    o[40] = (pc[40] + (t[40]));
++    o[41] = (pc[41] + (t[41]));
++    o[42] = (pc[42] + (t[42]));
++    o[43] = (pc[43] + (t[43]));
++    o[44] = (pc[44] + (t[44]));
++    o[45] = (pc[45] + (t[45]));
++    o[46] = (pc[46] + (t[46]));
++    o[47] = (pc[47] + (t[47]));
++    o[48] = (pc[48] + (t[48]));
++    o[49] = pc[49] + t1[0];
++    o[50] = pc[50] + t1[1];
++    o[51] = pc[51] + t1[2];
++    o[52] = pc[52] + t1[3];
++    o[53] = pc[53] + t1[4];
++    o[54] = pc[54] + t1[5];
++    o[55] = pc[55] + t1[6];
++    o[56] = pc[56] + t1[7];
++    o[57] = pc[57] + t1[8];
++    o[58] = pc[58] + t1[9];
++    o[59] = ((pc[59] + (-0.12559068930987088*x[0] + -0.31483425576550444*x[12] + -0.31483425569820117*x[16] + -0.066859627087189483*x[26] + -0.31483425579287283*x[39] + x[59])) + (0.25118137861974188*t[0] + 0.62966851153100856*t[12] + 0.62966851139640256*t[16] + 0.13371925417437902*t[26] + 0.62966851158574555*t[39])) + xi*((-0.25118137861974177*x[0] + -0.62966851153100789*x[12] + -0.62966851139640223*x[16] + -0.13371925417437894*x[26] + -0.62966851158574533*x[39]) + (0.25118137861974166*t[0] + 0.62966851153100789*t[12] + 0.62966851139640179*t[16] + 0.13371925417437883*t[26] + 0.62966851158574533*t[39]));
++    o[60] = ((pc[60] + (-0.31483425579287294*x[1] + -0.081556129918491177*x[5] + -0.18070942432892556*x[27] + -0.050057390438124613*x[37] + x[60])) + (0.62966851158574566*t[1] + 0.16311225983698227*t[5] + 0.36141884865785107*t[27] + 0.1001147808762492*t[37])) + xi*((-0.62966851158574533*x[1] + -0.16311225983698213*x[5] + -0.36141884865785101*x[27] + -0.10011478087624918*x[37]) + (0.62966851158574577*t[1] + 0.16311225983698224*t[5] + 0.36141884865785101*t[27] + 0.10011478087624924*t[37]));
++    o[61] = ((pc[61] + (-0.31483425579287294*x[6] + -0.059210692177281053*x[17] + x[61])) + (0.62966851158574566*t[6] + 0.11842138435456212*t[17])) + xi*((-0.62966851158574533*x[6] + -0.11842138435456206*x[17]) + (0.62966851158574577*t[6] + 0.11842138435456202*t[17]));
++    o[62] = ((pc[62] + (-0.18736322506593045*x[2] + -0.31483425579287283*x[23] + x[62])) + (0.37472645013186112*t[2] + 0.62966851158574555*t[23])) + xi*((-0.37472645013186096*x[2] + -0.62966851158574533*x[23]) + (0.37472645013186057*t[2] + 0.62966851158574533*t[23]));
++    o[63] = ((pc[63] + (-0.057878934426039579*x[13] + -0.041860218187796047*x[18] + -0.31483425579287294*x[28] + x[63])) + (0.11575786885207912*t[13] + 0.083720436375592122*t[18] + 0.62966851158574566*t[28])) + xi*((-0.11575786885207907*x[13] + -0.083720436375592067*x[18] + -0.62966851158574533*x[28]) + (0.11575786885207907*t[13] + 0.083720436375592011*t[18] + 0.62966851158574577*t[28]));
++    o[64] = ((pc[64] + (-0.31483425579287283*x[7] + -0.31483425562205586*x[19] + -0.069839424573329673*x[29] + x[64])) + (0.62966851158574555*t[7] + 0.62966851124411127*t[19] + 0.13967884914665932*t[29])) + xi*((-0.62966851158574533*x[7] + -0.62966851124411094*x[19] + -0.13967884914665926*x[29]) + (0.62966851158574533*t[7] + 0.62966851124411138*t[19] + 0.13967884914665926*t[29]));
++    o[65] = ((pc[65] + (-0.052105419223993088*x[3] + -0.079068432962314583*x[8] + -0.020371967614988155*x[14] + -0.31483425579287294*x[20] + -0.063379996679072029*x[44] + x[65])) + (0.10421083844798616*t[3] + 0.15813686592462911*t[8] + 0.040743935229976339*t[14] + 0.62966851158574566*t[20] + 0.12675999335814403*t[44])) + xi*((-0.10421083844798612*x[3] + -0.15813686592462906*x[8] + -0.040743935229976332*x[14] + -0.62966851158574533*x[20] + -0.12675999335814395*x[44]) + (0.10421083844798612*t[3] + 0.15813686592462906*t[8] + 0.040743935229976304*t[14] + 0.62966851158574577*t[20] + 0.126759993358144*t[44]));
++    o[66] = ((pc[66] + (-0.31483425579287283*x[9] + -0.01829049354312029*x[30] + -0.02235582075517021*x[38] + x[66])) + (0.62966851158574555*t[9] + 0.036580987086240573*t[30] + 0.044711641510340433*t[38])) + xi*((-0.62966851158574533*x[9] + -0.036580987086240524*x[30] + -0.044711641510340426*x[38]) + (0.62966851158574533*t[9] + 0.036580987086240524*t[30] + 0.044711641510340398*t[38]));
++    o[67] = ((pc[67] + (-0.31483425577408125*x[40] + -0.31483425579287294*x[45] + x[67])) + (0.62966851154816228*t[40] + 0.62966851158574566*t[45])) + xi*((-0.62966851154816206*x[40] + -0.62966851158574533*x[45]) + (0.6296685115481625*t[40] + 0.62966851158574577*t[45]));
++    o[68] = ((pc[68] + (-0.02323886459887458*x[24] + -0.31483425579287283*x[34] + x[68])) + (0.04647772919774916*t[24] + 0.62966851158574555*t[34])) + xi*((-0.046477729197749139*x[24] + -0.62966851158574533*x[34]) + (0.046477729197749111*t[24] + 0.62966851158574533*t[34]));
++    o[69] = ((pc[69] + (-0.024432609086831564*x[10] + -0.31483425579287283*x[31] + -0.26432062531400075*x[35] + -0.20462598370993015*x[41] + x[69])) + (0.048865218173663134*t[10] + 0.62966851158574555*t[31] + 0.52864125062800138*t[35] + 0.40925196741986025*t[41])) + xi*((-0.0488652181736631*x[10] + -0.62966851158574533*x[31] + -0.52864125062800094*x[35] + -0.40925196741985997*x[41]) + (0.048865218173663079*t[10] + 0.62966851158574533*t[31] + 0.52864125062800116*t[35] + 0.4092519674198602*t[41]));
++    o[70] = ((pc[70] + (-0.095865201522679841*x[21] + -0.31483425579287294*x[25] + x[70])) + (0.19173040304535957*t[21] + 0.62966851158574566*t[25])) + xi*((-0.19173040304535935*x[21] + -0.62966851158574533*x[25]) + (0.19173040304535946*t[21] + 0.62966851158574577*t[25]));
++    o[71] = ((pc[71] + (-0.042197122740314105*x[4] + -0.041474234626015752*x[32] + -0.066937775413790396*x[42] + -0.31483425579287283*x[46] + x[71])) + (0.084394245480628155*t[4] + 0.08294846925203149*t[32] + 0.13387555082758079*t[42] + 0.62966851158574555*t[46])) + xi*((-0.084394245480628086*x[4] + -0.08294846925203142*x[32] + -0.13387555082758079*x[42] + -0.62966851158574533*x[46]) + (0.084394245480628141*t[4] + 0.082948469252031365*t[32] + 0.13387555082758079*t[42] + 0.62966851158574533*t[46]));
++    o[72] = ((pc[72] + (-0.029904608409446046*x[33] + -0.2549419703939112*x[43] + -0.31483425579287283*x[47] + x[72])) + (0.059809216818892078*t[33] + 0.50988394078782218*t[43] + 0.62966851158574555*t[47])) + xi*((-0.05980921681889205*x[33] + -0.50988394078782184*x[43] + -0.62966851158574533*x[47]) + (0.059809216818892071*t[33] + 0.50988394078782195*t[43] + 0.62966851158574533*t[47]));
++    o[73] = ((pc[73] + (-0.14375068353499568*x[11] + -0.31483425579287294*x[15] + -0.035428694951588117*x[22] + -0.31483425575411561*x[36] + -0.31483425557789524*x[48] + x[73])) + (0.28750136706999146*t[11] + 0.62966851158574566*t[15] + 0.070857389903176249*t[22] + 0.62966851150823111*t[36] + 0.62966851115579059*t[48])) + xi*((-0.2875013670699913*x[11] + -0.62966851158574533*x[15] + -0.070857389903176193*x[22] + -0.62966851150823044*x[36] + -0.62966851115579037*x[48]) + (0.28750136706999097*t[11] + 0.62966851158574577*t[15] + 0.070857389903176166*t[22] + 0.62966851150823044*t[36] + 0.62966851115578992*t[48]));
 +}
  
  void fom_set_default_settings(FomSettings *settings) {
      settings->max_iter = FOM_MAX_ITER;
-@@ -16,6 +167,7 @@
- 
- void fom_setup(FomWorkspace *work, const FomSettings *settings) {
-     fom_int i;
-+    if (g_struct_state == 0) fom_build_all();
-     work->settings = *settings;
-     for (i = 0; i < FOM_PARAM_P0_DIM; ++i) work->params.p0[i] = 0.0;
-     fom_reset_state(work);
-@@ -29,7 +181,8 @@
-     fom_reset_state(work);
- }
- 
--fom_int fom_solve(FomWorkspace *work) {
-+/* Reference loop (used only if the fused operators could not be built). */
-+static fom_float fom_solve_reference(FomWorkspace *work, fom_float **xout) {
+@@ -32,7 +177,6 @@
+ fom_int fom_solve(FomWorkspace *work) {
      fom_float *x = work->state;
      fom_float *xn = work->new_state;
-     fom_float *acc = work->acc;
-@@ -41,8 +194,6 @@
- 
+-    fom_float *acc = work->acc;
+     fom_float *t0 = work->t0;
+     fom_float *t1 = work->t1;
+     fom_float res = 0.0;
+@@ -46,37 +190,17 @@
      for (it = 0; it < max_iter; ++it) {
          const fom_float xi = fom_sched_xi(it);
--
+ 
 -        /* t0 = clip(t0_c + t0_state @ x, lo, hi) */
-         for (i = 0; i < FOM_T0_DIM; ++i) t0[i] = FOM_MAT_t0_c[i];
-         fom_apply_t0_state(x, t0);
-         for (i = 0; i < FOM_T0_DIM; ++i) {
-@@ -53,8 +204,6 @@
-             v = v > hi ? hi : v;
-             t0[i] = v;
-         }
+-        for (i = 0; i < FOM_T0_DIM; ++i) t0[i] = FOM_MAT_t0_c[i];
+-        fom_apply_t0_state(x, t0);
+-        for (i = 0; i < FOM_T0_DIM; ++i) {
+-            fom_float v = t0[i];
+-            const fom_float lo = FOM_MAT_t0_lo[i];
+-            const fom_float hi = FOM_MAT_t0_hi[i];
+-            v = v < lo ? lo : v;
+-            v = v > hi ? hi : v;
+-            t0[i] = v;
+-        }
 -
 -        /* t1 = relu(t1_c + t1_state@x + xi*(d_xi@x) + t1_t_t0@t0 + xi*(d_xi@t0)) */
-         for (i = 0; i < FOM_T1_DIM; ++i) { t1[i] = FOM_MAT_t1_c[i]; acc[i] = 0.0; }
-         fom_apply_t1_state(x, t1);
-         fom_apply_t1_t_t0(t0, t1);
-@@ -64,8 +213,6 @@
-             const fom_float v = t1[i] + xi * acc[i];
-             t1[i] = v > 0.0 ? v : 0.0;
-         }
+-        for (i = 0; i < FOM_T1_DIM; ++i) { t1[i] = FOM_MAT_t1_c[i]; acc[i] = 0.0; }
+-        fom_apply_t1_state(x, t1);
+-        fom_apply_t1_t_t0(t0, t1);
+-        fom_apply_t1_state__d_xi(x, acc);
+-        fom_apply_t1_t_t0__d_xi(t0, acc);
+-        for (i = 0; i < FOM_T1_DIM; ++i) {
+-            const fom_float v = t1[i] + xi * acc[i];
+-            t1[i] = v > 0.0 ? v : 0.0;
+-        }
 -
 -        /* State update */
-         for (i = 0; i < FOM_STATE_DIM; ++i) { xn[i] = 0.0; acc[i] = 0.0; }
-         fom_apply_su_state(x, xn);
-         fom_apply_su_t_t0(t0, xn);
-@@ -74,7 +221,6 @@
-         fom_apply_su_state__d_xi(x, acc);
-         fom_apply_su_t_t0__d_xi(t0, acc);
-         for (i = 0; i < FOM_STATE_DIM; ++i) xn[i] += xi * acc[i];
--
+-        for (i = 0; i < FOM_STATE_DIM; ++i) { xn[i] = pc[i]; acc[i] = 0.0; }
+-        fom_apply_su_state(x, xn);
+-        fom_apply_su_t_t0(t0, xn);
+-        fom_apply_su_t_t1(t1, xn);
+-        fom_apply_su_state__d_xi(x, acc);
+-        fom_apply_su_t_t0__d_xi(t0, acc);
+-        for (i = 0; i < FOM_STATE_DIM; ++i) xn[i] += xi * acc[i];
++        FOM_PROF_BEGIN(t0);
++        f_t0(x, t0);  /* t0 = clip(t0_c + t0_state@x, lo, hi) */
++        FOM_PROF_END(t0);
++
++        FOM_PROF_BEGIN(t1);
++        f_t1(x, t0, xi, t1);  /* t1 = relu(...) */
++        FOM_PROF_END(t1);
++
++        FOM_PROF_BEGIN(state_update);
++        f_su(x, t0, t1, pc, xi, xn);
++        FOM_PROF_END(state_update);
+ 
          if (it + 1 == max_iter) {
              res = 0.0;
-             for (i = 0; i < FOM_STATE_DIM; ++i) {
-@@ -83,13 +229,120 @@
-                 res = d > res ? d : res;
-             }
-         }
--
-         { fom_float *tmp = x; x = xn; xn = tmp; }
-     }
--
--    if (x != work->state)
--        for (i = 0; i < FOM_STATE_DIM; ++i) work->state[i] = x[i];
--    for (i = 0; i < FOM_STATE_DIM; ++i) work->solution.x[i] = x[i];
-+    *xout = x;
-+    return res;
-+}
-+
-+/* One full iteration on the padded grid layout: reads x, writes xn.
-+   `unit_lo0` (compile-time constant at each call site) specializes the
-+   t0 activation for a == 1 and lo == 0, dropping two coefficient
-+   streams from the bandwidth-bound inner loop. */
-+static inline __attribute__((always_inline))
-+void fom_sweep(const fom_float *restrict x, fom_float *restrict xn,
-+               const fom_float *restrict pc2, const fom_float xi, const int unit_lo0) {
-+    const fom_float *x1 = x + PS1;
-+    const fom_float *x2 = x + PS2;
-+    fom_float *t1 = xn + PS1;
-+    fom_float s2a[NCP], s2d[NCP];
-+    fom_int r, c, i;
-+
-+    for (c = 0; c < NCP; ++c) {
-+        s2a[c] = pc2[c] + g_q[c] * x2[c];
-+        s2d[c] = g_qd[c] * x2[c];
-+    }
-+    for (r = 0, i = 0; r < NR; ++r, i += NCP) {
-+        const fom_float x1r = x1[r];
-+        fom_float ta = 0.0, td = 0.0;
-+        fom_float *t0 = xn + i; /* s0+ = t0 */
-+        const fom_float *xs = x + i;
-+        for (c = 0; c < NCP; ++c) {
-+            const fom_float xv = xs[c];
-+            fom_float v = g_c0[i + c] + (unit_lo0 ? xv : g_a[i + c] * xv)
-+                          + g_b[i + c] * x1r + g_g[i + c] * x2[c];
-+            const fom_float lo = unit_lo0 ? 0.0 : g_lo[i + c];
-+            const fom_float hi = g_hi[i + c];
-+            v = v < lo ? lo : v;
-+            v = v > hi ? hi : v;
-+            t0[c] = v;
-+            ta += g_A[i + c] * xv + g_B[i + c] * v;
-+            td += g_Ad[i + c] * xv + g_Bd[i + c] * v;
-+            s2a[c] += g_S[i + c] * xv + g_T[i + c] * v;
-+            s2d[c] += g_Sd[i + c] * xv + g_Td[i + c] * v;
-+        }
-+        ta += FOM_MAT_t1_c[r] + g_h[r] * x1r + xi * (td + g_hd[r] * x1r);
-+        t1[r] = ta > 0.0 ? ta : 0.0; /* s1+ = t1 */
-+    }
-+    for (c = 0; c < NCP; ++c) xn[PS2 + c] = s2a[c] + xi * s2d[c];
-+}
-+
-+fom_int fom_solve(FomWorkspace *work) {
-+    fom_float buf[2][PLEN];
-+    fom_float pc[FOM_STATE_DIM];
-+    fom_float pc2[NCP];
-+    fom_float *x = buf[0];
-+    fom_float *xn = buf[1];
-+    fom_float res = 0.0;
-+    const fom_int max_iter = work->settings.max_iter;
-+    fom_int it, i, r, c;
-+
-+    if (g_struct_state == 0) fom_build_all();
-+    if (g_struct_state < 0) {
-+        fom_float *xr;
-+        res = fom_solve_reference(work, &xr);
-+        if (xr != work->state)
-+            for (i = 0; i < FOM_STATE_DIM; ++i) work->state[i] = xr[i];
-+        for (i = 0; i < FOM_STATE_DIM; ++i) work->solution.x[i] = xr[i];
-+        work->solution.iter = max_iter;
-+        work->solution.residual = res;
-+        work->solution.status = FOM_MAX_ITER_REACHED;
-+        return FOM_MAX_ITER_REACHED;
-+    }
-+
-+    /* Iteration-invariant parameter term su_p_p0 @ p0 (only s2 rows). */
-+    FOM_PROF_BEGIN(solve_prologue);
-+    for (i = 0; i < FOM_STATE_DIM; ++i) pc[i] = 0.0;
-+    fom_apply_su_p_p0(work->params.p0, pc);
-+
-+    /* Scatter state into the padded internal layout. */
-+    for (i = 0; i < PLEN; ++i) { x[i] = 0.0; xn[i] = 0.0; }
-+    for (r = 0, i = 0; r < NR; ++r)
-+        for (c = 0; c < NC; ++c, ++i) x[r * NCP + c] = work->state[i];
-+    for (r = 0; r < NR; ++r) x[PS1 + r] = work->state[S1 + r];
-+    for (c = 0; c < NC; ++c) { x[PS2 + c] = work->state[S2 + c]; pc2[c] = pc[S2 + c]; }
-+    for (; c < NCP; ++c) pc2[c] = 0.0;
-+    FOM_PROF_END(solve_prologue);
-+
-+    for (it = 0; it < max_iter; ++it) {
-+        const fom_float xi = fom_sched_xi(it);
-+        FOM_PROF_BEGIN(grid_sweep);
-+        if (g_unit_lo0) fom_sweep(x, xn, pc2, xi, 1);
-+        else fom_sweep(x, xn, pc2, xi, 0);
-+        FOM_PROF_END(grid_sweep);
-+
-+        if (it + 1 == max_iter) {
-+            FOM_PROF_BEGIN(residual);
-+            res = 0.0;
-+            for (i = 0; i < PLEN; ++i) {
-+                fom_float d = xn[i] - x[i];
-+                d = d < 0.0 ? -d : d;
-+                res = d > res ? d : res;
-+            }
-+            FOM_PROF_END(residual);
-+        }
-+
-+        { fom_float *tmp = x; x = xn; xn = tmp; }
-+    }
-+
-+    /* Gather back to the public layout. */
-+    FOM_PROF_BEGIN(writeback);
-+    for (r = 0, i = 0; r < NR; ++r)
-+        for (c = 0; c < NC; ++c, ++i) work->solution.x[i] = x[r * NCP + c];
-+    for (r = 0; r < NR; ++r) work->solution.x[S1 + r] = x[PS1 + r];
-+    for (c = 0; c < NC; ++c) work->solution.x[S2 + c] = x[PS2 + c];
-+    for (i = 0; i < FOM_STATE_DIM; ++i) work->state[i] = work->solution.x[i];
-+    FOM_PROF_END(writeback);
-     work->solution.iter = max_iter;
-     work->solution.residual = res;
-     work->solution.status = FOM_MAX_ITER_REACHED;
 ```
 
 ## Agent notes
 
 ```
-**Whole-solve time (`make bench`, `mean_us`)**
-- Initial: about 177 µs (runs gave 174.7–179.5).
-- Final: about 28 µs (runs gave 25.5–28.5).
-- Speedup: about **6.3×**.
+**Whole-solve time (`make bench`, 5000 solves, 200 iterations each):**
+- Initial: mean_us = 62.91
+- Final: mean_us ≈ 18.7–20.4 (two runs: 20.44 and 18.69)
+- Speedup: about 3.1–3.4×
 
-**Final profile (`make profile`; timer overhead per call inflates the totals)**
+**Final profile breakdown (`make profile`, hottest first).** Each of the 1,000,000 calls per region is so short that timer overhead inflates the profiled whole-solve time to 30.6 µs. Read the percentages as relative weights, not absolute costs.
 
-| region | total_us | pct |
+| Region | total_us | % |
 |---|---|---|
-| grid_sweep (the whole fused iteration, 200 per solve) | 159273 | 99.11% |
-| solve_prologue (`su_p_p0 @ p0` and copy into the internal layout) | 679 | 0.42% |
-| residual (final iteration only) | 434 | 0.27% |
-| writeback | 310 | 0.19% |
+| state_update | 36826 | 43.9 |
+| t0 (clip step) | 25515 | 30.4 |
+| t1 (relu step) | 21586 | 25.7 |
 
-**Optimizations applied**
+**Optimizations applied:**
+1. **Fully unrolled sparse kernels** (59 → 23 µs). The CSR patterns and values in `fom_ops.c` are fixed at codegen time, so each operator became straight-line code inside `fom_solver.c`. Two structural facts made this pay off:
+   - The `su_*` operators have 74 rows, but most of those rows are empty (the d_xi ones are nonzero only in rows 59–73). The original helpers walked every row through a separate, non-inlinable function call; the unrolled code skips empty rows entirely.
+   - Entries equal to 1 (the identity parts of `su_t_t0` and `t0_state`) are added directly instead of multiplied.
+2. **Fusing constant, operator terms, xi-scaling and activation per row** (23 → ~19–20 µs). This removed the `acc` scratch vector and its zeroing and scaling passes over all 74 rows. It is valid because the `__d_xi` operators have exactly the same row support as the rows they scale. The terms are summed in the same order as the reference, so results match to about 1e-15.
+3. **`su_t_t1` turned into a direct add.** Its structure is the identity embedding of t1 into state rows 49–58 with all values 1, so it is now `xn[49+i] += t1[i]` instead of a 74-row CSR sweep.
+4. **`su_p_p0 @ p0` computed once per solve, outside the iteration loop** (this was already in place). The parameter does not change across iterations.
 
-1. **Hoisted the parameter term out of the loop** (176 → 127 µs, together with step 2). `su_p_p0 @ p0` does not change between iterations, so it is computed once per solve instead of 200 times.
-
-2. **Recovered the operators once and fused them** (same step, 176 → 127 µs). The first `fom_setup` calls each `fom_apply_*` helper with unit vectors to read out its coefficients and stores them in static arrays (no dynamic allocation). This removed six full 175-row sparse-row sweeps per iteration, even though only 15–175 of those rows have entries. It also removed the zeroing passes and the separate xi accumulator.
-
-3. **Used the 10×15 grid structure of the network problem** (127 → 47.7 µs).
-   - The state is `[s0 (10×15 grid) | s1 (10) | s2 (15)]`, and with i = 15r + c every operator couples cell i only to its grid row r and column c:
-     - `t0[i]` depends on `x[i]`, `s1[r]` and `s2[c]`.
-     - `t1[r]` is a sum over row r.
-     - The `s2[c]` update is a sum over column c.
-   - The next s0 and s1 are exactly `t0` and `t1`, because the corresponding blocks are exact identity matrices (checked to equal 1.0 exactly).
-   - So the whole iteration is one sweep over the grid with contiguous coefficient arrays and no index lookups. `t0` is written straight into the next state, so it needs no buffer or copy.
-   - Setup checks that every coefficient it reads fits this pattern; otherwise the solver falls back to the original helper loop.
-
-4. **Padded grid rows from 15 to 16 columns** (47.7 → about 31 µs). The extra column has zero coefficients and zero bounds, so it always stays 0 and never affects the result. Every inner loop then has a fixed length of 16 and compiles to fully unrolled NEON vector code with no leftover iterations.
-
-5. **Specialized the `t0` activation** (about 31 → about 28.5 µs). The `t0` self-coefficient on s0 is exactly 1 and the lower bound `t0_lo` is exactly 0. Setup checks both exactly and then picks a kernel variant that skips loading those two arrays.
+All code stays embedded-safe: no dynamic allocation and no divisions. The `FOM_PROF_BEGIN/END` markers around t0, t1 and state_update are kept.
 ```

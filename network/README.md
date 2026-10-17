@@ -168,8 +168,13 @@ Momentum PDHG:
 ## Cluster instance
 
 The tables above are for the small default instance. The cluster runs use
-$n_s = 10$, $n_d = 15$ (150 edges) with two changes, set in
-`slurm/submit_all.sh`:
+$n_s = 10$, $n_d = 15$ with three changes, set in `slurm/submit_all.sh`:
+
+- **Random bipartite graph:** each supply–demand edge is present with
+  probability 0.3 (`edge_prob: 0.3`, seed 285, 49 edges). Any demand node with
+  no supplier, and any supply node with no edge, gets one random edge. Ruiz
+  overtakes unscaled at about $K = 36$ (PDHG) and $K = 33$ (momentum) here; on
+  the complete graph (`run_002`) it is still behind at $K = 60$.
 
 - **Scarce supply:** $b_s = 4$ at each node instead of 10.
 - **Warm start at the box centre:** $s^0$ is the primal-dual solution at

@@ -31,14 +31,14 @@ OUT = Path(__file__).resolve().parent
 
 #: experiment -> (run folder, K cut-off, variants in plotting order)
 RUNS = {
-    "lasso": ("lasso/lasso_verify/results/run_002", 10, ["ista", "fista"]),
+    "lasso": ("lasso/lasso_verify/results/run_022", 20, ["ista", "fista"]),
     "portfolio": ("portfolio/results/run_002", 100, ["box", "simplex"]),
     "network": (
-        "network/results/run_001",
-        50,
+        "network/results/run_005",
+        39,
         ["unscaled", "ruiz", "unscaled_momentum", "ruiz_momentum"],
     ),
-    "rapdhg": ("control/rapdhg/verify/results/run_001", 30, ["R12", "R6", "pdhg"]),
+    "rapdhg": ("control/rapdhg/verify/results/run_001", 75, ["R12", "R6"]),
 }
 
 #: Categorical slots 1-4 of the dataviz reference palette, in fixed order.

@@ -1,4 +1,4 @@
-"""ISTA and FISTA on the verified Lasso instance (lasso/lasso_verify run_002).
+"""ISTA and FISTA on the verified Lasso instance (lasso/lasso_verify run_022).
 
 The data, the parameter box, the warm start and the parameter samples all come
 from ``lasso/lasso_verify/cluster_run.py`` applied to that run's config, so the

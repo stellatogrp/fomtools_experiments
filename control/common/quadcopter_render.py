@@ -441,7 +441,9 @@ def draw_floor(ax, x_lim, y_lim, z_floor):
         )
 
 
-def _setup_axes(ax, x_lim, y_lim, z_lim, title, label_color=TEXT_COLOR, title_y=0.80):
+def _setup_axes(
+    ax, x_lim, y_lim, z_lim, title, label_color=TEXT_COLOR, title_y=0.80, title_size=15
+):
     ax.set_xlim(x_lim)
     ax.set_ylim(y_lim)
     ax.set_zlim(z_lim)
@@ -460,7 +462,7 @@ def _setup_axes(ax, x_lim, y_lim, z_lim, title, label_color=TEXT_COLOR, title_y=
     if title:
         # title sits low in the axes bbox so it visually belongs to its
         # 3D plot rather than floating between adjacent panes
-        ax.set_title(title, fontsize=15, color=label_color, fontweight="bold", y=title_y)
+        ax.set_title(title, fontsize=title_size, color=label_color, fontweight="bold", y=title_y)
 
 
 # ----------------------------------------------------------------------------
@@ -538,6 +540,7 @@ def render_pane(
     trail_solid: bool = False,
     trail_thin: int = 1,
     title_y: float = 0.80,
+    title_size: float = 15,
 ):
     """Render one pane of the comparison at ``frame``.
 
@@ -549,7 +552,7 @@ def render_pane(
     """
     x_lim, y_lim, z_lim = bounds
     z_floor = z_lim[0]
-    _setup_axes(ax, x_lim, y_lim, z_lim, title, title_y=title_y)
+    _setup_axes(ax, x_lim, y_lim, z_lim, title, title_y=title_y, title_size=title_size)
     ax.view_init(elev=elev, azim=azim)
     draw_floor(ax, x_lim, y_lim, z_floor)
 
@@ -780,6 +783,9 @@ def make_compare_still(
     suptitle: str | None = None,
     title_y: float = 0.92,
     latex: bool = True,
+    title_size: float = 15,
+    suptitle_size: float = 19,
+    suptitle_y: float = 0.905,
 ) -> Path:
     """A single image, one pane per rollout, the whole flight drawn as a line.
 
@@ -803,7 +809,7 @@ def make_compare_still(
     with plt.rc_context(_RC_LATEX if latex else _RC):
         fig = plt.figure(figsize=figsize, dpi=dpi, facecolor="white")
         if suptitle:
-            fig.suptitle(suptitle, fontsize=19, y=0.905, color=TEXT_COLOR)
+            fig.suptitle(suptitle, fontsize=suptitle_size, y=suptitle_y, color=TEXT_COLOR)
         for j, roll in enumerate(rollouts):
             f = roll.steps if frame is None else min(frame, roll.steps)
             ax = fig.add_subplot(nrows, ncols, j + 1, projection="3d", computed_zorder=False)
@@ -830,6 +836,7 @@ def make_compare_still(
                 ),
                 trail_solid=True,
                 title_y=title_y,
+                title_size=title_size,
             )
         # Negative wspace pulls the panes together: the scene fills only the
         # centre of each subplot box, so without it a still has wide gutters.

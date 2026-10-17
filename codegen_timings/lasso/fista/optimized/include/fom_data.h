@@ -21,19 +21,11 @@ static inline fom_float fom_sched_gamma(fom_int it) {
     return FOM_SCHED_gamma[(it < FOM_SCHED_GAMMA_LEN) ? it : (FOM_SCHED_GAMMA_LEN - 1)];
 }
 
-#define FOM_MAT_t0_state_ROWS 15
-#define FOM_MAT_t0_state_COLS 30
-extern const fom_float FOM_MAT_t0_state[];
-
-#define FOM_MAT_t0_p_p0_ROWS 15
-#define FOM_MAT_t0_p_p0_COLS 10
-extern const fom_float FOM_MAT_t0_p_p0[];
-
-#define FOM_MAT_t0_state__d_gamma_ROWS 15
-#define FOM_MAT_t0_state__d_gamma_COLS 30
+#define FOM_MAT_t0_state__d_gamma_ROWS 50
+#define FOM_MAT_t0_state__d_gamma_COLS 100
 extern const fom_float FOM_MAT_t0_state__d_gamma[];
 
-#define FOM_T0_LAMBDA ((fom_float)0.029093587409024832)
+#define FOM_T0_LAMBDA ((fom_float)0.0002212861544693803)
 
 #ifdef __cplusplus
 }

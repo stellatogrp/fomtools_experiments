@@ -2,63 +2,63 @@
   "experiment": "network",
   "variant": "unscaled_momentum",
   "iterations": 200,
-  "verified_run": "network/results/run_001",
-  "numpy_us": 2141.3335052784532,
-  "translated_us": 168.2922,
-  "optimized_us": 19.3168,
-  "speedup_translation": 12.72390226806978,
-  "speedup_optimization": 8.712219415224054,
-  "speedup_total": 110.85342837729091,
+  "verified_run": "network/results/run_005",
+  "numpy_us": 1232.0419991738163,
+  "translated_us": 61.878,
+  "optimized_us": 33.3088,
+  "speedup_translation": 19.910824512327746,
+  "speedup_optimization": 1.857707272552599,
+  "speedup_total": 36.98848349906981,
   "optimization_kept": true,
   "optimization_notes": "",
   "max_abs_dev": {
     "translated": {
-      "verified_set": 5.329070518200751e-15
+      "verified_set": 5.56776846849516e-14
     },
     "optimized": {
-      "verified_set": 6.661338147750939e-15
+      "verified_set": 5.4789506265251475e-14
     }
   },
   "timing_rounds": {
     "numpy": [
-      2134.4790002331138,
-      2141.3335052784532,
-      2138.5414875112474,
-      2143.8749972730875,
-      2145.3335066325963,
-      2140.2914717327803,
-      2153.437497327104
+      1235.3125021036249,
+      1233.2499991316581,
+      1232.0419991738163,
+      1217.5205010862555,
+      1223.6669990670634,
+      1237.4999987514457,
+      1220.4369995743036
     ],
     "translated": [
-      168.0534,
-      168.2922,
-      167.4212,
-      165.0086,
-      169.0488,
-      169.5486,
-      168.6284
+      59.9036,
+      61.9448,
+      61.8458,
+      61.878,
+      60.7754,
+      62.167,
+      62.9578
     ],
     "optimized": [
-      19.8936,
-      17.8068,
-      18.5634,
-      19.8966,
-      20.2068,
-      18.0296,
-      19.3168
+      32.1946,
+      33.3088,
+      33.0958,
+      33.4638,
+      33.4592,
+      33.636,
+      32.9446
     ]
   },
   "agent_wall_s": {
-    "translation": 39.77751016616821,
-    "code_optimization": 341.0557610988617
+    "translation": 23.087624073028564,
+    "code_optimization": 136.99451899528503
   },
   "agent_budgets_s": {
     "translation": 600,
     "code_optimization": 600
   },
   "check": {
-    "oracle_vs_numpy_max_rel": 1.6753793549632822e-15,
-    "state_dim": 175,
+    "oracle_vs_numpy_max_rel": 1.0215901051843693e-14,
+    "state_dim": 74,
     "params": {
       "p0": 15
     }
@@ -66,11 +66,11 @@
   "info": {
     "ns": 10,
     "nd": 15,
-    "ne": 150,
-    "eta": 0.03499523972646595,
+    "ne": 49,
+    "eta": 0.08226303133234722,
     "momentum": true,
     "ruiz": false,
-    "state_dim": 175
+    "state_dim": 74
   },
   "machine": {
     "cpu": "Apple M5",
@@ -78,10 +78,10 @@
     "compiler": "Apple clang version 17.0.0 (clang-1700.6.3.2)",
     "python": "3.13.11",
     "numpy": "2.5.3",
-    "fomtools_commit": "96eafd2",
-    "fomtools_branch": "vr/codegen_rename",
+    "fomtools_commit": "56b7e81",
+    "fomtools_branch": "vr/cvxpygen_features",
     "fomtools_path": "/Users/vranjan/Research/2026/fomtools/fomtools"
   },
-  "started_utc": "2026-10-12T16:09:10+00:00",
-  "finished_utc": "2026-10-12T16:15:43+00:00"
+  "started_utc": "2026-10-15T23:31:30+00:00",
+  "finished_utc": "2026-10-15T23:34:18+00:00"
 }

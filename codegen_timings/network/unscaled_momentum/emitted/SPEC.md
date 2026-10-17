@@ -3,7 +3,7 @@
 One iteration of a first-order method, to be implemented as a fixed loop.
 
 - dtype: `float64`
-- state dimension: 175
+- state dimension: 74
 - termination: max_iters (max_iters=200, tol=None, check_termination=1)
 
 ## Parameters (supplied at solve time)
@@ -11,7 +11,7 @@ One iteration of a first-order method, to be implemented as a fixed loop.
 
 ## State layout
 
-- `s0`: dimension 150
+- `s0`: dimension 49
 - `s1`: dimension 10
 - `s2`: dimension 15
 
@@ -44,7 +44,7 @@ Compute every `matrix @ source` via the accumulating helpers in
 for each term (these are sparse CSR where the matrix is structured, so
 do not write your own dense matrix-vector loops):
 
-### `t0` (dim 150)
+### `t0` (dim 49)
 - linear_op (rhs) = t0_c + t0_state @ state
 - activation = clip(., lower=t0_lo, upper=t0_hi)  (elementwise; bounds are vectors)
 

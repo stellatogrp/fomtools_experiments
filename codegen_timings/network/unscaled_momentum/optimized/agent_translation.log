@@ -1,29 +1,22 @@
-Passes. One fix: the user said to use only the workspace buffers, so I'll drop the local `pterm` array and apply the parameter term each iteration instead.
-I wrote `src/fom_solver.c` and `make verify` passes: it prints `VERIFY OK`, with a worst error of 2.2e-15 across the 8 samples against a tolerance of 1e-6. `make bench` gives about 168 µs mean per solve (155 µs minimum).
+An implementation already exists; let me verify it.
+Passes already. One cheap speedup: `su_p_p0 @ p0` doesn't change between iterations, so I'll compute it once before the loop.
+`src/fom_solver.c` passes verification: `make verify` prints `VERIFY OK`, with a worst max-abs error of 5.3e-15 over 8 samples (tolerance 1e-6).
 
-**How it works:**
-- **Reset:** `fom_setup` and `fom_update_params` both reset the state from `FOM_STATE_INIT`.
-- **Loop:** each iteration reads `xi` once through `fom_sched_xi(it)`, so a `max_iter` above 200 is handled safely.
-- **t0:** starts from `t0_c`, adds `t0_state @ state` with the provided helper, then clips elementwise to `t0_lo`/`t0_hi`.
-- **t1 and the state update:** the plain terms go into the output buffer. The two `__d_xi` terms go into the workspace `acc` buffer, which is then added in once as `out += xi * acc`. t1 then gets a relu.
-- **State swap:** the current and new state swap by pointer instead of copying. If the final state ends up in `new_state`, it is copied back to `state` at the end.
+A working implementation was already in the file, and it passed as it was. I made one change for speed: the parameter term (`su_p_p0 @ p0`) is the same on every iteration, so it's now computed once before the loop and used to seed `new_state` each time. It's stored in a fixed-size local array. I re-ran `make verify` after the change and the result was the same. I didn't run `make bench`, so I haven't measured how much faster it is.
 
-**Constraints:** there are no linear solves in this spec, so `fom_lin_solve_*` is never called. Every matrix-vector product goes through the `fom_apply_*` helpers, and all numbers come from `fom_data`. There is no `/`, no dynamic memory, and no buffer outside the workspace.
+The rest of the solver was already correct and met the embedded constraints:
+- **Start state:** the state is reset to `FOM_STATE_INIT` in both `fom_setup` and `fom_update_params`.
+- **Matrix products:** every one goes through the `fom_apply_*` helpers, and the schedule value is read once per iteration through `fom_sched_xi`.
+- **Iteration order:** the clip step for `t0` and the relu step for `t1` run before the state update, and the old and new state buffers are swapped by pointer instead of copied.
+- **Residual:** it is computed only on the last iteration, since this method has no tolerance check.
+- **Constraints:** it uses no dynamic memory and no variable-length arrays. The only `/` characters in the file are in comments, so there is no division.
+`src/fom_solver.c` passes verification: `make verify` prints `VERIFY OK`, with a worst max-abs error of 5.3e-15 over 8 samples (tolerance 1e-6).
 
-**Choices you may want to know about:**
-- I first kept a local stack array for the parameter term, since it doesn't change between iterations. I removed it to follow "use only the workspace buffers", so `su_p_p0 @ p0` is now recomputed every iteration. That's a 175×15 sparse product; if a small local array is acceptable, putting the hoist back would save that work.
-- With no tolerance set, there is no early stop. The residual is computed only on the last iteration, and the status is always `FOM_MAX_ITER_REACHED`.
-I wrote `src/fom_solver.c` and `make verify` passes: it prints `VERIFY OK`, with a worst error of 2.2e-15 across the 8 samples against a tolerance of 1e-6. `make bench` gives about 168 µs mean per solve (155 µs minimum).
+A working implementation was already in the file, and it passed as it was. I made one change for speed: the parameter term (`su_p_p0 @ p0`) is the same on every iteration, so it's now computed once before the loop and used to seed `new_state` each time. It's stored in a fixed-size local array. I re-ran `make verify` after the change and the result was the same. I didn't run `make bench`, so I haven't measured how much faster it is.
 
-**How it works:**
-- **Reset:** `fom_setup` and `fom_update_params` both reset the state from `FOM_STATE_INIT`.
-- **Loop:** each iteration reads `xi` once through `fom_sched_xi(it)`, so a `max_iter` above 200 is handled safely.
-- **t0:** starts from `t0_c`, adds `t0_state @ state` with the provided helper, then clips elementwise to `t0_lo`/`t0_hi`.
-- **t1 and the state update:** the plain terms go into the output buffer. The two `__d_xi` terms go into the workspace `acc` buffer, which is then added in once as `out += xi * acc`. t1 then gets a relu.
-- **State swap:** the current and new state swap by pointer instead of copying. If the final state ends up in `new_state`, it is copied back to `state` at the end.
-
-**Constraints:** there are no linear solves in this spec, so `fom_lin_solve_*` is never called. Every matrix-vector product goes through the `fom_apply_*` helpers, and all numbers come from `fom_data`. There is no `/`, no dynamic memory, and no buffer outside the workspace.
-
-**Choices you may want to know about:**
-- I first kept a local stack array for the parameter term, since it doesn't change between iterations. I removed it to follow "use only the workspace buffers", so `su_p_p0 @ p0` is now recomputed every iteration. That's a 175×15 sparse product; if a small local array is acceptable, putting the hoist back would save that work.
-- With no tolerance set, there is no early stop. The residual is computed only on the last iteration, and the status is always `FOM_MAX_ITER_REACHED`.
+The rest of the solver was already correct and met the embedded constraints:
+- **Start state:** the state is reset to `FOM_STATE_INIT` in both `fom_setup` and `fom_update_params`.
+- **Matrix products:** every one goes through the `fom_apply_*` helpers, and the schedule value is read once per iteration through `fom_sched_xi`.
+- **Iteration order:** the clip step for `t0` and the relu step for `t1` run before the state update, and the old and new state buffers are swapped by pointer instead of copied.
+- **Residual:** it is computed only on the last iteration, since this method has no tolerance check.
+- **Constraints:** it uses no dynamic memory and no variable-length arrays. The only `/` characters in the file are in comments, so there is no division.

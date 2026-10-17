@@ -1,0 +1,20 @@
+warning: Missing version constraint (e.g., a lower bound) for `clarabel`
+warning: Missing version constraint (e.g., a lower bound) for `cvxpy`
+warning: Missing version constraint (e.g., a lower bound) for `imageio`
+warning: Missing version constraint (e.g., a lower bound) for `matplotlib`
+warning: Missing version constraint (e.g., a lower bound) for `numpy`
+warning: Missing version constraint (e.g., a lower bound) for `osqp`
+warning: Missing version constraint (e.g., a lower bound) for `pillow`
+warning: Missing version constraint (e.g., a lower bound) for `scipy`
+[network_unscaled] oracle vs NumPy (rel): 9.93e-16
+wrote /Users/vranjan/Research/2026/fomtools_experiments/codegen_timings/network/unscaled/optimized/OPTIMIZATIONS.md
+[network_unscaled] NumPy 1219.75 us | translated 40.241 us | optimized 9.033 us (kept=True) | speedups 30.3x, 4.45x, 135.0x | max|C-NumPy| {'translated': {'verified_set': 1.2212453270876722e-14}, 'optimized': {'verified_set': 1.2212453270876722e-14}}
+[network_ruiz] oracle vs NumPy (rel): 8.90e-16
+wrote /Users/vranjan/Research/2026/fomtools_experiments/codegen_timings/network/ruiz/optimized/OPTIMIZATIONS.md
+[network_ruiz] NumPy 1203.81 us | translated 44.233 us | optimized 10.425 us (kept=True) | speedups 27.2x, 4.24x, 115.5x | max|C-NumPy| {'translated': {'verified_set': 7.105427357601002e-15}, 'optimized': {'verified_set': 9.769962616701378e-15}}
+[network_unscaled_momentum] oracle vs NumPy (rel): 1.53e-15
+wrote /Users/vranjan/Research/2026/fomtools_experiments/codegen_timings/network/unscaled_momentum/optimized/OPTIMIZATIONS.md
+[network_unscaled_momentum] NumPy 1219.92 us | translated 66.185 us | optimized 16.061 us (kept=True) | speedups 18.4x, 4.12x, 76.0x | max|C-NumPy| {'translated': {'verified_set': 1.021405182655144e-14}, 'optimized': {'verified_set': 1.0658141036401503e-14}}
+[network_ruiz_momentum] oracle vs NumPy (rel): 1.37e-15
+wrote /Users/vranjan/Research/2026/fomtools_experiments/codegen_timings/network/ruiz_momentum/optimized/OPTIMIZATIONS.md
+[network_ruiz_momentum] NumPy 1253.54 us | translated 68.121 us | optimized 35.662 us (kept=True) | speedups 18.4x, 1.91x, 35.2x | max|C-NumPy| {'translated': {'verified_set': 1.887379141862766e-14}, 'optimized': {'verified_set': 1.3766765505351941e-14}}

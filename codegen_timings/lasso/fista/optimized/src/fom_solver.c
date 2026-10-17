@@ -27,22 +27,35 @@ void fom_update_params(FomWorkspace *work, const FomParams *params) {
     fom_reset_state(work);
 }
 
-/* Structure exploited (see spec.json / fom_data.c):
- *   t0_state          = [ 0 | M ]   (left 15x15 block is zero)
- *   t0_state__d_gamma = [-M | M ]   (so A x + g D x = M (x2 + g (x2 - x1)))
- *   M is symmetric, so row j of M equals column j (axpy form, contiguous).
- *   su_state / su_t_t0 are 0/1 selection matrices: new state = [x2, t0].
- * Hence one 15x15 matvec per iteration and the state update is a pointer
- * rotation over three 15-vectors (no copies). */
-#define FOM_N FOM_T0_DIM
-#define FOM_M_ROW(j) (FOM_MAT_t0_state + (j) * FOM_MAT_t0_state_COLS + FOM_N)
+/* t0_state has nonzeros only in the s1 columns (50..99), and
+   t0_state__d_gamma == [-A1, A1] with A1 = t0_state[:, 50:100].  Hence
+   A x + gamma D x = A1 (s1 + gamma (s1 - s0)): one 50x50 matvec per iteration.
+   A1 is extracted once (unit-vector probing of the fixed operator) into a
+   dense column-major table so the inner product vectorizes. */
+#define N FOM_T0_DIM
+static fom_float A1[N * N];
+static int A1_ready = 0;
+
+static void fom_extract_a1(void) {
+    fom_float e[FOM_STATE_DIM], col[N];
+    fom_int i, j;
+    memset(e, 0, sizeof(e));
+    for (j = 0; j < N; ++j) {
+        e[N + j] = 1.0;
+        memset(col, 0, sizeof(col));
+        fom_apply_t0_state(e, col);
+        for (i = 0; i < N; ++i) A1[j * N + i] = col[i];  /* column-major */
+        e[N + j] = 0.0;
+    }
+    A1_ready = 1;
+}
 
 fom_int fom_solve(FomWorkspace *work) {
-    fom_float *x1 = work->state;            /* x_{k-1} */
-    fom_float *x2 = work->state + FOM_N;    /* x_k     */
-    fom_float *xn = work->new_state;        /* x_{k+1} */
-    fom_float *cp = work->acc;              /* t0_p_p0 @ p0, constant */
-    fom_float *y = work->acc + FOM_N;       /* extrapolated point */
+    fom_float *s0 = work->state;
+    fom_float *s1 = work->state + N;
+    fom_float y[N];
+    fom_float *cp = work->acc + N;       /* t0_p_p0 @ p0, constant (50) */
+    fom_float t[N];
     const fom_int max_iter = work->settings.max_iter;
     const fom_int use_tol = work->settings.check_termination && work->settings.tol > 0;
     const fom_float tol = work->settings.tol;
@@ -51,65 +64,53 @@ fom_int fom_solve(FomWorkspace *work) {
     fom_int status = FOM_MAX_ITER_REACHED;
     fom_int it, i, j;
 
-    FOM_PROF_BEGIN(param_const);
-    memset(cp, 0, FOM_N * sizeof(fom_float));
-    fom_apply_t0_p_p0(work->params.p0, cp);
-    FOM_PROF_END(param_const);
+    if (!A1_ready) fom_extract_a1();
 
-    FOM_PROF_BEGIN(iterations);
+    /* Parameter contribution is iteration-invariant: hoist it. */
+    memset(cp, 0, N * sizeof(fom_float));
+    fom_apply_t0_p_p0(work->params.p0, cp);
+
     for (it = 0; it < max_iter; ++it) {
         const fom_float gamma = fom_sched_gamma(it);
-        fom_float t[FOM_N];
+        const fom_int need_res = use_tol || it == max_iter - 1;
 
-        /* y = x2 + gamma (x2 - x1) */
-        for (i = 0; i < FOM_N; ++i) y[i] = x2[i] + gamma * (x2[i] - x1[i]);
+        FOM_PROF_BEGIN(extrapolate);
+        for (i = 0; i < N; ++i) y[i] = s1[i] + gamma * (s1[i] - s0[i]);
+        FOM_PROF_END(extrapolate);
 
-        /* t = cp + M y  (M symmetric: accumulate rows as columns) */
-        /* Four independent partial sums shorten the FMA dependency chain
-           from 15 to 4 (the loop is latency-bound, not throughput-bound). */
+        FOM_PROF_BEGIN(matvec_prox);
+        /* column-oriented axpy form: vectorizes across rows with no
+           reassociation of floating-point sums */
         {
-            fom_float ta[FOM_N], tb[FOM_N], tc[FOM_N];
-            for (i = 0; i < FOM_N; ++i) { t[i] = cp[i]; ta[i] = 0.0; tb[i] = 0.0; tc[i] = 0.0; }
-            for (j = 0; j + 3 < FOM_N; j += 4) {
-                const fom_float *m0 = FOM_M_ROW(j), *m1 = FOM_M_ROW(j + 1);
-                const fom_float *m2 = FOM_M_ROW(j + 2), *m3 = FOM_M_ROW(j + 3);
-                const fom_float y0 = y[j], y1 = y[j + 1], y2 = y[j + 2], y3 = y[j + 3];
-                for (i = 0; i < FOM_N; ++i) {
-                    t[i] += m0[i] * y0;
-                    ta[i] += m1[i] * y1;
-                    tb[i] += m2[i] * y2;
-                    tc[i] += m3[i] * y3;
-                }
+            fom_float *restrict tt = t;
+            const fom_float *restrict yy = y;
+            memcpy(tt, cp, N * sizeof(fom_float));
+            for (j = 0; j < N; ++j) {
+                const fom_float *restrict a = A1 + j * N;
+                const fom_float yj = yy[j];
+                for (i = 0; i < N; ++i) tt[i] += a[i] * yj;
             }
-            for (; j < FOM_N; ++j) {
-                const fom_float *mj = FOM_M_ROW(j);
-                const fom_float yj = y[j];
-                for (i = 0; i < FOM_N; ++i) ta[i] += mj[i] * yj;
+            for (i = 0; i < N; ++i) {
+                const fom_float v = tt[i];
+                tt[i] = (v > lam) ? (v - lam) : ((v < -lam) ? (v + lam) : 0.0);
             }
-            for (i = 0; i < FOM_N; ++i) t[i] = (t[i] + ta[i]) + (tb[i] + tc[i]);
         }
+        FOM_PROF_END(matvec_prox);
 
-        /* xn = soft_threshold(t, lam) */
-        for (i = 0; i < FOM_N; ++i) {
-            const fom_float v = t[i];
-            xn[i] = (v > lam) ? (v - lam) : ((v < -lam) ? (v + lam) : 0.0);
-        }
-
-        /* residual on new state [x2, xn] vs old [x1, x2] */
-        if (use_tol || it == max_iter - 1) {
+        FOM_PROF_BEGIN(state_update);
+        if (need_res) {
             res = 0.0;
-            for (i = 0; i < FOM_N; ++i) {
-                fom_float d = x2[i] - x1[i];
-                fom_float e = xn[i] - x2[i];
-                if (d < 0) d = -d;
-                if (e < 0) e = -e;
-                if (d > res) res = d;
-                if (e > res) res = e;
+            for (i = 0; i < N; ++i) {
+                fom_float d0 = s1[i] - s0[i], d1 = t[i] - s1[i];
+                if (d0 < 0) d0 = -d0;
+                if (d1 < 0) d1 = -d1;
+                if (d0 > res) res = d0;
+                if (d1 > res) res = d1;
             }
         }
-
-        /* state shift: (x1, x2) <- (x2, xn), recycle x1 buffer */
-        { fom_float *tmp = x1; x1 = x2; x2 = xn; xn = tmp; }
+        memcpy(s0, s1, N * sizeof(fom_float));
+        memcpy(s1, t, N * sizeof(fom_float));
+        FOM_PROF_END(state_update);
 
         if (use_tol && res <= tol) {
             ++it;
@@ -117,14 +118,8 @@ fom_int fom_solve(FomWorkspace *work) {
             break;
         }
     }
-    FOM_PROF_END(iterations);
 
-    FOM_PROF_BEGIN(finalize);
-    /* x1/x2 may alias any of the three buffers; stage through solution.x */
-    memcpy(work->solution.x, x1, FOM_N * sizeof(fom_float));
-    memcpy(work->solution.x + FOM_N, x2, FOM_N * sizeof(fom_float));
-    memcpy(work->state, work->solution.x, sizeof(work->state));
-    FOM_PROF_END(finalize);
+    memcpy(work->solution.x, work->state, sizeof(work->solution.x));
     work->solution.iter = it;
     work->solution.residual = res;
     work->solution.status = status;

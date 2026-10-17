@@ -12,6 +12,7 @@ int main(void) {
     fom_float worst = 0.0;
     int failures = 0;
 
+
     fom_set_default_settings(&settings);
     fom_setup(&work, &settings);
 
