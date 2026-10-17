@@ -39,6 +39,13 @@ FACTORS = 100  # k: Sigma = F F' + sigma_ridge I with F of size N x k
 IC = 0.1
 S_MAX = 3.0
 ITERATIONS = 200
+# Every solver stops itself with OSQP's test (eps_abs = TOL, eps_rel = 0, unscaled
+# residuals), checked every CHECK_TERMINATION iterations (OSQP's default), within
+# MAX_ITER iterations (OSQP's default cap). The fomtools solvers are generated with
+# TerminationKind.OBJECTIVE at these values.
+TOL = 1e-4
+CHECK_TERMINATION = 25
+MAX_ITER = 4000
 N_SOLVES = 100  # back-test length per timing round
 DRIFT = 0.15
 

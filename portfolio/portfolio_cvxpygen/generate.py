@@ -13,7 +13,9 @@ code directory as a module, so it cannot contain a path separator):
     the ``off``/``on`` arms differ only in its runtime settings.
 ``cpg_n{N}_fom``
     CVXPYgen + the fomtools ADMM solver (``fomtools.cvxpygen.generate_solver``,
-    paper Sec. 5.3) on the equilibrated canonical QP, 200 iterations per solve;
+    paper Sec. 5.3) on the equilibrated canonical QP, stopping on OSQP's residuals
+    (``TerminationKind.OBJECTIVE``: ``model.TOL``, checked every
+    ``model.CHECK_TERMINATION`` iterations, at most ``model.MAX_ITER``);
     translation phase only.
 ``cpg_n{N}_fom_opt``
     the same, followed by the code optimization phase (10-minute budget).
@@ -30,10 +32,12 @@ import json
 import time
 
 from portfolio_cvxpygen.model import (
+    CHECK_TERMINATION,
     FOM_OPTIONS,
-    ITERATIONS,
+    MAX_ITER,
     OUT,
     SIZES,
+    TOL,
     build,
     code_dir,
     prefix,
@@ -62,12 +66,17 @@ def generate_osqp(N: int) -> dict:
 
 def generate_fom(N: int, arm: str) -> dict:
     import fomtools.cvxpygen as fcpg
-    from fomtools.codegen import CodegenConfig, TerminationSpec
+    from fomtools.codegen import CodegenConfig, TerminationKind, TerminationSpec
 
     optimize = arm == "fom_opt"
     problem, x, _ = build(N)
     config = CodegenConfig(
-        termination=TerminationSpec(max_iters=ITERATIONS),
+        termination=TerminationSpec(
+            kind=TerminationKind.OBJECTIVE,
+            max_iters=MAX_ITER,
+            tol=TOL,
+            check_termination=CHECK_TERMINATION,
+        ),
         agent_optimize_timeout_s=OPTIMIZE_TIMEOUT_S,
     )
     start = time.perf_counter()
@@ -86,12 +95,19 @@ def generate_fom(N: int, arm: str) -> dict:
     info = dict(
         wall_s=time.perf_counter() - start,
         fom_options=FOM_OPTIONS,
+        termination=dict(kind="objective", max_iters=MAX_ITER, tol=TOL,
+                         check_termination=CHECK_TERMINATION),
         auto_equilibrate=True,
         code_optimization=optimize,
         out_dir=str(result.out_dir),
+        verified=result.translate.success,
     )
     if optimize:
         info["optimization_kept"] = result.optimization_kept
+        if result.optimize is not None:
+            info["optimize"] = dict(success=result.optimize.success,
+                                    turns_used=result.optimize.turns_used,
+                                    truncated=result.optimize.truncated)
         if result.timing is not None:
             info["timing"] = {
                 k: v for k, v in vars(result.timing).items() if isinstance(v, (int, float, str))
