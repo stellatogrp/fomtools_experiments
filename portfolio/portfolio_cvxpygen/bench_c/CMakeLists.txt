@@ -11,4 +11,7 @@ add_subdirectory(${GEN_DIR}/c generated)
 include_directories(${${PREFIX}_cpg_include})
 add_executable(bench_cpg ${CMAKE_CURRENT_SOURCE_DIR}/bench_cpg.c ${${PREFIX}_cpg_src})
 target_compile_definitions(bench_cpg PRIVATE PREFIX=${PREFIX} MODE_${MODE})
+if(DEFINED BENCH_RHO)  # not OSQP_RHO: OSQP's headers define that as its default rho
+  target_compile_definitions(bench_cpg PRIVATE BENCH_RHO=${BENCH_RHO})
+endif()
 target_link_libraries(bench_cpg m)

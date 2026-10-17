@@ -62,6 +62,10 @@ PROBLEM = dict(
 # 1e-4 at N = 200 / 1000 are 447 / ~620 at 0.1, 83 / 149 at 1, 78 / 116 at the
 # best value 0.7; 1 is used so the result does not rest on a finely tuned rho.
 FOM_OPTIONS: dict = dict(rho=1.0)
+# OSQP starts from the same rho (then adapts it as usual), so the comparison is
+# between implementations, not initial step sizes: starting from 0.1 it needs
+# about twice the iterations to 1e-4 (157 vs 81 at N = 200, 259 vs 95 at N = 500).
+OSQP_RHO = FOM_OPTIONS["rho"]
 STEP_SIZES = dict(rho=0.1, sigma=1.0e-6, alpha=1.6)
 
 # OSQP with every extra off: plain ADMM with the same step sizes, a fixed
@@ -81,6 +85,7 @@ OSQP_OFF = dict(
 # independent draws, but all lie near the equal-weight portfolio, so warm
 # starting from the previous solve would let OSQP skip most of the work.
 OSQP_ON = dict(
+    rho=OSQP_RHO,
     polishing=True,
     warm_starting=False,
     warm_start=False,
