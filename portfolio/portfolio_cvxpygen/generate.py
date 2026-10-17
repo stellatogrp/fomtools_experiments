@@ -41,7 +41,7 @@ from portfolio_cvxpygen.model import (
 )
 
 ARMS = ("osqp", "fom", "fom_opt")
-OPTIMIZE_TIMEOUT_S = 600  # the paper's Sec. 6.6 budget per phase
+OPTIMIZE_TIMEOUT_S = 1200  # factor-model sweep: twice the paper's Sec. 6.6 budget per phase
 
 
 def compiled(N: int, arm: str) -> bool:
