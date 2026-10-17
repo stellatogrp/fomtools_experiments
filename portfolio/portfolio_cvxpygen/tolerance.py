@@ -9,19 +9,21 @@ One stopping test for every solver: OSQP's, with ``eps_abs = tol`` and
 ``||Ax - clamp(Ax, l, u)||_inf`` and ``||Px + q + A'y||_inf``, at most ``tol``.
 OSQP reports these residuals and so does the fomtools bridge.
 
-1. **Iterations.** For each solver and each holdings draw, the smallest
-   iteration count whose solution passes the test:
+1. **Iterations.** For each solver and each holdings draw, the first iteration
+   whose solution passes the test, found in one run (no search over the count):
 
-   - CVXPY + OSQP (both settings) and fomtools: a doubling then bisection search
-     over ``max_iter`` through Python, reading the residuals each solve reports.
-     The translated and optimized fomtools solvers run the same arithmetic, so
-     they share the counts found with the optimized one (checked on a few draws).
-   - stock CVXPYgen + OSQP: in C, with OSQP's own test checked every iteration,
-     over the draws in order. Embedded OSQP adapts rho and keeps it between
-     solves, and the timed C run repeats the same order. Its Python wrapper
-     resets the settings before every solve, which leaves rho out of step with
-     the factored matrix and stalls convergence; that is a wrapper quirk, so its
-     Python run is timed at the counts found in C.
+   - CVXPY + OSQP: OSQP's own test checked every iteration (``eps_abs = tol``,
+     ``eps_rel = 0``, unscaled residuals, polishing off).
+   - stock CVXPYgen + OSQP: the same, in C, over the draws in order. OSQP runs
+     at a fixed rho (``model.OSQP_RHO``, adaptive rho off). Its Python wrapper
+     resets the settings before every solve and cannot set rho, so its Python
+     run is timed at the counts found in C.
+   - fomtools: ``rho_sweep``'s NumPy replica of the recorded ADMM, which checks
+     the residuals every iteration; the generated solver does not yet check
+     this test while iterating. A doubling-then-bisection search of the
+     generated solver confirms the counts on the first draws, and the timed C
+     runs report the largest residual. The translated and optimized solvers run
+     the same arithmetic, so they share the counts.
 
 2. **Time.** Every solver then runs each draw for exactly its count, with no
    termination check, through Python and (CVXPYgen solvers) in C, as in
@@ -46,6 +48,7 @@ import numpy as np
 
 from portfolio_cvxpygen.benchmark import C_PASSES, WARMUP, build_c, machine
 from portfolio_cvxpygen.model import (
+    FOM_OPTIONS,
     N_SOLVES,
     OSQP_OFF,
     OSQP_ON,
@@ -132,29 +135,55 @@ def c_osqp_iterations(N: int, X: np.ndarray, tol: float) -> list[int]:
     return [int(v) for v in re.search(r"iters=(\S+)", out).group(1).split(",")]
 
 
-def search(N: int, tol: float, reuse: dict | None = None) -> dict[str, list[int]]:
-    """Iterations to ``tol`` per arm and draw. ``reuse`` holds counts from an earlier
-    search at the same ``tol``; the OSQP arms are taken from it when present (they
-    do not depend on the fomtools solver), the fomtools arms are always searched."""
-    X = holdings_sequence(N)
-    iters: dict[str, list[int]] = {}
-    for arm in ("cvxpy_osqp_on", "cpg_fom_opt"):
-        if reuse and arm in reuse and not arm.startswith("cpg_fom"):
-            iters[arm] = list(reuse[arm])
-            continue
-        solve = python_arm(N, arm)
-        found = [iterations_to_tol(solve, xv, tol) for xv in X]
-        if any(k is None for k in found):
-            raise RuntimeError(f"N={N} {arm}: no iteration count up to {CAP} reaches {tol:g}")
-        iters[arm] = found
-    # The translated solver runs the same arithmetic as the optimized one.
-    translated = python_arm(N, "cpg_fom")
-    for k in range(3):
-        assert iterations_to_tol(translated, X[k], tol) == iters["cpg_fom_opt"][k], (N, k)
-    iters["cpg_fom"] = list(iters["cpg_fom_opt"])
-    iters["cpg_osqp"] = (
-        list(reuse["cpg_osqp"]) if reuse and "cpg_osqp" in reuse else c_osqp_iterations(N, X, tol)
+def cvxpy_osqp_iterations(N: int, X: np.ndarray, tol: float) -> list[int]:
+    """CVXPY + OSQP: one solve per draw with OSQP's own test checked every
+    iteration (``eps_abs = tol``, ``eps_rel = 0``, unscaled residuals), which stops
+    at the first iteration where both residuals are at most ``tol``."""
+    problem, x, _ = build(N)
+    settings = dict(
+        _no_check(OSQP_ON), polishing=False, max_iter=CAP, check_termination=1,
+        eps_abs=tol, eps_rel=0.0, scaled_termination=False,
     )
+    found = []
+    for xv in X:
+        x.value = xv
+        problem.solve(solver=cp.OSQP, **settings)
+        if problem.status != cp.OPTIMAL:
+            raise RuntimeError(f"N={N} CVXPY + OSQP: {problem.status} within {CAP} iterations")
+        found.append(int(problem.solver_stats.num_iters))
+    return found
+
+
+def fom_iterations(N: int, X: np.ndarray, tol: float) -> list[int]:
+    """fomtools: the first iteration where both residuals are at most ``tol``, from
+    ``rho_sweep``'s NumPy replica of the recorded ADMM (all draws in one batch).
+    Checked against a bisection of the generated solver on the first draws."""
+    from portfolio_cvxpygen.rho_sweep import CAP as REPLICA_CAP
+    from portfolio_cvxpygen.rho_sweep import canonical, iterations
+
+    qp, scaling, maps = canonical(N)
+    found = iterations(qp, scaling, maps, X, FOM_OPTIONS["rho"], tol)
+    if np.any(found > REPLICA_CAP):
+        raise RuntimeError(f"N={N} fomtools: no iteration count up to {REPLICA_CAP} reaches {tol:g}")
+    generated = python_arm(N, "cpg_fom_opt")
+    for k in range(3):
+        assert iterations_to_tol(generated, X[k], tol) == found[k], (N, k)
+    return [int(v) for v in found]
+
+
+def search(N: int, tol: float, reuse: dict | None = None) -> dict[str, list[int]]:
+    """Iterations to ``tol`` per arm and draw, each the first passage of the
+    stopping test in one run (no bisection over the iteration count). ``reuse``
+    holds counts from an earlier search at the same ``tol``; the OSQP arms are
+    taken from it when present, the fomtools arms are always searched."""
+    X = holdings_sequence(N)
+    reuse = reuse or {}
+    iters: dict[str, list[int]] = {}
+    iters["cvxpy_osqp_on"] = list(reuse.get("cvxpy_osqp_on") or cvxpy_osqp_iterations(N, X, tol))
+    iters["cpg_osqp"] = list(reuse.get("cpg_osqp") or c_osqp_iterations(N, X, tol))
+    # The translated and optimized solvers run the same arithmetic.
+    iters["cpg_fom_opt"] = fom_iterations(N, X, tol)
+    iters["cpg_fom"] = list(iters["cpg_fom_opt"])
     return iters
 
 
@@ -185,6 +214,8 @@ def main() -> None:
     parser.add_argument("--N", type=int, nargs="+", default=list(SIZES))
     parser.add_argument("--tol", type=float, default=TOL)
     parser.add_argument("--rounds", type=int, default=7)
+    parser.add_argument("--search-only", action="store_true",
+                        help="find and save the iteration counts, skip the timing rounds")
     parser.add_argument("--reuse-from", type=Path, default=None,
                         help="folder with iters_tol_n{N}.json from an earlier search; "
                         "reuses its OSQP iteration counts")
@@ -203,6 +234,8 @@ def main() -> None:
         iters_path.write_text(json.dumps({"tol": args.tol, **iters}))
         print(f"N={N} iterations to {args.tol:g}: "
               + "  ".join(f"{a} {np.mean(iters[a]):.0f}" for a in ARMS), flush=True)
+        if args.search_only:
+            continue
 
         X = holdings_sequence(N)
         holdings = holdings_file(N, X)
@@ -231,6 +264,8 @@ def main() -> None:
             res = f"  max res {row['max_pri_res']:.1e}/{row['max_dua_res']:.1e}" if level == "c" else ""
             print(f"  {arm:15s} {level:6s} {med:12.2f} us  iters {row['mean_iters']:.0f}{res}")
 
+    if args.search_only:
+        return
     path = RESULTS / "timings_tol.csv"
     existing = []
     if path.exists():  # keep rows for N not re-run
