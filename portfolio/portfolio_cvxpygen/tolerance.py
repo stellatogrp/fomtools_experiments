@@ -39,6 +39,7 @@ import json
 import re
 import subprocess
 import time
+from pathlib import Path
 
 import cvxpy as cp
 import numpy as np
@@ -131,10 +132,16 @@ def c_osqp_iterations(N: int, X: np.ndarray, tol: float) -> list[int]:
     return [int(v) for v in re.search(r"iters=(\S+)", out).group(1).split(",")]
 
 
-def search(N: int, tol: float) -> dict[str, list[int]]:
+def search(N: int, tol: float, reuse: dict | None = None) -> dict[str, list[int]]:
+    """Iterations to ``tol`` per arm and draw. ``reuse`` holds counts from an earlier
+    search at the same ``tol``; the OSQP arms are taken from it when present (they
+    do not depend on the fomtools solver), the fomtools arms are always searched."""
     X = holdings_sequence(N)
     iters: dict[str, list[int]] = {}
     for arm in ("cvxpy_osqp_off", "cvxpy_osqp_on", "cpg_fom_opt"):
+        if reuse and arm in reuse and not arm.startswith("cpg_fom"):
+            iters[arm] = list(reuse[arm])
+            continue
         solve = python_arm(N, arm)
         found = [iterations_to_tol(solve, xv, tol) for xv in X]
         if any(k is None for k in found):
@@ -145,7 +152,9 @@ def search(N: int, tol: float) -> dict[str, list[int]]:
     for k in range(3):
         assert iterations_to_tol(translated, X[k], tol) == iters["cpg_fom_opt"][k], (N, k)
     iters["cpg_fom"] = list(iters["cpg_fom_opt"])
-    iters["cpg_osqp"] = c_osqp_iterations(N, X, tol)
+    iters["cpg_osqp"] = (
+        list(reuse["cpg_osqp"]) if reuse and "cpg_osqp" in reuse else c_osqp_iterations(N, X, tol)
+    )
     return iters
 
 
@@ -176,13 +185,21 @@ def main() -> None:
     parser.add_argument("--N", type=int, nargs="+", default=list(SIZES))
     parser.add_argument("--tol", type=float, default=TOL)
     parser.add_argument("--rounds", type=int, default=7)
+    parser.add_argument("--reuse-from", type=Path, default=None,
+                        help="folder with iters_tol_n{N}.json from an earlier search; "
+                        "reuses its OSQP iteration counts")
     args = parser.parse_args()
 
     RESULTS.mkdir(parents=True, exist_ok=True)
     rows = []
     for N in args.N:
         iters_path = OUT / f"iters_tol_n{N}.json"
-        iters = search(N, args.tol)
+        reuse = None
+        if args.reuse_from and (args.reuse_from / f"iters_tol_n{N}.json").exists():
+            reuse = json.loads((args.reuse_from / f"iters_tol_n{N}.json").read_text())
+            if reuse.get("tol") != args.tol:
+                reuse = None
+        iters = search(N, args.tol, reuse)
         iters_path.write_text(json.dumps({"tol": args.tol, **iters}))
         print(f"N={N} iterations to {args.tol:g}: "
               + "  ".join(f"{a} {np.mean(iters[a]):.0f}" for a in ARMS), flush=True)

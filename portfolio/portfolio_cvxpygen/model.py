@@ -57,10 +57,11 @@ PROBLEM = dict(
 # fomtools ADMM builder defaults (rho 0.1, sigma 1e-6, alpha 1.6, rho_eq_scale
 # 1e3), which are OSQP's; the front end Ruiz-equilibrates the canonical QP
 # (auto_equilibrate, on by default).
-# Factor-model sweep: rho tuned offline by ``rho_sweep`` on draws held out from the
-# back-test (seed 2): iterations to 1e-4 at N = 200 / 1000 fall from 447 / ~620 at
-# OSQP's default 0.1 to 78 / 116 at 0.7, the best value at every N tried.
-FOM_OPTIONS: dict = dict(rho=0.7)
+# Factor-model sweep: rho = 1, one step up from OSQP's default 0.1 on a decade
+# grid. ``rho_sweep`` on draws held out from the back-test (seed 2): iterations to
+# 1e-4 at N = 200 / 1000 are 447 / ~620 at 0.1, 83 / 149 at 1, 78 / 116 at the
+# best value 0.7; 1 is used so the result does not rest on a finely tuned rho.
+FOM_OPTIONS: dict = dict(rho=1.0)
 STEP_SIZES = dict(rho=0.1, sigma=1.0e-6, alpha=1.6)
 
 # OSQP with every extra off: plain ADMM with the same step sizes, a fixed
