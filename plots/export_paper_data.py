@@ -106,8 +106,13 @@ def write_portfolio(data) -> None:
         row = {"K": K}
         for v in ("simplex",):
             r = data["portfolio"][v][i]
-            row.update({f"{v}_mip_bound": fmt(r["bound"]), f"{v}_mip": fmt(r["incumbent"]),
-                        f"{v}_gap": f"{r['gap']:.4f}", f"{v}_simulator1000": fmt(r["sample"]),
+            # Only MIP solves that reached the gap tolerance; a time-limited K's bound is
+            # valid but loose, so its columns stay empty.
+            tight = r["gap"] <= GAP_OK
+            row.update({f"{v}_mip_bound": fmt(r["bound"]) if tight else "",
+                        f"{v}_mip": fmt(r["incumbent"]) if tight else "",
+                        f"{v}_gap": f"{r['gap']:.4f}" if tight else "",
+                        f"{v}_simulator1000": fmt(r["sample"]),
                         f"{v}_prob95": fmt(r["prob95"])})
         rows.append(row)
     write("portfolio_residual.csv", fields, rows, "portfolio")
