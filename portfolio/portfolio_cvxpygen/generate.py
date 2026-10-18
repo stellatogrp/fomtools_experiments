@@ -4,13 +4,14 @@ Run from ``portfolio/`` in the ``algoverify`` conda env:
 
     FOMTOOLS_CODEGEN_AGENT=1 python -m portfolio_cvxpygen.generate [--N 10 20] [--arms fom] [--force]
 
-Per N, beneath ``portfolio_cvxpygen/out/`` (flat names: cvxpygen imports the
-code directory as a module, so it cannot contain a path separator):
+Per N, beneath ``portfolio_cvxpygen/out_factor/`` (``model.OUT``; flat names:
+cvxpygen imports the code directory as a module, so it cannot contain a path
+separator):
 
 ``cpg_n{N}_osqp``
     stock CVXPYgen + OSQP, generated with OSQP's defaults (cvxpygen fixes rho,
-    sigma, alpha and scaling at generation and exposes no way to change them);
-    the ``off``/``on`` arms differ only in its runtime settings.
+    sigma, alpha and scaling at generation and exposes no way to change them;
+    ``tolerance_stop`` moves rho at run time with ``osqp_update_rho``).
 ``cpg_n{N}_fom``
     CVXPYgen + the fomtools ADMM solver (``fomtools.cvxpygen.generate_solver``,
     paper Sec. 5.3) on the equilibrated canonical QP, stopping on OSQP's residuals
@@ -18,7 +19,8 @@ code directory as a module, so it cannot contain a path separator):
     ``model.CHECK_TERMINATION`` iterations, at most ``model.MAX_ITER``);
     translation phase only.
 ``cpg_n{N}_fom_opt``
-    the same, followed by the code optimization phase (10-minute budget).
+    the same, followed by the code optimization phase (``OPTIMIZE_TIMEOUT_S``,
+    20-minute budget).
 
 A directory that already holds a compiled wrapper is reused unless ``--force``.
 ``gen_n{N}.json`` records generation wall times and the canonical problem sizes.

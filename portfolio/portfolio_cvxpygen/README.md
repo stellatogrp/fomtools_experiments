@@ -112,7 +112,7 @@ out_factor/                 (untracked)
   bench_build/              C timing builds and the draws
 results_factor/
   timings_stop.csv          N, arm, level (python | c), us per solve, iterations
-  machine_stop.json
+  machine_stop.json         machine (CPU, compiler, versions) of each N's last run
   portfolio_cvxpygen_stop_*.{pdf,png}, portfolio_cvxpygen_stop_wide.csv
 results/                    archived: the dense-covariance, fixed-200-iteration sweep
                             (N = 10 to 200) behind the paper's current

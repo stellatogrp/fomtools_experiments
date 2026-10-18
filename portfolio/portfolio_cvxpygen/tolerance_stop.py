@@ -35,8 +35,9 @@ are not timed. Two CVXPYgen wrappers are
 not loaded into one Python process: every Python round of every arm is its own
 subprocess (``--worker``).
 
-Writes ``out_factor/stop_n{N}.json`` (per-solve iterations and residuals) and
-``results_factor/timings_stop.csv``.
+Writes ``out_factor/stop_n{N}.json`` (per-solve iterations and residuals),
+``results_factor/timings_stop.csv`` and ``results_factor/machine_stop.json`` (the
+machine of each N's last run).
 """
 
 from __future__ import annotations
@@ -343,6 +344,18 @@ def write_rows(path: Path, rows: list[dict]) -> None:
         writer.writerows(existing + rows)
 
 
+def write_machines(path: Path, csv_path: Path, sizes: list[int], current: dict) -> None:
+    """Record ``current`` as the machine of every N in ``sizes`` in the JSON at
+    ``path``, ``{N: machine}``, keeping the other N's, so a partial run does not
+    relabel the rows it did not re-run."""
+    machines = json.loads(path.read_text()) if path.exists() else {}
+    if "cpu" in machines:  # an older single record: it was the machine of every N then
+        with csv_path.open() as f:
+            machines = {r["N"]: machines for r in csv.DictReader(f)}
+    machines.update({str(N): current for N in sizes})
+    path.write_text(json.dumps(dict(sorted(machines.items(), key=lambda kv: int(kv[0]))), indent=2))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--N", type=int, nargs="+", default=list(SIZES))
@@ -409,7 +422,7 @@ def main() -> None:
 
     path = RESULTS / "timings_stop.csv"
     write_rows(path, rows)
-    (RESULTS / "machine_stop.json").write_text(json.dumps(machine(), indent=2))
+    write_machines(RESULTS / "machine_stop.json", path, args.N, machine())
     print(f"wrote {path}")
 
 
