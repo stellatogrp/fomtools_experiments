@@ -29,8 +29,10 @@ rho off, sigma 1e-6, alpha 1.6, cold start, no polishing.
 Iterations and residuals come from the timed runs themselves: per solve, the
 iteration count at the stop and ``max(pri_res, dua_res)`` there, at both levels
 (C: one extra untimed pass over the sequence). Timing as in ``benchmark``:
-interleaved rounds, the median of the per-round means, 3 warm-up solves in
-Python, 1 warm-up and ``C_PASSES`` timed passes in C. Two CVXPYgen wrappers are
+interleaved rounds, the median of the per-round means, 3 warm-up solves and one
+pass in Python, 1 warm-up and ``--passes`` (default ``C_PASSES``) timed passes in
+C. ``--iters-only`` arms run once, for their iteration counts and residuals, and
+are not timed. Two CVXPYgen wrappers are
 not loaded into one Python process: every Python round of every arm is its own
 subprocess (``--worker``).
 
@@ -235,9 +237,9 @@ def holdings_file(N: int) -> Path:
     return path
 
 
-def time_c(N: int, arm: str, holdings: Path) -> dict:
+def time_c(N: int, arm: str, holdings: Path, passes: int = C_PASSES) -> dict:
     out = subprocess.run(
-        [str(build_c(N, arm)), str(holdings), str(N_SOLVES), str(N), str(C_PASSES),
+        [str(build_c(N, arm)), str(holdings), str(N_SOLVES), str(N), str(passes),
          f"stop={TOL:g},{CHECK_TERMINATION},{MAX_ITER}"],
         check=True, capture_output=True, text=True,
     ).stdout
@@ -255,6 +257,10 @@ def main() -> None:
     parser.add_argument("--N", type=int, nargs="+", default=list(SIZES))
     parser.add_argument("--rounds", type=int, default=7)
     parser.add_argument("--arms", nargs="+", choices=ARMS, default=list(ARMS))
+    parser.add_argument("--passes", type=int, default=C_PASSES,
+                        help="timed passes over the sequence per C run")
+    parser.add_argument("--iters-only", nargs="*", choices=ARMS, default=[],
+                        help="arms run once for their iterations and residuals, not timed")
     parser.add_argument("--worker", nargs=2, metavar=("N", "ARM"), help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.worker:
@@ -266,11 +272,15 @@ def main() -> None:
     for N in args.N:
         holdings = holdings_file(N)
         samples: dict[tuple[str, str], list[dict]] = {}
+        for arm in args.iters_only:
+            samples[(arm, "python")] = [run_worker(N, arm)]
+        timed = [arm for arm in args.arms if arm not in args.iters_only]
         for r in range(args.rounds):
-            for arm in args.arms:
+            for arm in timed:
                 samples.setdefault((arm, "python"), []).append(run_worker(N, arm))
                 if arm in C_ARMS:
-                    samples.setdefault((arm, "c"), []).append(time_c(N, arm, holdings))
+                    samples.setdefault((arm, "c"), []).append(
+                        time_c(N, arm, holdings, args.passes))
             print(f"N={N} round {r + 1}/{args.rounds}", flush=True)
 
         record = {}
@@ -281,19 +291,23 @@ def main() -> None:
             us = np.array([v["us_per_solve"] for v in values])
             med = float(np.median(us))
             first = values[0]
+            untimed = arm in args.iters_only
             row = dict(
                 N=N, arm=arm, level=level, tol=TOL, check_termination=CHECK_TERMINATION,
-                us_per_solve=med,
+                us_per_solve="" if untimed else med,
                 mean_iters=float(np.mean(first["iters"])),
                 max_iters=int(np.max(first["iters"])),
                 max_res=float(np.max(first["res"])),
                 unsolved=first["unsolved"],
-                round_spread=float(np.max(np.abs(us - med)) / med),
+                round_spread="" if untimed else float(np.max(np.abs(us - med)) / med),
+                rounds=0 if untimed else args.rounds,
+                passes=(args.passes if level == "c" else 1) if not untimed else "",
             )
             rows.append(row)
             record[f"{arm}/{level}"] = dict(iters=first["iters"], res=first["res"],
                                             unsolved=first["unsolved"], us_per_round=us.tolist())
-            print(f"  {arm:12s} {level:6s} {med:12.2f} us  iters {row['mean_iters']:.1f}"
+            timing = "   (not timed)" if untimed else f"{med:12.2f} us"
+            print(f"  {arm:12s} {level:6s} {timing}  iters {row['mean_iters']:.1f}"
                   f" (max {row['max_iters']})  max res {row['max_res']:.2e}"
                   f"  unsolved {row['unsolved']}", flush=True)
         record_path = OUT / f"stop_n{N}.json"  # keeps the arms not re-run
