@@ -202,7 +202,13 @@ class PortfolioProblem:
 
 
 def make_problem(
-    n: int, k: int, mu_model: str = "box", s_max: float = S_MAX, exposures: bool = True
+    n: int,
+    k: int,
+    mu_model: str = "box",
+    s_max: float = S_MAX,
+    exposures: bool = True,
+    sigma: float = ADMM["sigma"],
+    alpha: float = ADMM["alpha"],
 ) -> PortfolioProblem:
     """The factor-model instance of ``model.factor_instance(n, k)`` with the ADMM of ``model.ADMM``
     (equality rows boosted by ``EQ_SCALE``) and the forecast model ``mu_model``."""
@@ -229,8 +235,8 @@ def make_problem(
         neutral=mu_model == "neutral",
         exposures=exposures,
         rho=ADMM["rho"],
-        sigma=ADMM["sigma"],
-        alpha=ADMM["alpha"],
+        sigma=sigma,
+        alpha=alpha,
         rho_eq_scale=EQ_SCALE,
     )
 

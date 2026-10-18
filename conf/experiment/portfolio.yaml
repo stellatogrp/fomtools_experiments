@@ -11,3 +11,7 @@ problem:
   mu_model: box        # box | neutral | factor | fixed (portfolio/problem.py)
   s_max: null          # null: model.S_MAX
   exposures: true      # false: dense Sigma = F F' + d I, no exposure variables or rows
+  # ADMM: rho from model.ADMM; sigma and alpha are the paper's verified iteration
+  # (plain ADMM), not OSQP's 1e-6 and 1.6 that the CVXPYgen timings use (null: model.ADMM).
+  sigma: 1.0e-4
+  alpha: 1.0

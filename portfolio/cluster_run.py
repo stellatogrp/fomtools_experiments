@@ -40,6 +40,7 @@ def problem_from_cfg(cfg) -> PortfolioProblem:
         str(cfg.get("mu_model", "box")),
         S_MAX if s_max is None else float(s_max),
         bool(cfg.get("exposures", True)),
+        **{key: float(cfg[key]) for key in ("sigma", "alpha") if cfg.get(key) is not None},
     )
 
 
