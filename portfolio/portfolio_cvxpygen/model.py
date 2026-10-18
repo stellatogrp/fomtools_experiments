@@ -43,7 +43,6 @@ FACTORS = 100  # k: Sigma = F F' + sigma_ridge I with F of size N x k
 # truncated to [-S_MAX, S_MAX], which also gives the box the front end needs.
 IC = 0.1
 S_MAX = 3.0
-ITERATIONS = 200  # profile_codegen's MAX_ITERS spec, and the verified codegen row
 # Every solver stops itself with OSQP's test (eps_abs = TOL, eps_rel = 0, unscaled
 # residuals), checked every CHECK_TERMINATION iterations (OSQP's default), within
 # MAX_ITER iterations (OSQP's default cap). The fomtools solvers are generated with

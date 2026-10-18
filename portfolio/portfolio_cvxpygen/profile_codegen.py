@@ -22,12 +22,13 @@ import tempfile
 import time
 from pathlib import Path
 
-from portfolio_cvxpygen.model import FOM_OPTIONS, ITERATIONS, build, param_bounds
+from portfolio_cvxpygen.generate import termination
+from portfolio_cvxpygen.model import FOM_OPTIONS, build, param_bounds
 
 
 def stages(N: int, out: Path, prof: cProfile.Profile | None):
     from cvxpygen.canonicalizer import Canonicalizer
-    from fomtools.codegen import CodegenConfig, TerminationSpec
+    from fomtools.codegen import CodegenConfig
     from fomtools.codegen.emit import scaffold
     from fomtools.codegen.generate import extract_fom_ir
     from fomtools.codegen.harness import representative_params
@@ -36,7 +37,7 @@ def stages(N: int, out: Path, prof: cProfile.Profile | None):
     from fomtools.cvxpygen.qpdata import extract_qp_data
     from fomtools.cvxpygen.scaling import ruiz_for, scale_qp
 
-    config = CodegenConfig(termination=TerminationSpec(max_iters=ITERATIONS))
+    config = CodegenConfig(termination=termination())  # as generate.py's solvers
     times, state = {}, {}
 
     def run(name, fn):

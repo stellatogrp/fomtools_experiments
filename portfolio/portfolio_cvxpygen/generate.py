@@ -64,21 +64,25 @@ def generate_osqp(N: int) -> dict:
     return dict(wall_s=time.perf_counter() - start)
 
 
+def termination():
+    """The fomtools solvers' termination: OSQP's residual test at ``model.TOL``."""
+    from fomtools.codegen import TerminationKind, TerminationSpec
+
+    return TerminationSpec(
+        kind=TerminationKind.OBJECTIVE,
+        max_iters=MAX_ITER,
+        tol=TOL,
+        check_termination=CHECK_TERMINATION,
+    )
+
+
 def generate_fom(N: int, arm: str) -> dict:
     import fomtools.cvxpygen as fcpg
-    from fomtools.codegen import CodegenConfig, TerminationKind, TerminationSpec
+    from fomtools.codegen import CodegenConfig
 
     optimize = arm == "fom_opt"
     problem, x, _ = build(N)
-    config = CodegenConfig(
-        termination=TerminationSpec(
-            kind=TerminationKind.OBJECTIVE,
-            max_iters=MAX_ITER,
-            tol=TOL,
-            check_termination=CHECK_TERMINATION,
-        ),
-        agent_optimize_timeout_s=OPTIMIZE_TIMEOUT_S,
-    )
+    config = CodegenConfig(termination=termination(), agent_optimize_timeout_s=OPTIMIZE_TIMEOUT_S)
     start = time.perf_counter()
     with contextlib.chdir(OUT):
         result = fcpg.generate_solver(
