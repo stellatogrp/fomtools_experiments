@@ -98,7 +98,8 @@ def plot_stop(path, style: str) -> None:
             mean = np.array([float(values[n]["mean_iters"]) for n in sizes])
             top = np.array([float(values[n]["max_iters"]) for n in sizes])
             name = "CVXPYgen + FOMTools" if arm == "cpg_fom_opt" else label
-            ax_k.errorbar(sizes, mean, yerr=[np.zeros_like(mean), top - mean], color=color,
+            shift = {"cvxpy_osqp": 0.96, "cpg_osqp": 1.0, "cpg_fom_opt": 1.04}[arm]  # whiskers apart
+            ax_k.errorbar(sizes * shift, mean, yerr=[np.zeros_like(mean), top - mean], color=color,
                           marker="o", lw=spec["lw"], ms=spec["ms"], capsize=spec["ms"] / 2,
                           label=name)
         ax_t.set_ylabel("time per solve (ms)")
