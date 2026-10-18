@@ -1,5 +1,12 @@
 """Average solve time to a tolerance, for each number of assets N.
 
+Superseded by ``tolerance_stop``, in which every solver stops itself. This script
+times the solvers at iteration counts found beforehand, and assumes fomtools
+solvers generated with a fixed iteration count (``TerminationKind.MAX_ITERS``),
+as in ``out_factor_fixed200_pre_objective/``. ``generate`` now builds
+``TerminationKind.OBJECTIVE`` solvers, which stop at ``model.TOL`` on their own.
+Kept for ``rho_sweep --check`` and the archived results.
+
 Run from ``portfolio/`` in the ``algoverify`` conda env, after ``generate``:
 
     python -m portfolio_cvxpygen.tolerance [--N 10 20] [--tol 1e-4] [--rounds 7]

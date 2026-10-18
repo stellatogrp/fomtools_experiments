@@ -107,22 +107,54 @@ process.
 
 ## Solve time to a tolerance, every solver stopping itself
 
-Factor-model sweep (`model.SIZES`, outputs in `out_factor/`, `results_factor/`).
-`generate` builds the fomtools solvers with `TerminationKind.OBJECTIVE`: they stop
-on OSQP's unscaled residuals at `model.TOL = 1e-4`, checked every
-`model.CHECK_TERMINATION = 25` iterations, at most `model.MAX_ITER = 4000`. (The
-fixed-iteration `benchmark` and the search-based `tolerance` predate this; the
-`fom` arms of `benchmark` now stop at the tolerance too.)
+The experiment for the paper and slides: the factor-model sweep (`model.SIZES` =
+200 / 500 / 1000 / 3000, `model.FACTORS` = 100), outputs in `out_factor/` and
+`results_factor/`, results in `RESULTS_tolerance_objective.md` at the repository
+root. Run from `portfolio/` with the repository's `.venv` (`UV_NO_SYNC=1`; on
+macOS pin the SDK, e.g. `SDKROOT=.../MacOSX26.5.sdk`):
 
 ```bash
-python -m portfolio_cvxpygen.tolerance_stop    # -> results_factor/timings_stop.csv, out_factor/stop_n{N}.json
-python -m portfolio_cvxpygen.scaling_check     # OSQP iterations with Ruiz scaling per draw / nominal / off
+FOMTOOLS_CODEGEN_AGENT=1 python -m portfolio_cvxpygen.generate --force   # OBJECTIVE solvers, translated + optimized
+python -m portfolio_cvxpygen.tolerance_stop --rounds 3 --passes 3         # -> results_factor/timings_stop.csv, out_factor/stop_n{N}.json
+python -m portfolio_cvxpygen.plot --stop                                  # -> results_factor/portfolio_cvxpygen_stop_{paper,slides}.{pdf,png}, _stop_wide.csv
+python -m portfolio_cvxpygen.scaling_check                                # optional: OSQP iterations, Ruiz scaling per draw / nominal / off
 ```
 
-`tolerance_stop` runs every arm with OSQP's test (`eps_abs = 1e-4`, `eps_rel = 0`,
-`scaled_termination = False`, no polishing) and the same ADMM (rho = 1 fixed,
-adaptive rho off), and reports per solve the iterations at the stop and
-`max(pri_res, dua_res)` there, from the timed runs themselves. Each Python round
-of each arm runs in its own process. The CVXPYgen + OSQP Python wrapper resets
-OSQP's settings before every solve, so the script fixes rho through `ctypes` on
-the wrapper's own extension module (see `fixed_rho_osqp`).
+**Stopping test.** Every solver stops itself on the unscaled residuals of the
+canonical QP, `max(||Ax - clamp(Ax, l, u)||_inf, ||Px + q + A'y||_inf) <= 1e-4`
+(`model.TOL`), checked every 25 iterations (`model.CHECK_TERMINATION`, OSQP's
+default), at most 4000 (`model.MAX_ITER`). Iteration counts are multiples of 25.
+
+- fomtools: generated with `TerminationKind.OBJECTIVE` at these values.
+- OSQP: `eps_abs = 1e-4`, `eps_rel = 0`, `scaled_termination = False`, no
+  polishing, and `check_dualgap = False`. OSQP 1.x by default also stops only once
+  the duality gap is below `eps_abs`. That test costs 2x to 3.4x more iterations
+  at n >= 500 and is not part of the fomtools objective, so it is off. CVXPYgen
+  has no setter for it: the C driver writes `solver.settings->check_dualgap`.
+
+**Same ADMM.** rho = 1 fixed (`model.FOM_OPTIONS`, `model.OSQP_RHO`), adaptive rho
+off, sigma = 1e-6, alpha = 1.6, cold start. CVXPYgen generates OSQP at rho 0.1 and
+exposes neither rho nor adaptive rho, so `osqp_update_rho(1.0)` is called once
+before the first solve. Its Python wrapper resets the settings to OSQP's defaults
+before every solve, so `tolerance_stop.fixed_rho_osqp` writes rho, adaptive rho and
+`check_dualgap` back through `ctypes` on the wrapper's own extension module, which
+is outside CVXPYgen's public API. C and Python iteration counts agree for every
+solve, which confirms the two run the same solver.
+
+**Protocol.** 3 interleaved rounds per n. Each round runs every arm once:
+- C, through `bench_c` in `stop=` mode: 1 warm-up pass, then `--passes` timed
+  passes over the 100 draws;
+- Python, through `problem.solve`: 3 warm-up solves, then 1 pass, each in its own
+  process (two CVXPYgen wrappers are never loaded into one process).
+
+The reported time is the median of the per-round means. Iterations and
+`max(pri_res, dua_res)` at the stop are logged per solve from the same runs. A
+7-round, 20-pass run (`timings_stop_7r.csv`, OSQP with its default test) agrees
+with this protocol within 1% on the fomtools times.
+
+**Other scripts.** `benchmark` (a fixed 200 iterations) and `tolerance` (timed at
+iteration counts found beforehand) need solvers generated with
+`TerminationKind.MAX_ITERS`. Those solvers and their results are archived in
+`out_factor_fixed200_pre_objective/`. With the current `OBJECTIVE` solvers, the
+`fom` arms of `benchmark` would stop at the tolerance instead of running 200
+iterations.
