@@ -74,20 +74,6 @@ def main() -> None:
         rows.append(row)
     write("lasso_residual.csv", fields, rows, "lasso")
 
-    # Portfolio: <s>_mip_bound is the bound, <s>_mip the incumbent.
-    rows, fields = [], ["K"]
-    for v in ("box", "simplex"):
-        fields += [f"{v}_mip_bound", f"{v}_mip", f"{v}_gap", f"{v}_simulator1000", f"{v}_prob95"]
-    for i, K in enumerate(r["K"] for r in data["portfolio"]["box"]):
-        row = {"K": K}
-        for v in ("box", "simplex"):
-            r = data["portfolio"][v][i]
-            row.update({f"{v}_mip_bound": fmt(r["bound"]), f"{v}_mip": fmt(r["incumbent"]),
-                        f"{v}_gap": f"{r['gap']:.4f}", f"{v}_simulator1000": fmt(r["sample"]),
-                        f"{v}_prob95": fmt(r["prob95"])})
-        rows.append(row)
-    write("portfolio_residual.csv", fields, rows, "portfolio")
-
     # Network: <v>_simulator is the 10^3-sample max, as before.
     net = ["unscaled", "ruiz", "unscaled_momentum", "ruiz_momentum"]
     rows, fields = [], ["K"]
@@ -139,10 +125,6 @@ def main() -> None:
     first_better = next((r["K"] for r, s in zip(lasso["fista"], lasso["ista"]) if r["bound"] < s["bound"] - 1e-9), None)
     print(f"lasso: FISTA bound below ISTA from K={first_better}; equal for K<=2: "
           f"{all(abs(a['bound'] - b['bound']) < 1e-9 for a, b in zip(lasso['ista'][:2], lasso['fista'][:2]))}")
-    pf = data["portfolio"]
-    ratios = [s["bound"] / b["bound"] for s, b in zip(pf["simplex"], pf["box"])]
-    print(f"portfolio: simplex/box bound ratio min {min(ratios):.3f} max {max(ratios):.3f}; "
-          f"simplex below box at every K: {all(x < 1 for x in ratios)}")
     nw = data["network"]
     for K in (20, RUNS["network"][1]):
         vals = {v: nw[v][K - 1]["bound"] for v in nw}

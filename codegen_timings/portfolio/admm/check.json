@@ -1,9 +1,0 @@
-{
-  "numpy_vs_verify_residuals_box": 0.0,
-  "numpy_vs_verify_residuals_simplex": 0.0,
-  "oracle_vs_numpy_max_rel": 8.062669924138326e-16,
-  "state_dim": 51,
-  "params": {
-    "p0": 10
-  }
-}

@@ -1,7 +1,7 @@
 """Run one experiment variant (or, locally, every variant) through Hydra.
 
     python -m fomexp.run experiment=lasso variant=fista experiment.problem.m=30
-    python -m fomexp.run experiment=portfolio solver.time_limit=10 schedule.budget_hours=0.05
+    python -m fomexp.run experiment=lasso solver.time_limit=10 schedule.budget_hours=0.05
 
 Without ``run_dir=...`` the next ``<experiment dir>/results/run_NNN`` is created.
 The variant's outputs go to ``run_NNN/<variant>/``, which is also Hydra's run

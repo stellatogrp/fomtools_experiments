@@ -3,9 +3,7 @@
 One source of truth for the portfolio family: the factor model ``Sigma = F F' +
 d I`` written with exposures ``y = F'z`` (``factor_instance``), the constants in
 ``PROBLEM``, the return-forecast model (``IC``, ``S_MAX``), the drift of the
-holdings (``DRIFT``) and the ADMM step sizes (``ADMM``). The standalone
-verification (``portfolio/problem.py``, ``portfolio/cluster_run.py``) keeps its own
-dense instance; the two share only the drift box, ``cluster_run.drift_interval``.
+holdings (``DRIFT``, ``drift_interval``) and the ADMM step sizes (``ADMM``).
 
 The holdings ``x`` and the forecast ``mu`` are the CVXPY parameters; ``x``
 enters only the epigraph of ``||z - x||_1`` and ``mu`` only the linear cost, so
@@ -28,8 +26,6 @@ ROOT = PORTFOLIO.parent
 for path in (PORTFOLIO, ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
-
-from cluster_run import drift_interval  # noqa: E402
 
 # Factor-model sweep: its own output folders; results/ holds the archived dense
 # fixed-200 benchmark.
@@ -79,6 +75,13 @@ FOM_OPTIONS: dict = dict(rho=ADMM["rho"])
 # N = 200, 259 vs 95 at N = 500), and the generated C OSQP carries its adapted rho
 # from one solve to the next, drifting to 204 iterations at N = 500.
 OSQP_RHO = ADMM["rho"]
+
+
+def drift_interval(c: np.ndarray, r: float) -> tuple[np.ndarray, np.ndarray]:
+    """Exact per-asset range of ``c * (1 + r_i) / sum_j c_j (1 + r_j)`` over ``|r_j| <= r``."""
+    up, down = c * (1 + r), (1 - c) * (1 - r)
+    lo_num, lo_rest = c * (1 - r), (1 - c) * (1 + r)
+    return lo_num / (lo_num + lo_rest), up / (up + down)
 
 
 def factor_instance(N: int, k: int = FACTORS):
