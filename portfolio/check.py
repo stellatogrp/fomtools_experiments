@@ -20,7 +20,14 @@ from fomtools.verifier import Verifier
 from omegaconf import OmegaConf
 
 from portfolio_cvxpygen.model import build
-from problem import admm_residuals, admm_run, admm_step, balanced_warm_start, make_problem, sample_simplex
+from problem import (
+    admm_residuals,
+    admm_run,
+    admm_step,
+    balanced_warm_start,
+    make_problem,
+    sample_simplex,
+)
 
 CONF = OmegaConf.load(__file__.replace("portfolio/check.py", "conf/experiment/portfolio.yaml"))
 
