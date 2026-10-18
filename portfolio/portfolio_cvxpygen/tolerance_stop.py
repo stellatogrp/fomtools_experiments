@@ -6,7 +6,9 @@ Run from ``portfolio/`` after ``generate`` (fomtools solvers generated with
     python -m portfolio_cvxpygen.tolerance_stop [--N 200 500] [--rounds 7]
 
 One stopping test for every solver, OSQP's: ``eps_abs = model.TOL``,
-``eps_rel = 0``, unscaled residuals of the canonical problem, checked every
+``eps_rel = 0``, unscaled residuals of the canonical problem, and nothing else
+(OSQP's duality-gap test, on by default in OSQP 1.x, is off: ``check_dualgap =
+False``), checked every
 ``model.CHECK_TERMINATION`` iterations, at most ``model.MAX_ITER``. The same ADMM
 for every solver: rho fixed at ``model.OSQP_RHO`` (= the fomtools rho), adaptive
 rho off, sigma 1e-6, alpha 1.6, cold start, no polishing.
@@ -18,7 +20,7 @@ rho off, sigma 1e-6, alpha 1.6, cold start, no polishing.
     setting for rho or adaptive rho, so both levels call the embedded
     ``osqp_update_rho`` once before the first solve and turn adaptive rho off: the
     C driver directly, the Python wrapper through ``ctypes`` on its own extension
-    module (``fixed_rho_osqp``), because its ``cpg_solve`` resets the settings to
+    module (``fixed_rho_osqp``, which also turns ``check_dualgap`` off), because its ``cpg_solve`` resets the settings to
     OSQP's defaults before every solve.
 ``cpg_fom`` / ``cpg_fom_opt``
     CVXPYgen + fomtools, translated / AI-optimized, with the runtime ``tol``,
@@ -79,6 +81,7 @@ OSQP_STOP = dict(
     eps_abs=TOL,
     eps_rel=0.0,
     scaled_termination=False,
+    check_dualgap=False,
 )
 CVXPY_OSQP = dict(
     OSQP_STOP,
@@ -92,7 +95,10 @@ CVXPY_OSQP = dict(
 )
 #: The same test through the CVXPYgen wrappers' runtime settings.
 CPG_STOP = {
-    "cpg_osqp": dict(OSQP_STOP, scaled_termination=0, warm_start=False),
+    "cpg_osqp": dict(
+        {k: v for k, v in OSQP_STOP.items() if k != "check_dualgap"},  # no setter: ctypes
+        scaled_termination=0, warm_start=False,
+    ),
     "cpg_fom": dict(max_iter=MAX_ITER, check_termination=CHECK_TERMINATION, tol=TOL),
     "cpg_fom_opt": dict(max_iter=MAX_ITER, check_termination=CHECK_TERMINATION, tol=TOL),
 }
@@ -102,14 +108,16 @@ OFFSETS_C = r"""
 #include <stdio.h>
 #include "osqp_api_types.h"
 int main(void) {
-  printf("%zu %zu\n", offsetof(OSQPSettings, rho), offsetof(OSQPSettings, adaptive_rho));
+  printf("%zu %zu %zu\n", offsetof(OSQPSettings, rho), offsetof(OSQPSettings, adaptive_rho),
+         offsetof(OSQPSettings, check_dualgap));
   return 0;
 }
 """
 
 
-def _settings_offsets(N: int) -> tuple[int, int]:
-    """Byte offsets of ``rho`` and ``adaptive_rho`` in the generated ``OSQPSettings``."""
+def _settings_offsets(N: int) -> tuple[int, int, int]:
+    """Byte offsets of ``rho``, ``adaptive_rho`` and ``check_dualgap`` in the generated
+    ``OSQPSettings``."""
     solver_code = OUT / code_dir(N, "osqp") / "c" / "solver_code"
     build_dir = OUT / "bench_build" / f"n{N}_osqp_offsets"
     build_dir.mkdir(parents=True, exist_ok=True)
@@ -120,27 +128,29 @@ def _settings_offsets(N: int) -> tuple[int, int]:
         check=True, capture_output=True,
     )
     out = subprocess.run([str(build_dir / "offsets")], check=True, capture_output=True, text=True)
-    rho, adaptive = (int(v) for v in out.stdout.split())
-    return rho, adaptive
+    rho, adaptive, dualgap = (int(v) for v in out.stdout.split())
+    return rho, adaptive, dualgap
 
 
 def fixed_rho_osqp(N: int, rho: float = OSQP_RHO):
-    """The CVXPYgen + OSQP ``cpg_solve`` at a fixed rho, adaptive rho off.
+    """The CVXPYgen + OSQP ``cpg_solve`` at a fixed rho, adaptive rho off, and
+    the duality-gap test off.
 
     The wrapper's ``cpg_solve`` calls ``cpg_module.set_solver_default_settings()``
     before every solve, which puts ``settings.rho`` back to 0.1 and adaptive rho
-    on. The KKT factorization and ``rho_vec`` hold the value of the last
+    on (and ``check_dualgap`` on). The KKT factorization and ``rho_vec`` hold the value of the last
     ``osqp_update_rho``, so this calls it once at ``rho`` and then, after every
-    reset, writes ``rho`` and ``adaptive_rho = 0`` back into the settings, which is
+    reset, writes ``rho``, ``adaptive_rho = 0`` and ``check_dualgap = 0`` back into the settings, which is
     what the C driver does once."""
     module = sys.modules[load_cpg_solve(N, "osqp").__module__]
     ext = module.cpg_module
     lib = ctypes.CDLL(ext.__file__)
     solver = ctypes.addressof(ctypes.c_byte.in_dll(lib, "solver"))
     settings = ctypes.addressof(ctypes.c_byte.in_dll(lib, "settings"))
-    off_rho, off_adaptive = _settings_offsets(N)
+    off_rho, off_adaptive, off_dualgap = _settings_offsets(N)
     settings_rho = ctypes.c_double.from_address(settings + off_rho)
     settings_adaptive = ctypes.c_int.from_address(settings + off_adaptive)
+    settings_dualgap = ctypes.c_int.from_address(settings + off_dualgap)
     # solver.settings must point at the ``settings`` global for the writes to land.
     assert ctypes.c_void_p.from_address(solver).value == settings
     lib.osqp_update_rho.argtypes = [ctypes.c_void_p, ctypes.c_double]
@@ -157,6 +167,7 @@ def fixed_rho_osqp(N: int, rho: float = OSQP_RHO):
             ext.set_solver_default_settings()
             settings_rho.value = rho
             settings_adaptive.value = 0
+            settings_dualgap.value = 0
 
     module.cpg_module = Ext()
     return module.cpg_solve
@@ -285,14 +296,17 @@ def main() -> None:
             print(f"  {arm:12s} {level:6s} {med:12.2f} us  iters {row['mean_iters']:.1f}"
                   f" (max {row['max_iters']})  max res {row['max_res']:.2e}"
                   f"  unsolved {row['unsolved']}", flush=True)
-        (OUT / f"stop_n{N}.json").write_text(json.dumps(
-            dict(tol=TOL, check_termination=CHECK_TERMINATION, max_iter=MAX_ITER, **record)))
+        record_path = OUT / f"stop_n{N}.json"  # keeps the arms not re-run
+        earlier = json.loads(record_path.read_text()) if record_path.exists() else {}
+        record_path.write_text(json.dumps(
+            dict(earlier, tol=TOL, check_termination=CHECK_TERMINATION, max_iter=MAX_ITER, **record)))
 
     path = RESULTS / "timings_stop.csv"
     existing = []
-    if path.exists():  # keep rows for N not re-run
+    if path.exists():  # keep rows for (N, arm) not re-run
         with path.open() as f:
-            existing = [r for r in csv.DictReader(f) if int(r["N"]) not in args.N]
+            existing = [r for r in csv.DictReader(f)
+                        if int(r["N"]) not in args.N or r["arm"] not in args.arms]
     with path.open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=list(rows[0]))
         writer.writeheader()

@@ -28,7 +28,9 @@
  *                   iteration count; nothing is timed
  *   stop=<tol>,<check>,<max_iter>
  *                   every solver stops itself: OSQP with eps_abs = tol,
- *                   eps_rel = 0, unscaled residuals; fomtools (generated with
+ *                   eps_rel = 0, unscaled residuals, and check_dualgap = 0 (OSQP
+ *                   1.x also stops only once the duality gap is below eps_abs;
+ *                   off, its test is the residuals alone, as fomtools'); fomtools (generated with
  *                   TerminationKind.OBJECTIVE) with its runtime tol; both checked
  *                   every <check> iterations, at most <max_iter>. Timed as above;
  *                   the residual pass also prints each solve's iteration count
@@ -128,6 +130,7 @@ int main(int argc, char *argv[]) {
     F(_cpg_set_solver_eps_abs)(stop_tol);
     F(_cpg_set_solver_eps_rel)(0.0);
     F(_cpg_set_solver_scaled_termination)(0);
+    solver.settings->check_dualgap = 0; /* no cpg setter for it */
   } else {
     F(_cpg_set_solver_check_termination)(0);
     if (!per_solve) F(_cpg_set_solver_max_iter)(atoi(arg));

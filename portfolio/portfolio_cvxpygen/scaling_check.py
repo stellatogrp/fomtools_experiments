@@ -38,7 +38,7 @@ from portfolio_cvxpygen.rho_sweep import canonical, instance_data
 
 SETTINGS = dict(
     rho=OSQP_RHO, sigma=1e-6, alpha=1.6, adaptive_rho=False, polishing=False,
-    warm_starting=False, eps_abs=TOL, eps_rel=0.0, scaled_termination=False,
+    warm_starting=False, eps_abs=TOL, eps_rel=0.0, scaled_termination=False, check_dualgap=False,
     check_termination=CHECK_TERMINATION, max_iter=MAX_ITER, verbose=False,
 )
 
