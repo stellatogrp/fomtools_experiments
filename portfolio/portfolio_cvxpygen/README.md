@@ -82,7 +82,8 @@ resets the settings to OSQP's defaults before every solve, so
 `tolerance_stop.fixed_rho_osqp` writes rho, adaptive rho and `check_dualgap` back
 through `ctypes` on the wrapper's own extension module, which is outside
 CVXPYgen's public API. C and Python iteration counts agree for every solve, which
-confirms the two run the same solver.
+confirms the two run the same solver; `tolerance_stop` checks this for every
+CVXPYgen arm and n (`check_levels`) and stops if they differ.
 
 ## Timing protocol
 

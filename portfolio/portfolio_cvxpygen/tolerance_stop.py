@@ -312,6 +312,21 @@ def time_c(N: int, arm: str, holdings: Path, passes: int = C_PASSES) -> dict:
     )
 
 
+def check_levels(N: int, record: dict) -> None:
+    """Every CVXPYgen arm stops at the same iteration in C and in Python, solve by
+    solve: the same generated solver, the same settings (for ``cpg_osqp``, this is
+    what shows the ``fixed_rho_osqp`` override took effect)."""
+    for arm in C_ARMS:
+        if f"{arm}/c" not in record or f"{arm}/python" not in record:
+            continue
+        c, py = record[f"{arm}/c"]["iters"], record[f"{arm}/python"]["iters"]
+        diff = [k for k, (a, b) in enumerate(zip(c, py)) if a != b]
+        if len(c) != len(py) or diff:
+            k = diff[0] if diff else min(len(c), len(py))
+            raise AssertionError(f"N={N} {arm}: C and Python iterations differ at solve {k}"
+                                 f" ({len(diff)} solves differ, lengths {len(c)}, {len(py)})")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--N", type=int, nargs="+", default=list(SIZES))
@@ -372,8 +387,9 @@ def main() -> None:
                   f"  unsolved {row['unsolved']}", flush=True)
         record_path = OUT / f"stop_n{N}.json"  # keeps the arms not re-run
         earlier = json.loads(record_path.read_text()) if record_path.exists() else {}
-        record_path.write_text(json.dumps(
-            dict(earlier, tol=TOL, check_termination=CHECK_TERMINATION, max_iter=MAX_ITER, **record)))
+        record = dict(earlier, tol=TOL, check_termination=CHECK_TERMINATION, max_iter=MAX_ITER, **record)
+        check_levels(N, record)
+        record_path.write_text(json.dumps(record))
 
     path = RESULTS / "timings_stop.csv"
     existing = []
