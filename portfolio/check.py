@@ -42,7 +42,14 @@ def main() -> None:
     parser.add_argument("--iters", type=int, default=5000)
     args = parser.parse_args()
 
-    problem = make_problem(args.n, args.k, args.mu_model, exposures=not args.dense)
+    problem = make_problem(
+        args.n,
+        args.k,
+        args.mu_model,
+        exposures=not args.dense,
+        sigma=float(CONF.problem.sigma),
+        alpha=float(CONF.problem.alpha),
+    )
     n = problem.n
     rng = np.random.default_rng(123)
     print(f"n = {n}, k = {problem.k}, x in [{problem.x_lb.min():.4f}, {problem.x_ub.max():.4f}], "
