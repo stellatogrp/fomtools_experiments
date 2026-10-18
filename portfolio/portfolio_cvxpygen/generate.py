@@ -42,8 +42,8 @@ from portfolio_cvxpygen.model import (
     TOL,
     build,
     code_dir,
-    prefix,
     param_bounds,
+    prefix,
 )
 
 ARMS = ("osqp", "fom", "fom_opt")
