@@ -327,6 +327,21 @@ def check_levels(N: int, record: dict) -> None:
                                  f" ({len(diff)} solves differ, lengths {len(c)}, {len(py)})")
 
 
+def write_rows(path: Path, rows: list[dict]) -> None:
+    """Write ``rows`` to the CSV at ``path``, replacing its rows with the same
+    ``(N, arm, level)`` and keeping the others."""
+    existing = []
+    if path.exists():
+        new = {(row["N"], row["arm"], row["level"]) for row in rows}
+        with path.open() as f:
+            existing = [r for r in csv.DictReader(f)
+                        if (int(r["N"]), r["arm"], r["level"]) not in new]
+    with path.open("w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(existing + rows)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--N", type=int, nargs="+", default=list(SIZES))
@@ -392,15 +407,7 @@ def main() -> None:
         record_path.write_text(json.dumps(record))
 
     path = RESULTS / "timings_stop.csv"
-    existing = []
-    if path.exists():  # keep rows for (N, arm) not re-run
-        with path.open() as f:
-            existing = [r for r in csv.DictReader(f)
-                        if int(r["N"]) not in args.N or r["arm"] not in args.arms]
-    with path.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0]))
-        writer.writeheader()
-        writer.writerows(existing + rows)
+    write_rows(path, rows)
     (RESULTS / "machine_stop.json").write_text(json.dumps(machine(), indent=2))
     print(f"wrote {path}")
 
