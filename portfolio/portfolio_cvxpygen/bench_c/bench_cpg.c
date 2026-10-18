@@ -44,7 +44,7 @@
 
 #include "cpg_solve.h"
 #include "cpg_workspace.h"
-#if defined(MODE_OFF) && defined(BENCH_RHO)
+#if defined(MODE_OFF) /* the embedded OSQP: osqp_update_rho, the solver global */
 #include "osqp_api_functions.h"
 #include "workspace.h"
 #endif
@@ -106,7 +106,10 @@ int main(int argc, char *argv[]) {
 #if defined(MODE_OFF)
   F(_cpg_set_solver_default_settings)();
 #if defined(BENCH_RHO)
-  osqp_update_rho(&solver, BENCH_RHO);
+  if (osqp_update_rho(&solver, BENCH_RHO) != 0) {
+    fprintf(stderr, "osqp_update_rho(%g) failed\n", (double)BENCH_RHO);
+    return 1;
+  }
   solver.settings->adaptive_rho = OSQP_ADAPTIVE_RHO_UPDATE_DISABLED;
 #endif
   F(_cpg_set_solver_warm_starting)(0);
