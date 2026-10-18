@@ -352,7 +352,7 @@ def project(problem: PortfolioProblem, V: np.ndarray, X: np.ndarray) -> np.ndarr
 def admm_run(problem: PortfolioProblem, Pm: np.ndarray, K: int, s0: np.ndarray | None = None):
     """Run ADMM on the parameter rows ``Pm = [x, mu]``; return the final states and
     ``||H(s^k - s^{k-1})||_inf`` with shape ``(len(Pm), K)``."""
-    M, R, alpha = problem.M, problem.R, problem.alpha
+    M, R, alpha, H = problem.M, problem.R, problem.alpha, problem.H
     d = M.shape[1]
     X, Theta = split(problem, Pm)
     MU = problem.mu(Theta)
@@ -366,7 +366,7 @@ def admm_run(problem: PortfolioProblem, Pm: np.ndarray, K: int, s0: np.ndarray |
         rhs = problem.sigma * y - q + (2 * w - v) @ R @ M
         y_tilde = lhs.solve(np.ascontiguousarray(rhs.T)).T
         s_next = np.hstack([alpha * y_tilde + (1 - alpha) * y, v + alpha * (y_tilde @ M.T - w)])
-        out[:, k] = np.abs((s_next - s) @ problem.H.T).max(axis=1)
+        out[:, k] = np.abs((s_next - s) @ H.T).max(axis=1)
         s = s_next
     return s, out
 
