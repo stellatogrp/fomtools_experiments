@@ -7,11 +7,16 @@ single source of its constants), at a size the MIP backend can verify:
     subject to  f = F' h,  1' h = 1,  0 <= h <= z_bar,
 
 the factor model ``Sigma = F F' + d I`` written with the exposures ``f``. The
-parameters are the held portfolio ``x`` and the return forecast ``mu``, stacked
-as ``p = (x, mu)``. ``x`` is the equal-weight portfolio drifted by one period of
-returns in ``[-DRIFT, DRIFT]``: each coordinate lies in ``drift_interval`` and,
-on the capped simplex, ``1' x = 1``. ``mu`` lies in the forecast box
-``mu_bar +- S_MAX IC sigma`` (``model.mu_bounds``).
+parameters are the held portfolio ``x`` and the return forecast ``mu = mu_bar +
+G theta``, stacked as ``p = (x, theta)``. ``x`` is the equal-weight portfolio
+drifted by one period of returns in ``[-DRIFT, DRIFT]``: each coordinate lies in
+``drift_interval`` and ``1' x = 1``. The forecast model ``MU_MODELS`` sets ``G``
+and the set of ``theta``:
+
+    box       G = I, theta in +- s_max IC sigma (``model.mu_bounds``; s_max = S_MAX)
+    neutral   the same box, and 1' theta = 0 (cross-sectionally neutral updates)
+    factor    G = F, theta in +- s_max IC in R^k (forecasts move with the factors)
+    fixed     G = I, theta = 0: mu = mu_bar
 
 The l1 term is written with an epigraph variable ``tau >= |h - x|``, so the
 optimization variable is ``y = (h, tau, f)`` and the constraint rows are
@@ -44,7 +49,7 @@ comparison also Ruiz-equilibrates its canonical QP; this iteration runs on the
 problem as written.
 
 ADMM is warm-started at the primal-dual solution for the balanced portfolio
-``x = 1/n`` and the mean forecast ``mu = mu_bar``, computed with CVXPY, the same
+``x = 1/n`` and the mean forecast ``mu = mu_bar`` (``theta = 0``), computed with CVXPY, the same
 point for every parameter.
 """
 
@@ -58,7 +63,15 @@ import scipy.sparse as spa
 import scipy.sparse.linalg  # noqa: F401
 from fomtools.linearexpression import stack
 
-from portfolio_cvxpygen.model import ADMM, DRIFT, drift_interval, factor_instance, mu_bounds
+from portfolio_cvxpygen.model import (
+    ADMM,
+    DRIFT,
+    IC,
+    S_MAX,
+    drift_interval,
+    factor_instance,
+    forecast_scale,
+)
 
 EQUALITY = ("budget", "factor")
 # rho boost on the equality rows. The fomtools simulator runs in float32, and H
@@ -67,6 +80,7 @@ EQUALITY = ("budget", "factor")
 # Without the boost the simulator matches NumPy to 3e-7, and ADMM converges as
 # fast (worst residual over 1000 simplex samples at K = 100: 1.1e-3 vs 0.9e-3).
 EQ_SCALE = 1.0
+MU_MODELS = ("box", "neutral", "factor", "fixed")
 
 
 @dataclass(frozen=True)
@@ -83,8 +97,10 @@ class PortfolioProblem:
     rho_eq_scale: float
     x_lb: np.ndarray
     x_ub: np.ndarray
-    mu_lb: np.ndarray
-    mu_ub: np.ndarray
+    G: np.ndarray  # mu = mu_bar + G theta
+    th_lb: np.ndarray
+    th_ub: np.ndarray
+    neutral: bool  # 1' theta = 0
 
     @property
     def n(self) -> int:
@@ -96,11 +112,19 @@ class PortfolioProblem:
 
     @property
     def p_lb(self) -> np.ndarray:
-        return np.concatenate([self.x_lb, self.mu_lb])
+        return np.concatenate([self.x_lb, self.th_lb])
 
     @property
     def p_ub(self) -> np.ndarray:
-        return np.concatenate([self.x_ub, self.mu_ub])
+        return np.concatenate([self.x_ub, self.th_ub])
+
+    @property
+    def p_dim(self) -> int:
+        return self.n + int(self.G.shape[1])
+
+    def mu(self, Theta: np.ndarray) -> np.ndarray:
+        """Forecasts for the rows of ``Theta``."""
+        return self.mu_bar + Theta @ self.G.T
 
     @property
     def P(self) -> spa.csc_matrix:
@@ -162,12 +186,17 @@ class PortfolioProblem:
         return -H / self.alpha
 
 
-def make_problem(n: int, k: int, vary_mu: bool = True) -> PortfolioProblem:
+def make_problem(n: int, k: int, mu_model: str = "box", s_max: float = S_MAX) -> PortfolioProblem:
     """The factor-model instance of ``model.factor_instance(n, k)`` with the ADMM of ``model.ADMM``
-    (equality rows boosted by ``EQ_SCALE``)."""
+    (equality rows boosted by ``EQ_SCALE``) and the forecast model ``mu_model``."""
     data = factor_instance(n, k)
     x_lb, x_ub = drift_interval(np.full(n, 1.0 / n), DRIFT)
-    mu_lb, mu_ub = mu_bounds(n, k) if vary_mu else (data.mu, data.mu)
+    if mu_model == "factor":
+        G, th = data.F, s_max * IC * np.ones(k)
+    elif mu_model in ("box", "neutral", "fixed"):
+        G, th = np.eye(n), s_max * forecast_scale(n, k)[1] * (mu_model != "fixed")
+    else:
+        raise ValueError(f"mu_model {mu_model!r} not in {MU_MODELS}")
     return PortfolioProblem(
         F=data.F,
         d=float(data.d),
@@ -177,8 +206,10 @@ def make_problem(n: int, k: int, vary_mu: bool = True) -> PortfolioProblem:
         z_bar=data.z_bar,
         x_lb=np.maximum(x_lb, 0.0),
         x_ub=np.minimum(x_ub, data.z_bar),
-        mu_lb=mu_lb,
-        mu_ub=mu_ub,
+        G=G,
+        th_lb=-th,
+        th_ub=th,
+        neutral=mu_model == "neutral",
         rho=ADMM["rho"],
         sigma=ADMM["sigma"],
         alpha=ADMM["alpha"],
@@ -230,7 +261,7 @@ def balanced_warm_start(problem: PortfolioProblem) -> np.ndarray:
 
 
 def split(problem: PortfolioProblem, p):
-    """``(x, mu)`` from the stacked parameter (rows of an array, or an expression)."""
+    """``(x, theta)`` from the stacked parameter (rows of an array, or an expression)."""
     n = problem.n
     if isinstance(p, np.ndarray):
         return p[..., :n], p[..., n:]
@@ -243,7 +274,7 @@ def admm_step(vp, problem: PortfolioProblem, p, s):
     d = 2 * n + k
     B, rho = problem.blocks, problem.block_rho
     alpha = problem.alpha
-    x, mu = split(problem, p)
+    x, theta = split(problem, p)
     y, v = s[:d], s[d:]
     v_budget, v_factor = v[:1], v[1 : 1 + k]
     o = 1 + k
@@ -257,7 +288,8 @@ def admm_step(vp, problem: PortfolioProblem, p, s):
     rhs = (
         problem.sigma * y
         - problem.q0
-        + problem.E @ mu
+        + problem.E @ problem.mu_bar
+        + spa.csc_matrix(problem.E @ problem.G) @ theta
         + rho["budget"] * B["budget"].T @ (2.0 - v_budget)
         - rho["factor"] * B["factor"].T @ v_factor
         + rho["position"] * B["position"].T @ (2 * w_pos - v_pos)
@@ -297,7 +329,8 @@ def admm_run(problem: PortfolioProblem, Pm: np.ndarray, K: int, s0: np.ndarray |
     ``||H(s^k - s^{k-1})||_inf`` with shape ``(len(Pm), K)``."""
     M, R, alpha = problem.M, problem.R, problem.alpha
     d = M.shape[1]
-    X, MU = split(problem, Pm)
+    X, Theta = split(problem, Pm)
+    MU = problem.mu(Theta)
     lhs = spa.linalg.splu(problem.lhs)
     s = np.tile(balanced_warm_start(problem) if s0 is None else s0, (Pm.shape[0], 1))
     q = problem.q0[None, :] - MU @ problem.E.T
@@ -317,26 +350,31 @@ def admm_residuals(problem: PortfolioProblem, Pm: np.ndarray, K: int) -> np.ndar
     return admm_run(problem, Pm, K)[1]
 
 
-def sample_mu(problem: PortfolioProblem, size: int, rng: np.random.Generator) -> np.ndarray:
-    return rng.uniform(problem.mu_lb, problem.mu_ub, size=(size, problem.n))
+def sample_hyperplane(lb, ub, total, size: int, rng: np.random.Generator) -> np.ndarray:
+    """Uniform samples of ``{u : 1'u = total, lb <= u <= ub}``.
 
-
-def sample_simplex(problem: PortfolioProblem, size: int, rng: np.random.Generator) -> np.ndarray:
-    """Uniform samples of ``p = (x, mu)`` with ``x`` on ``{1'x = 1, x_lb <= x <= x_ub}``.
-
-    Draw the first ``n - 1`` coordinates of ``x`` uniformly from their intervals
-    and set the last to ``1 - sum``; keep the draws whose last coordinate lands in
-    its interval. The map to the first ``n - 1`` coordinates is linear and
-    one-to-one on the hyperplane, so the kept points are uniform on the polytope.
+    Draw the first ``m - 1`` coordinates uniformly from their intervals and set the
+    last to ``total - sum``; keep the draws whose last coordinate lands in its
+    interval. The map to the first ``m - 1`` coordinates is linear and one-to-one
+    on the hyperplane, so the kept points are uniform on the polytope.
     """
-    lb, ub = problem.x_lb, problem.x_ub
-    n, out, kept = problem.n, [], 0
+    m, out, kept = lb.size, [], 0
     while kept < size:
         batch = max(2 * (size - kept), 1024)
-        head = rng.uniform(lb[:-1], ub[:-1], size=(batch, n - 1))
-        last = 1.0 - head.sum(axis=1)
+        head = rng.uniform(lb[:-1], ub[:-1], size=(batch, m - 1))
+        last = total - head.sum(axis=1)
         ok = (last >= lb[-1]) & (last <= ub[-1])
         out.append(np.column_stack([head[ok], last[ok]]))
         kept += int(ok.sum())
-    X = np.vstack(out)[:size]
-    return np.hstack([X, sample_mu(problem, size, rng)])
+    return np.vstack(out)[:size]
+
+
+def sample_simplex(problem: PortfolioProblem, size: int, rng: np.random.Generator) -> np.ndarray:
+    """Uniform samples of ``p = (x, theta)``: ``x`` on ``{1'x = 1, x_lb <= x <= x_ub}``,
+    ``theta`` on its box (and ``1' theta = 0`` when ``neutral``)."""
+    X = sample_hyperplane(problem.x_lb, problem.x_ub, 1.0, size, rng)
+    if problem.neutral:
+        Theta = sample_hyperplane(problem.th_lb, problem.th_ub, 0.0, size, rng)
+    else:
+        Theta = rng.uniform(problem.th_lb, problem.th_ub, size=(size, problem.th_lb.size))
+    return np.hstack([X, Theta])

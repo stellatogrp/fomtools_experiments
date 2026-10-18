@@ -2,16 +2,17 @@
 
 The instance is ``problem.make_problem(n, factors)``, the CVXPYgen comparison's
 factor model (``portfolio_cvxpygen/model.py``) at the size in the config. The
-parameter is ``p = (x, mu)``: the held portfolio ``x``, last period's
+parameter is ``p = (x, theta)``: the held portfolio ``x``, last period's
 equal-weight portfolio after one period of returns in ``[-DRIFT, DRIFT]``,
 
     x_i = c_i (1 + r_i) / sum_j c_j (1 + r_j),   c = 1/n,  |r_j| <= DRIFT,
 
-and the return forecast ``mu`` in its box ``mu_bar +- S_MAX IC sigma`` (or fixed
-at ``mu_bar`` with ``vary_mu: false``). Each coordinate of ``x`` ranges over the
+and the forecast ``mu = mu_bar + G theta`` of ``problem.MU_MODELS`` (config
+``mu_model``, ``s_max``). Each coordinate of ``x`` ranges over the
 exact interval ``drift_interval`` gives, and ``1'x = 1``, one ``add_constraint``
 call. The set contains every drifted portfolio, and ADMM's warm start is the
-solution at ``x = 1/n``, ``mu = mu_bar``, a point of it.
+solution at ``x = 1/n``, ``mu = mu_bar``, a point of it. The ``neutral`` model adds
+``1' theta = 0``, a second ``add_constraint`` call.
 """
 
 from __future__ import annotations
@@ -32,7 +33,13 @@ from problem import (
 
 
 def problem_from_cfg(cfg) -> PortfolioProblem:
-    return make_problem(int(cfg.n), int(cfg.factors), bool(cfg.get("vary_mu", True)))
+    s_max = cfg.get("s_max")
+    return make_problem(
+        int(cfg.n),
+        int(cfg.factors),
+        str(cfg.get("mu_model", "box")),
+        S_MAX if s_max is None else float(s_max),
+    )
 
 
 def build(cfg, variant: str) -> VariantSpec:
@@ -53,12 +60,16 @@ def build(cfg, variant: str) -> VariantSpec:
 
     def setup(vp, mode, samples, length):
         if mode == "simulator":
-            p = vp.add_param(2 * n, samples=samples)
+            p = vp.add_param(problem.p_dim, samples=samples)
             s0 = vp.add_iterate(s0_val.size, init=s0_val)
         else:
-            p = vp.add_param(2 * n, lb=problem.p_lb, ub=problem.p_ub)
-            budget = np.concatenate([np.ones(n), np.zeros(n)])
+            p = vp.add_param(problem.p_dim, lb=problem.p_lb, ub=problem.p_ub)
+            m = problem.p_dim - n
+            budget = np.concatenate([np.ones(n), np.zeros(m)])
             vp.add_constraint(spa.csc_matrix(budget[None, :]) @ p == 1.0)
+            if problem.neutral:
+                neutral = np.concatenate([np.zeros(n), np.ones(m)])
+                vp.add_constraint(spa.csc_matrix(neutral[None, :]) @ p == 0.0)
             s0 = vp.add_iterate(s0_val.size, lb=s0_val, ub=s0_val)
         s = vp.iterate_trajectory(length)
         s[0] = s0
@@ -91,8 +102,10 @@ def build(cfg, variant: str) -> VariantSpec:
         s0=s0_val,
         x_lb=problem.x_lb,
         x_ub=problem.x_ub,
-        mu_lb=problem.mu_lb,
-        mu_ub=problem.mu_ub,
+        G=problem.G,
+        theta_lb=problem.th_lb,
+        theta_ub=problem.th_ub,
+        neutral=problem.neutral,
     )
     return VariantSpec(
         experiment="portfolio",

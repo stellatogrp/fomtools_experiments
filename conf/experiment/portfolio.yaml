@@ -8,4 +8,5 @@ variants: [simplex]
 problem:
   n: 10                # assets
   factors: 2           # k: Sigma = F F' + d I with F of size n x k
-  vary_mu: true        # false: mu fixed at mu_bar, only x varies
+  mu_model: box        # box | neutral | factor | fixed (portfolio/problem.py)
+  s_max: null          # null: model.S_MAX

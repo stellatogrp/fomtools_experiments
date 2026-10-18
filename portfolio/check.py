@@ -36,17 +36,18 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--n", type=int, default=int(CONF.problem.n))
     parser.add_argument("--k", type=int, default=int(CONF.problem.factors))
+    parser.add_argument("--mu-model", default=str(CONF.problem.mu_model))
     parser.add_argument("--samples", type=int, default=20)
     parser.add_argument("--iters", type=int, default=5000)
     args = parser.parse_args()
 
-    problem = make_problem(args.n, args.k)
+    problem = make_problem(args.n, args.k, args.mu_model)
     n = problem.n
     rng = np.random.default_rng(123)
     print(f"n = {n}, k = {problem.k}, x in [{problem.x_lb.min():.4f}, {problem.x_ub.max():.4f}], "
-          f"mu in [{problem.mu_lb.min():.3f}, {problem.mu_ub.max():.3f}]")
+          f"mu model {args.mu_model}, theta in [{problem.th_lb.min():.3f}, {problem.th_ub.max():.3f}]")
 
-    balanced = np.concatenate([np.ones(n) / n, problem.mu_bar])[None]
+    balanced = np.concatenate([np.ones(n) / n, np.zeros(problem.p_dim - n)])[None]
     print(f"warm start fixed-point residual at the balanced parameter: "
           f"{admm_residuals(problem, balanced, 5).max():.1e}")
 
@@ -56,7 +57,7 @@ def main() -> None:
         s, res = admm_run(problem, Pm, args.iters)
         h_ref = []
         for p in Pm:
-            params.value = p
+            params.value = np.concatenate([p[:n], problem.mu(p[n:])])
             cvx.solve(solver=cp.CLARABEL, tol_gap_abs=1e-11, tol_gap_rel=1e-11, tol_feas=1e-11)
             h_ref.append(z.value.copy())
         err = np.abs(s[:, :n] - np.array(h_ref)).max()
@@ -65,7 +66,7 @@ def main() -> None:
 
         vp = Verifier(method="simulator", obbt_solver=None)
         s0 = balanced_warm_start(problem)
-        p = vp.add_param(2 * n, samples=Pm)
+        p = vp.add_param(problem.p_dim, samples=Pm)
         traj = vp.iterate_trajectory(11)
         traj[0] = vp.add_iterate(s0.size, init=s0)
         for k in range(1, 11):

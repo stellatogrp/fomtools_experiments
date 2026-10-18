@@ -34,7 +34,7 @@ def build(variant: str, cfg) -> VariantSetup:
     boxes = ParameterBoxes(boxes=[ParameterBox("p0", lb, ub, 0.5 * (lb + ub))], state=s0)
 
     v = Verifier(method="simulator", obbt_solver=None)
-    p = v.add_param(2 * n, lb=lb, ub=ub)
+    p = v.add_param(problem.p_dim, lb=lb, ub=ub)
     s_init = v.add_iterate(s0.size, lb=s0, ub=s0)
     traj = v.iterate_trajectory(4)
     traj[0] = s_init
@@ -56,5 +56,5 @@ def build(variant: str, cfg) -> VariantSetup:
     batch = admm_run(problem, X, 50, s0)[1]
     single = np.vstack([admm_run(problem, pv[None, :], 50, s0)[1] for pv in X])
     checks = {"numpy_vs_verify_residuals_simplex": float(np.max(np.abs(single - batch)))}
-    info = dict(n=n, k=problem.k, vary_mu=bool(pcfg.get("vary_mu", True)), state_dim=int(s0.size))
+    info = dict(n=n, k=problem.k, mu_model=str(pcfg.get("mu_model", "box")), state_dim=int(s0.size))
     return VariantSetup(recording, boxes, numpy_solve, samples, checks=checks, info=info)
