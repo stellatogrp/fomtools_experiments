@@ -28,8 +28,7 @@ rho off, sigma 1e-6, alpha 1.6, cold start, no polishing.
 
 Iterations and residuals come from the timed runs themselves: per solve, the
 iteration count at the stop and ``max(pri_res, dua_res)`` there, at both levels
-(C: one extra untimed pass over the sequence). Timing as in ``benchmark``:
-interleaved rounds, the median of the per-round means, 3 warm-up solves and one
+(C: one extra untimed pass over the sequence). Timing: interleaved rounds, the median of the per-round means, 3 warm-up solves and one
 pass in Python, 1 warm-up and ``--passes`` (default ``C_PASSES``) timed passes in
 C. ``--iters-only`` arms run once, for their iteration counts and residuals, and
 are not timed. Two CVXPYgen wrappers are
@@ -46,6 +45,7 @@ import argparse
 import csv
 import ctypes
 import json
+import platform
 import re
 import subprocess
 import sys
@@ -55,7 +55,6 @@ from pathlib import Path
 import cvxpy as cp
 import numpy as np
 
-from portfolio_cvxpygen.benchmark import C_PASSES, WARMUP, build_c, machine
 from portfolio_cvxpygen.model import (
     CHECK_TERMINATION,
     MAX_ITER,
@@ -70,11 +69,17 @@ from portfolio_cvxpygen.model import (
     code_dir,
     holdings_sequence,
     load_cpg_solve,
+    prefix,
 )
 
 ARMS = ("cvxpy_osqp", "cpg_osqp", "cpg_fom", "cpg_fom_opt")
 C_ARMS = ("cpg_osqp", "cpg_fom", "cpg_fom_opt")
 GENERATED = {"cpg_osqp": "osqp", "cpg_fom": "fom", "cpg_fom_opt": "fom_opt"}
+#: ``bench_c`` build mode per C arm: OSQP at a fixed rho, or the fomtools solver.
+C_MODE = {"cpg_osqp": "OFF", "cpg_fom": "FOM", "cpg_fom_opt": "FOM"}
+BENCH_SRC = Path(__file__).parent / "bench_c"
+WARMUP = 3
+C_PASSES = 20
 
 #: OSQP's stopping test, as CVXPY's OSQP interface takes it.
 OSQP_STOP = dict(
@@ -235,6 +240,58 @@ def holdings_file(N: int) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     holdings_sequence(N).astype(np.float64).tofile(path)
     return path
+
+
+def build_c(N: int, arm: str) -> Path:
+    generated, mode = GENERATED[arm], C_MODE[arm]
+    build_dir = OUT / "bench_build" / f"n{N}_{arm}"
+    exe = build_dir / "bench_cpg"
+    gen_dir = OUT / code_dir(N, generated)
+    sources = [*gen_dir.rglob("*"), *BENCH_SRC.iterdir()]
+    newest = max(f.stat().st_mtime for f in sources if f.is_file())
+    # Rebuild when the generated solver or the driver changed since the last
+    # build: a stale binary would time a different solver.
+    if not exe.exists() or exe.stat().st_mtime < newest:
+        subprocess.run(
+            [
+                "cmake",
+                "-S", str(BENCH_SRC),
+                "-B", str(build_dir),
+                "-DCMAKE_BUILD_TYPE=Release",
+                f"-DGEN_DIR={gen_dir}",
+                f"-DPREFIX={prefix(N, generated)}",
+                f"-DMODE={mode}",
+                *([f"-DBENCH_RHO={OSQP_RHO}"] if mode == "OFF" else []),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(["cmake", "--build", str(build_dir), "--target", "bench_cpg", "-j"],
+                       check=True, capture_output=True)
+    return exe
+
+
+def machine() -> dict:
+    def sh(*cmd):
+        try:
+            return subprocess.run(cmd, capture_output=True, text=True).stdout.strip()
+        except OSError:
+            return ""
+
+    import cvxpygen
+    import osqp
+
+    return dict(
+        cpu=sh("sysctl", "-n", "machdep.cpu.brand_string") or platform.processor(),
+        os=platform.platform(),
+        compiler=sh("cc", "--version").splitlines()[0] if sh("cc", "--version") else "",
+        python=platform.python_version(),
+        numpy=np.__version__,
+        cvxpy=cp.__version__,
+        cvxpygen=getattr(cvxpygen, "__version__", "unknown"),
+        osqp=osqp.__version__,
+        date=time.strftime("%Y-%m-%d %H:%M:%S"),
+    )
 
 
 def time_c(N: int, arm: str, holdings: Path, passes: int = C_PASSES) -> dict:

@@ -18,12 +18,12 @@ is time per solve, C solid and Python dashed. Panel (b) is iterations to 1e-4, t
 mean with the largest as a whisker; the translated and optimized FOMTools solvers
 have identical iterations, so they share one line. The data for pgfplots is in
 `portfolio_cvxpygen_stop_wide.csv`. Reproduce with `python -m
-portfolio_cvxpygen.plot --stop`; the full recipe is in
+portfolio_cvxpygen.plot`; the full recipe is in
 `portfolio/portfolio_cvxpygen/README.md`.
 
 ## Setup
 
-- Factor model, draws and back-test as `benchmark.py`: 100 draws of `[x; mu]` per
+- Factor model and draws from `model.py` (`holdings_sequence`): 100 draws of `[x; mu]` per
   n, n = 200 / 500 / 1000 / 3000, cold start every solve.
 - The same ADMM for every arm: rho = 1 fixed, adaptive rho off, sigma = 1e-6,
   alpha = 1.6, rho boosted 1e3 on equality rows, no polishing. CVXPYgen generates
@@ -277,9 +277,9 @@ differ from the table above.
 
 - Archive of the pre-objective outputs: `portfolio/portfolio_cvxpygen/out_factor_fixed200_pre_objective/`
   (copies of `out_factor/` and `results_factor/` before regeneration). The
-  fixed-200 `benchmark.py` and the search-based `tolerance.py` need those solvers;
-  see the README.
-- Scripts: `tolerance_stop.py` (this run), `scaling_check.py`, `plot.py --stop`.
+  fixed-200 `benchmark.py` and the search-based `tolerance.py` that used those
+  solvers were removed afterwards (in git history before the portfolio unification).
+- Scripts: `tolerance_stop.py` (this run), `scaling_check.py`, `plot.py`.
   The C driver has a new mode, `stop=<tol>,<check>,<max_iter>`. `generate.py` and
   `model.py` now build OBJECTIVE solvers.
 - No fomtools bugs found. Nothing pushed.

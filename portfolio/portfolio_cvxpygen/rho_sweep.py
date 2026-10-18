@@ -12,11 +12,10 @@ start, and one sparse factorization of the KKT matrix per rho. Every instance of
 the back-test sequence runs as one column of a batch. An instance stops at the
 first iteration where both unscaled residuals of the canonical problem,
 ``||Ax - clamp(Ax, l, u)||_inf`` and ``||Px + q + A'y||_inf``, are at most
-``--tol``: the stopping test of ``tolerance``. The draws come from the same
+``--tol``: OSQP's test as in ``tolerance_stop``, checked every iteration. The draws come from the same
 distribution as the back-test sequence but another seed (``--seed``, default 2),
 so rho is not tuned on the instances it is timed on. Prints, per rho, the mean and
-largest iteration count; ``--check`` compares the counts at one rho with those
-of the generated translated solver (``out_factor/cpg_n{N}_fom``, built at rho 0.1).
+largest iteration count.
 """
 
 from __future__ import annotations
@@ -118,8 +117,6 @@ def main() -> None:
     parser.add_argument("--tol", type=float, default=1e-4)
     parser.add_argument("--seed", type=int, default=2,
                         help="draws for tuning; the back-test sequence uses seed 1")
-    parser.add_argument("--check", action="store_true",
-                        help="compare rho = 0.1 with the generated translated solver")
     args = parser.parse_args()
 
     for N in args.N:
@@ -130,13 +127,6 @@ def main() -> None:
             capped = int(np.sum(its > CAP))
             print(f"N={N} rho={rho:<6g} mean {its.mean():8.1f}  max {its.max():6d}"
                   + (f"  ({capped} not converged by {CAP})" if capped else ""), flush=True)
-        if args.check:
-            from portfolio_cvxpygen.tolerance import iterations_to_tol, python_arm
-
-            mine = iterations(qp, s, maps, V[:3], 0.1, args.tol)
-            solve = python_arm(N, "cpg_fom")
-            gen = [iterations_to_tol(solve, v, args.tol) for v in V[:3]]
-            print(f"N={N} check at rho 0.1: numpy {list(mine)} vs generated {gen}")
 
 
 if __name__ == "__main__":
