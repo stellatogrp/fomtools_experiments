@@ -37,11 +37,12 @@ def main() -> None:
     parser.add_argument("--n", type=int, default=int(CONF.problem.n))
     parser.add_argument("--k", type=int, default=int(CONF.problem.factors))
     parser.add_argument("--mu-model", default=str(CONF.problem.mu_model))
+    parser.add_argument("--dense", action="store_true", help="dense Sigma, no exposures")
     parser.add_argument("--samples", type=int, default=20)
     parser.add_argument("--iters", type=int, default=5000)
     args = parser.parse_args()
 
-    problem = make_problem(args.n, args.k, args.mu_model)
+    problem = make_problem(args.n, args.k, args.mu_model, exposures=not args.dense)
     n = problem.n
     rng = np.random.default_rng(123)
     print(f"n = {n}, k = {problem.k}, x in [{problem.x_lb.min():.4f}, {problem.x_ub.max():.4f}], "

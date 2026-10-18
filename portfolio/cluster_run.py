@@ -39,6 +39,7 @@ def problem_from_cfg(cfg) -> PortfolioProblem:
         int(cfg.factors),
         str(cfg.get("mu_model", "box")),
         S_MAX if s_max is None else float(s_max),
+        bool(cfg.get("exposures", True)),
     )
 
 
@@ -80,7 +81,7 @@ def build(cfg, variant: str) -> VariantSpec:
 
         return p, step
 
-    Sigma = problem.F @ problem.F.T + problem.d * np.eye(n)
+    Sigma = problem.Sigma
     info = dict(
         **{f"cfg_{k}": v for k, v in cfg.experiment.problem.items()},
         n=n,
@@ -106,6 +107,7 @@ def build(cfg, variant: str) -> VariantSpec:
         theta_lb=problem.th_lb,
         theta_ub=problem.th_ub,
         neutral=problem.neutral,
+        exposures=problem.exposures,
     )
     return VariantSpec(
         experiment="portfolio",

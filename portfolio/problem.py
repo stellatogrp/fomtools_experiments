@@ -6,7 +6,8 @@ single source of its constants), at a size the MIP backend can verify:
     minimize    (kappa/2) (||f||^2 + d ||h||^2) - mu' h + lambd ||h - x||_1
     subject to  f = F' h,  1' h = 1,  0 <= h <= z_bar,
 
-the factor model ``Sigma = F F' + d I`` written with the exposures ``f``. The
+the factor model ``Sigma = F F' + d I`` written with the exposures ``f``, or, with
+``exposures=False``, as the dense ``(kappa/2) h' Sigma h`` (no ``f``, no factor rows). The
 parameters are the held portfolio ``x`` and the return forecast ``mu = mu_bar +
 G theta``, stacked as ``p = (x, theta)``. ``x`` is the equal-weight portfolio
 drifted by one period of returns in ``[-DRIFT, DRIFT]``: each coordinate lies in
@@ -101,6 +102,7 @@ class PortfolioProblem:
     th_lb: np.ndarray
     th_ub: np.ndarray
     neutral: bool  # 1' theta = 0
+    exposures: bool  # variables f = F'h (True) or the dense Sigma = F F' + d I (False)
 
     @property
     def n(self) -> int:
@@ -109,6 +111,15 @@ class PortfolioProblem:
     @property
     def k(self) -> int:
         return int(self.F.shape[1])
+
+    @property
+    def kx(self) -> int:
+        """Number of exposure variables and rows: ``k``, or 0 with the dense ``Sigma``."""
+        return self.k if self.exposures else 0
+
+    @property
+    def Sigma(self) -> np.ndarray:
+        return self.F @ self.F.T + self.d * np.eye(self.n)
 
     @property
     def p_lb(self) -> np.ndarray:
@@ -128,8 +139,10 @@ class PortfolioProblem:
 
     @property
     def P(self) -> spa.csc_matrix:
-        """Hessian in ``y = (h, tau, f)``."""
-        n, k = self.n, self.k
+        """Hessian in ``y = (h, tau, f)``, or ``(h, tau)`` with the dense ``Sigma``."""
+        n, k = self.n, self.kx
+        if not self.exposures:
+            return spa.block_diag([self.kappa * self.Sigma, spa.csc_matrix((n, n))], "csc")
         return spa.block_diag(
             [self.kappa * self.d * spa.eye(n), spa.csc_matrix((n, n)), self.kappa * spa.eye(k)],
             "csc",
@@ -138,25 +151,27 @@ class PortfolioProblem:
     @property
     def q0(self) -> np.ndarray:
         """``q(mu) = q0 - E mu``."""
-        return np.concatenate([np.zeros(self.n), self.lambd * np.ones(self.n), np.zeros(self.k)])
+        return np.concatenate([np.zeros(self.n), self.lambd * np.ones(self.n), np.zeros(self.kx)])
 
     @property
     def E(self) -> spa.csc_matrix:
-        n, k = self.n, self.k
+        n, k = self.n, self.kx
         return spa.vstack([spa.eye(n), spa.csc_matrix((n + k, n))], "csc")
 
     @property
     def blocks(self) -> dict[str, spa.csc_matrix]:
-        """Constraint rows in the order budget, factor, position, sell, buy."""
-        n, k, eye = self.n, self.k, spa.eye(self.n)
+        """Constraint rows in the order budget, factor (with exposures), position, sell, buy."""
+        n, k, eye = self.n, self.kx, spa.eye(self.n)
         Znk, Znn = spa.csc_matrix((n, k)), spa.csc_matrix((n, n))
-        return {
-            "budget": spa.hstack([np.ones((1, n)), spa.csc_matrix((1, n + k))], "csc"),
-            "factor": spa.hstack([spa.csc_matrix(self.F.T), spa.csc_matrix((k, n)), -spa.eye(k)], "csc"),
-            "position": spa.hstack([eye, Znn, Znk], "csc"),
-            "sell": spa.hstack([eye, -eye, Znk], "csc"),
-            "buy": spa.hstack([eye, eye, Znk], "csc"),
-        }
+        blocks = {"budget": spa.hstack([np.ones((1, n)), spa.csc_matrix((1, n + k))], "csc")}
+        if self.exposures:
+            blocks["factor"] = spa.hstack(
+                [spa.csc_matrix(self.F.T), spa.csc_matrix((k, n)), -spa.eye(k)], "csc"
+            )
+        blocks["position"] = spa.hstack([eye, Znn, Znk], "csc")
+        blocks["sell"] = spa.hstack([eye, -eye, Znk], "csc")
+        blocks["buy"] = spa.hstack([eye, eye, Znk], "csc")
+        return blocks
 
     @property
     def block_rho(self) -> dict[str, float]:
@@ -186,7 +201,9 @@ class PortfolioProblem:
         return -H / self.alpha
 
 
-def make_problem(n: int, k: int, mu_model: str = "box", s_max: float = S_MAX) -> PortfolioProblem:
+def make_problem(
+    n: int, k: int, mu_model: str = "box", s_max: float = S_MAX, exposures: bool = True
+) -> PortfolioProblem:
     """The factor-model instance of ``model.factor_instance(n, k)`` with the ADMM of ``model.ADMM``
     (equality rows boosted by ``EQ_SCALE``) and the forecast model ``mu_model``."""
     data = factor_instance(n, k)
@@ -210,6 +227,7 @@ def make_problem(n: int, k: int, mu_model: str = "box", s_max: float = S_MAX) ->
         th_lb=-th,
         th_ub=th,
         neutral=mu_model == "neutral",
+        exposures=exposures,
         rho=ADMM["rho"],
         sigma=ADMM["sigma"],
         alpha=ADMM["alpha"],
@@ -234,13 +252,13 @@ def solve_cvxpy(problem: PortfolioProblem, x: np.ndarray, mu: np.ndarray):
     cp.Problem(cp.Minimize(objective), [budget, factor, pos_lo, pos_hi, sell, buy]).solve(
         solver="CLARABEL", tol_gap_abs=1e-12, tol_gap_rel=1e-12, tol_feas=1e-12
     )
-    y = np.concatenate([h.value, tau.value, f.value])
+    y = np.concatenate([h.value, tau.value, f.value][: 3 if problem.exposures else 2])
     # Inequality multipliers have a fixed sign convention; the equality ones are
     # recovered from stationarity, P y + q + M' dual = 0, rather than from CVXPY's
     # convention for equality duals.
     ineq = np.concatenate([pos_hi.dual_value - pos_lo.dual_value, sell.dual_value, -buy.dual_value])
     B = problem.blocks
-    M_eq = spa.vstack([B[b] for b in EQUALITY]).toarray()
+    M_eq = spa.vstack([B[b] for b in EQUALITY if b in B]).toarray()
     M_in = spa.vstack([B["position"], B["sell"], B["buy"]])
     grad = problem.P @ y + problem.q0 - problem.E @ mu + M_in.T @ ineq
     eq = np.linalg.lstsq(M_eq.T, -grad, rcond=None)[0]
@@ -270,7 +288,7 @@ def split(problem: PortfolioProblem, p):
 
 def admm_step(vp, problem: PortfolioProblem, p, s):
     """One ADMM iteration recorded on the verifier ``vp``: ``s^k`` from ``s^{k-1}``."""
-    n, k = problem.n, problem.k
+    n, k = problem.n, problem.kx
     d = 2 * n + k
     B, rho = problem.blocks, problem.block_rho
     alpha = problem.alpha
@@ -291,16 +309,17 @@ def admm_step(vp, problem: PortfolioProblem, p, s):
         + problem.E @ problem.mu_bar
         + spa.csc_matrix(problem.E @ problem.G) @ theta
         + rho["budget"] * B["budget"].T @ (2.0 - v_budget)
-        - rho["factor"] * B["factor"].T @ v_factor
         + rho["position"] * B["position"].T @ (2 * w_pos - v_pos)
         + rho["sell"] * B["sell"].T @ (2 * w_sell - v_sell)
         + rho["buy"] * B["buy"].T @ (2 * w_buy - v_buy)
     )
+    if k:
+        rhs = rhs - rho["factor"] * B["factor"].T @ v_factor
     y_tilde = vp.step.implicit_linear(rhs, output_mat=problem.lhs)
     v_next = stack(
-        [
-            v_budget + alpha * (B["budget"] @ y_tilde - 1.0),
-            v_factor + alpha * (B["factor"] @ y_tilde),
+        [v_budget + alpha * (B["budget"] @ y_tilde - 1.0)]
+        + ([v_factor + alpha * (B["factor"] @ y_tilde)] if k else [])
+        + [
             v_pos + alpha * (B["position"] @ y_tilde - w_pos),
             v_sell + alpha * (B["sell"] @ y_tilde - w_sell),
             v_buy + alpha * (B["buy"] @ y_tilde - w_buy),
@@ -311,7 +330,7 @@ def admm_step(vp, problem: PortfolioProblem, p, s):
 
 def project(problem: PortfolioProblem, V: np.ndarray, X: np.ndarray) -> np.ndarray:
     """Project the rows of ``V`` onto ``[l(x), u(x)]`` for the matching rows of ``X``."""
-    n, k = problem.n, problem.k
+    n, k = problem.n, problem.kx
     o = 1 + k
     return np.hstack(
         [

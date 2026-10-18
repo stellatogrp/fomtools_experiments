@@ -10,3 +10,4 @@ problem:
   factors: 2           # k: Sigma = F F' + d I with F of size n x k
   mu_model: box        # box | neutral | factor | fixed (portfolio/problem.py)
   s_max: null          # null: model.S_MAX
+  exposures: true      # false: dense Sigma = F F' + d I, no exposure variables or rows
