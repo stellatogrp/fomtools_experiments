@@ -1,19 +1,11 @@
-# OSQP-style ADMM on portfolio rebalancing, over the box and the capped simplex
-# (paper Sec. 6.3; portfolio/). Defaults are the paper's instance.
+# OSQP's ADMM on portfolio rebalancing over the drifted capped simplex (paper
+# Sec. 6.4; portfolio/). Every other constant (kappa, lambd, z_bar, d, the mu
+# model, the drift, rho, sigma, alpha) is the CVXPYgen comparison's, from
+# portfolio/portfolio_cvxpygen/model.py.
 name: portfolio
 dir: portfolio
-variants: [box, simplex]
+variants: [simplex]
 problem:
-  n: 5                 # assets
-  kappa: 1.0           # risk aversion
-  lambd: 0.01          # transaction cost
-  z_bar: 0.4           # position limit, the same for every asset
-  rho: 1.0
-  sigma: 1.0e-4
-  mu_high: 0.5         # mu ~ U[0, mu_high]
-  sigma_ridge: 0.1     # Sigma = F F' / n + sigma_ridge I
-  seed: 0
-  # null: x ranges over [0, z_bar]^n (box) or the capped simplex, as in the paper.
-  # r: x is the equal-weight portfolio drifted by one period of returns in [-r, r]
-  # (see portfolio/cluster_run.py); box = the exact per-asset ranges, simplex adds 1'x = 1.
-  drift: null
+  n: 10                # assets
+  factors: 2           # k: Sigma = F F' + d I with F of size n x k
+  vary_mu: true        # false: mu fixed at mu_bar, only x varies

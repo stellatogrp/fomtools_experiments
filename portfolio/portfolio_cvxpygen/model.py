@@ -127,17 +127,22 @@ def forecast_scale(N: int, k: int = FACTORS) -> tuple[np.ndarray, np.ndarray]:
     return data.mu, IC * sigma
 
 
+def mu_bounds(N: int, k: int = FACTORS) -> tuple[np.ndarray, np.ndarray]:
+    """The truncated forecast box ``mu_bar +- S_MAX * IC * sigma``."""
+    mu_bar, scale = forecast_scale(N, k)
+    return mu_bar - S_MAX * scale, mu_bar + S_MAX * scale
+
+
 def param_bounds(N: int, params: Parameters) -> dict:
     """Boxes for the front end: the verified drift box for ``x``, the truncated
     forecast box for ``mu``."""
-    mu_bar, scale = forecast_scale(N)
-    return {params.x: x_bounds(N), params.mu: (mu_bar - S_MAX * scale, mu_bar + S_MAX * scale)}
+    return {params.x: x_bounds(N), params.mu: mu_bounds(N)}
 
 
-def build(N: int):
+def build(N: int, k: int = FACTORS):
     """``(problem, params, z)``: the parametric CVXPY problem, its parameters ``[x; mu]``
     and its variable."""
-    data = factor_instance(N)
+    data = factor_instance(N, k)
     x = cp.Parameter(N, name="x")
     x.value = np.ones(N) / N
     mu = cp.Parameter(N, name="mu")

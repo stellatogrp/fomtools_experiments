@@ -2,6 +2,7 @@
 
     uv run python plots/export_paper_data.py
     uv run python plots/export_paper_data.py --only network   # rewrite one experiment's CSV
+    uv run python plots/export_paper_data.py --only portfolio --out results  # into another folder
 
 Uses the runs and K cut-offs of ``make_plots.RUNS`` and keeps the column names
 the tikz code in ``fomtools_paper/main.tex`` reads, so the figures pick up the
@@ -26,16 +27,18 @@ def fmt(x: float) -> str:
 
 
 ONLY: set[str] = set()
+OUT_DIR = PAPER_DATA
 
 
 def write(name: str, fields: list[str], rows: list[dict], experiment: str) -> None:
     if ONLY and experiment not in ONLY:
         return
-    with open(PAPER_DATA / name, "w", newline="") as f:
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    with open(OUT_DIR / name, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
         writer.writerows(rows)
-    print(f"wrote {PAPER_DATA / name} ({len(rows)} rows)")
+    print(f"wrote {OUT_DIR / name} ({len(rows)} rows)")
 
 
 def problem_info(run: Path, variant: str) -> dict:
@@ -51,14 +54,32 @@ def prob95(name: str, variant: str, k_max: int) -> list[float]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--only", nargs="*", default=[], choices=list(RUNS))
-    ONLY.update(parser.parse_args().only)
+    parser.add_argument("--out", type=Path, default=PAPER_DATA, help="folder for the CSVs")
+    args = parser.parse_args()
+    ONLY.update(args.only)
+    global OUT_DIR
+    OUT_DIR = args.out
     data = {}
     for name, (run, k_max, variants) in RUNS.items():
+        if ONLY and name not in ONLY:
+            continue
         data[name] = {v: load(REPO / run, v, k_max) for v in variants}
         for v in variants:
             for r, p in zip(data[name][v], prob95(name, v, k_max), strict=True):
                 r["prob95"] = p
 
+    if not ONLY or "lasso" in ONLY:
+        write_lasso(data)
+    write_portfolio(data)
+    if not ONLY or "network" in ONLY:
+        write_network(data)
+    if not ONLY or "rapdhg" in ONLY:
+        write_rapdhg(data)
+    if not ONLY:
+        facts(data)
+
+
+def write_lasso(data) -> None:
     # Lasso: <m>_mip is the certified bound (as before), <m>_simulator1000 the sample max,
     # <m>_prob95 the KL 95% quantile bound of kl_bounds.py.
     rows, fields = [], ["K"]
@@ -74,13 +95,16 @@ def main() -> None:
         rows.append(row)
     write("lasso_residual.csv", fields, rows, "lasso")
 
-    # Portfolio: <s>_mip_bound is the bound, <s>_mip the incumbent.
+
+
+def write_portfolio(data) -> None:
+    # Portfolio (simplex only): <s>_mip_bound is the bound, <s>_mip the incumbent.
     rows, fields = [], ["K"]
-    for v in ("box", "simplex"):
+    for v in ("simplex",):
         fields += [f"{v}_mip_bound", f"{v}_mip", f"{v}_gap", f"{v}_simulator1000", f"{v}_prob95"]
-    for i, K in enumerate(r["K"] for r in data["portfolio"]["box"]):
+    for i, K in enumerate(r["K"] for r in data.get("portfolio", {}).get("simplex", [])):
         row = {"K": K}
-        for v in ("box", "simplex"):
+        for v in ("simplex",):
             r = data["portfolio"][v][i]
             row.update({f"{v}_mip_bound": fmt(r["bound"]), f"{v}_mip": fmt(r["incumbent"]),
                         f"{v}_gap": f"{r['gap']:.4f}", f"{v}_simulator1000": fmt(r["sample"]),
@@ -88,6 +112,9 @@ def main() -> None:
         rows.append(row)
     write("portfolio_residual.csv", fields, rows, "portfolio")
 
+
+
+def write_network(data) -> None:
     # Network: <v>_simulator is the 10^3-sample max, as before.
     net = ["unscaled", "ruiz", "unscaled_momentum", "ruiz_momentum"]
     rows, fields = [], ["K"]
@@ -103,6 +130,9 @@ def main() -> None:
         rows.append(row)
     write("network_residual.csv", fields, rows, "network")
 
+
+
+def write_rapdhg(data) -> None:
     # rAPDHG: bound_<v>, sample1000_<v>, time_<v> (wall time per K, s), gap_<v>.
     run_c = REPO / RUNS["rapdhg"][0]
     ctl = ["R12", "R6"]
@@ -120,6 +150,9 @@ def main() -> None:
         rows.append(row)
     write("control_rapdhg.csv", fields, rows, "rapdhg")
 
+
+
+def facts(data) -> None:
     # ---- facts for the notes ----------------------------------------------------
     print("\n== facts")
     for name, by_v in data.items():
@@ -139,10 +172,6 @@ def main() -> None:
     first_better = next((r["K"] for r, s in zip(lasso["fista"], lasso["ista"]) if r["bound"] < s["bound"] - 1e-9), None)
     print(f"lasso: FISTA bound below ISTA from K={first_better}; equal for K<=2: "
           f"{all(abs(a['bound'] - b['bound']) < 1e-9 for a, b in zip(lasso['ista'][:2], lasso['fista'][:2]))}")
-    pf = data["portfolio"]
-    ratios = [s["bound"] / b["bound"] for s, b in zip(pf["simplex"], pf["box"])]
-    print(f"portfolio: simplex/box bound ratio min {min(ratios):.3f} max {max(ratios):.3f}; "
-          f"simplex below box at every K: {all(x < 1 for x in ratios)}")
     nw = data["network"]
     for K in (20, RUNS["network"][1]):
         vals = {v: nw[v][K - 1]["bound"] for v in nw}
