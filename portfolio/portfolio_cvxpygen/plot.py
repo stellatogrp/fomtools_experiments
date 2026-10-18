@@ -17,7 +17,10 @@ itself at 1e-4): (a) time per solve, C solid and Python dashed; (b) iterations t
 the tolerance, mean with the largest as a whisker. Two styles: ``paper`` (LaTeX
 serif, paper-size fonts) and ``slides`` (Helvetica Neue through XeLaTeX, large
 fonts). Writes ``portfolio_cvxpygen_stop_{paper,slides}.{pdf,png}`` and the wide
-CSV ``portfolio_cvxpygen_stop_wide.csv``.
+CSV ``portfolio_cvxpygen_stop_wide.csv``. ``slides_c`` is a single slide panel:
+time per solve of the generated C code, CVXPYgen + OSQP vs the two fomtools
+solvers, with the speedup of the optimized one at each n
+(``portfolio_cvxpygen_stop_slides_c.{pdf,png}``).
 """
 
 from __future__ import annotations
@@ -128,6 +131,35 @@ def plot_stop(path, style: str) -> None:
     print(f"wrote {RESULTS / f'portfolio_cvxpygen_stop_{style}.pdf'}")
 
 
+def plot_stop_slides_c(path) -> None:
+    rows = load_stop(path)
+    sizes = np.array(sorted(rows["cpg_osqp", "c"]))
+    spec = STYLES["slides"]
+    ms = {arm: np.array([float(rows[arm, "c"][n]["us_per_solve"]) / 1e3 for n in sizes])
+          for arm in ("cpg_osqp", "cpg_fom", "cpg_fom_opt")}
+    with plt.rc_context(spec["rc"]):
+        fig, ax = plt.subplots(figsize=(11, 6.5))
+        for arm, values in ms.items():
+            color, label = STOP_ARMS[arm]
+            ax.loglog(sizes, values, color=color, marker="o", lw=spec["lw"], ms=spec["ms"],
+                      label=label)
+        for n, a, b in zip(sizes, ms["cpg_osqp"], ms["cpg_fom_opt"]):
+            ax.annotate(f"{a / b:.1f}$\\times$", (n, b), textcoords="offset points",
+                        xytext=(0, -34), ha="center", color=STOP_ARMS["cpg_fom_opt"][0])
+        ax.set_xlabel("number of assets $n$")
+        ax.set_ylabel("time per solve, C (ms)")
+        ax.set_xticks(sizes, [str(n) for n in sizes])
+        ax.minorticks_off()
+        ax.set_ylim(ms["cpg_fom_opt"].min() / 2.2, ms["cpg_osqp"].max() * 1.6)
+        ax.grid(True, which="major", alpha=0.3)
+        ax.legend(loc="upper left", frameon=False)
+        fig.tight_layout()
+        for ext in ("pdf", "png"):
+            fig.savefig(RESULTS / f"portfolio_cvxpygen_stop_slides_c.{ext}", dpi=200, backend="pgf")
+        plt.close(fig)
+    print(f"wrote {RESULTS / 'portfolio_cvxpygen_stop_slides_c.pdf'}")
+
+
 def write_stop_wide(path) -> None:
     """One row per n: time (ms) per arm and level, mean and largest iterations per arm."""
     rows = load_stop(path)
@@ -157,13 +189,14 @@ def main() -> None:
     parser.add_argument("--stop", action="store_true",
                         help="plot timings_stop.csv (every solver stopping itself)")
     parser.add_argument("--csv", type=str, default=None, help="--stop: CSV to plot")
-    parser.add_argument("--style", nargs="+", choices=list(STYLES), default=list(STYLES))
+    parser.add_argument("--style", nargs="+", choices=[*STYLES, "slides_c"],
+                        default=[*STYLES, "slides_c"])
     args = parser.parse_args()
     if args.stop:
         path = args.csv or RESULTS / "timings_stop.csv"
         write_stop_wide(path)
         for style in args.style:
-            plot_stop(path, style)
+            plot_stop_slides_c(path) if style == "slides_c" else plot_stop(path, style)
         return
     suffix = "_tol" if args.tol else ""
 
