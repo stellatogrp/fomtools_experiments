@@ -1,0 +1,4 @@
+# Slurm resources for the della runs (Princeton; slurm/ via the group's slurm skill):
+# one variant per job, account bstellato, partition and QoS assigned by della from --time.
+cpus: 16
+mem: 32G
