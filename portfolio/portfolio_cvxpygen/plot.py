@@ -64,6 +64,14 @@ def load_stop(path):
     return rows
 
 
+def column(rows, arm, level, key, sizes, scale=1.0):
+    """``rows[arm, level][n][key] / scale`` per n, NaN where the CSV has no value
+    (an arm or size not run, or not timed)."""
+    values = rows.get((arm, level), {})
+    return np.array([float(values[n][key]) / scale if n in values and values[n][key] else np.nan
+                     for n in sizes])
+
+
 def plot_stop(path, style: str) -> None:
     rows = load_stop(path)
     sizes = np.array(sorted({n for values in rows.values() for n in values}))
@@ -72,18 +80,17 @@ def plot_stop(path, style: str) -> None:
         fig, (ax_t, ax_k) = plt.subplots(1, 2, figsize=spec["figsize"])
         for arm, (color, label) in STOP_ARMS.items():
             for level, ls, marker in (("c", "-", "o"), ("python", "--", "s")):
-                values = rows.get((arm, level), {})
-                ms_ = [float(values[n]["us_per_solve"]) / 1e3 if n in values and values[n]["us_per_solve"]
-                       else np.nan for n in sizes]
+                ms_ = column(rows, arm, level, "us_per_solve", sizes, 1e3)
                 if np.all(np.isnan(ms_)):
                     continue
                 ax_t.loglog(sizes, ms_, color=color, ls=ls, marker=marker, lw=spec["lw"],
                             ms=spec["ms"], mfc="white" if level == "python" else color)
             if arm == "cpg_fom":
                 continue  # same iterations as the optimized solver
-            values = rows[arm, "python"]
-            mean = np.array([float(values[n]["mean_iters"]) for n in sizes])
-            top = np.array([float(values[n]["max_iters"]) for n in sizes])
+            mean = column(rows, arm, "python", "mean_iters", sizes)
+            top = column(rows, arm, "python", "max_iters", sizes)
+            if np.all(np.isnan(mean)):
+                continue
             name = "CVXPYgen + FOMTools" if arm == "cpg_fom_opt" else label
             shift = {"cvxpy_osqp": 0.96, "cpg_osqp": 1.0, "cpg_fom_opt": 1.04}[arm]  # whiskers apart
             ax_k.errorbar(sizes * shift, mean, yerr=[np.zeros_like(mean), top - mean], color=color,
@@ -117,10 +124,15 @@ def plot_stop(path, style: str) -> None:
 
 def plot_stop_slides_c(path) -> None:
     rows = load_stop(path)
-    sizes = np.array(sorted(rows["cpg_osqp", "c"]))
+    arms = ("cpg_osqp", "cpg_fom", "cpg_fom_opt")
+    sizes = np.array(sorted({n for values in rows.values() for n in values}))
+    ms = {arm: column(rows, arm, "c", "us_per_solve", sizes, 1e3) for arm in arms}
+    timed = ~np.any(np.isnan(np.array(list(ms.values()))), axis=0)  # every arm timed in C
+    if not timed.any():
+        print("slides_c: no n with a C time for every CVXPYgen arm, skipped")
+        return
+    sizes, ms = sizes[timed], {arm: values[timed] for arm, values in ms.items()}
     spec = STYLES["slides"]
-    ms = {arm: np.array([float(rows[arm, "c"][n]["us_per_solve"]) / 1e3 for n in sizes])
-          for arm in ("cpg_osqp", "cpg_fom", "cpg_fom_opt")}
     with plt.rc_context(spec["rc"]):
         fig, ax = plt.subplots(figsize=(11, 6.5))
         for arm, values in ms.items():
@@ -154,11 +166,13 @@ def write_stop_wide(path) -> None:
             if (arm, level) in rows:
                 values = rows[arm, level]
                 header.append(f"{arm}_{level}_ms")
-                columns.append([float(values[n]["us_per_solve"]) / 1e3 if values[n]["us_per_solve"]
-                                else "" for n in sizes])
-        values = rows[arm, "python"]
-        header += [f"{arm}_mean_iters", f"{arm}_max_iters"]
-        columns += [[values[n]["mean_iters"] for n in sizes], [values[n]["max_iters"] for n in sizes]]
+                columns.append([float(values[n]["us_per_solve"]) / 1e3
+                                if n in values and values[n]["us_per_solve"] else "" for n in sizes])
+        if (arm, "python") in rows:  # empty where an n was not run
+            values = rows[arm, "python"]
+            header += [f"{arm}_mean_iters", f"{arm}_max_iters"]
+            columns += [[values[n][key] if n in values else "" for n in sizes]
+                        for key in ("mean_iters", "max_iters")]
     out = RESULTS / "portfolio_cvxpygen_stop_wide.csv"
     with open(out, "w", newline="") as f:
         writer = csv.writer(f)
