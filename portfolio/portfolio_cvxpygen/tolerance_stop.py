@@ -56,6 +56,7 @@ import cvxpy as cp
 import numpy as np
 
 from portfolio_cvxpygen.model import (
+    ADMM,
     CHECK_TERMINATION,
     MAX_ITER,
     N_SOLVES,
@@ -93,8 +94,8 @@ OSQP_STOP = dict(
 CVXPY_OSQP = dict(
     OSQP_STOP,
     rho=OSQP_RHO,
-    sigma=1e-6,
-    alpha=1.6,
+    sigma=ADMM["sigma"],
+    alpha=ADMM["alpha"],
     adaptive_rho=False,
     polishing=False,
     warm_starting=False,

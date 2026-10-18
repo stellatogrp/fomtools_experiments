@@ -26,9 +26,9 @@ import numpy as np
 import scipy.sparse as spa
 import scipy.sparse.linalg as spla
 
-from portfolio_cvxpygen.model import build, holdings_sequence, param_bounds
+from portfolio_cvxpygen.model import ADMM, build, holdings_sequence, param_bounds
 
-SIGMA, ALPHA, RHO_EQ_SCALE = 1e-6, 1.6, 1e3  # the admm builder defaults (OSQP's)
+SIGMA, ALPHA, RHO_EQ_SCALE = ADMM["sigma"], ADMM["alpha"], ADMM["rho_eq_scale"]
 CAP = 20000
 
 

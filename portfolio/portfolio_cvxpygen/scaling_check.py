@@ -25,22 +25,12 @@ import numpy as np
 import osqp
 import scipy.sparse as spa
 
-from portfolio_cvxpygen.model import (
-    CHECK_TERMINATION,
-    MAX_ITER,
-    OSQP_RHO,
-    SIZES,
-    TOL,
-    factor_instance,
-    holdings_sequence,
-)
+from portfolio_cvxpygen.model import SIZES, factor_instance, holdings_sequence
 from portfolio_cvxpygen.rho_sweep import canonical, instance_data
+from portfolio_cvxpygen.tolerance_stop import CVXPY_OSQP
 
-SETTINGS = dict(
-    rho=OSQP_RHO, sigma=1e-6, alpha=1.6, adaptive_rho=False, polishing=False,
-    warm_starting=False, eps_abs=TOL, eps_rel=0.0, scaled_termination=False, check_dualgap=False,
-    check_termination=CHECK_TERMINATION, max_iter=MAX_ITER, verbose=False,
-)
+# tolerance_stop's OSQP settings; warm_start is CVXPY's name for warm_starting.
+SETTINGS = dict({k: v for k, v in CVXPY_OSQP.items() if k != "warm_start"}, verbose=False)
 
 
 def iterations(N: int) -> dict[str, list[int]]:
