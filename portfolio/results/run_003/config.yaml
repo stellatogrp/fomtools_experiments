@@ -1,0 +1,48 @@
+experiment:
+  name: portfolio
+  dir: portfolio
+  variants:
+  - simplex
+  problem:
+    'n': 5
+    factors: 2
+    mu_model: box
+    s_max: null
+    exposures: true
+    sigma: 0.0001
+    alpha: 1.0
+solver:
+  mip_gap: 0.05
+  time_limit: 3600
+  mip_focus: 2
+  threads: 16
+  seed: 0
+  obbt_solver: gurobi
+  tighten_objective_bounds: null
+  convex_hull_cuts: false
+  cut_rounds: 1
+  save_logs: true
+  extra_params: {}
+  obbt_params: {}
+schedule:
+  k_max: 200
+  budget_hours: 20.0
+  build_margin_min: 10
+  sequential_warm_start: true
+  sample_start: true
+  n_start_samples: 10000
+  start_samples_seed: 0
+  run_mip: true
+simulator:
+  enabled: true
+  n_samples: 1000
+  seed: 0
+  k_max: 200
+  cross_check: true
+cluster:
+  cpus: 16
+  mem: 32G
+run_dir: null
+variant: null
+variant_index: null
+label: della_run_003_n5_x_mu_admm_paper

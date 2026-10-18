@@ -1,0 +1,6 @@
+- experiment=portfolio
+- cluster=della
+- experiment.problem.n=5
+- label=della_run_003_n5_x_mu_admm_paper
+- variant=simplex
+- run_dir=/scratch/gpfs/BSTELLATO/bs37/fomtools_portfolio_unify/fomtools_experiments/portfolio/results/run_003

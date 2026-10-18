@@ -1,0 +1,21 @@
+{
+  "experiment": "portfolio",
+  "run_id": "run_004",
+  "created_utc": "2026-10-18T15:14:27+00:00",
+  "label": "della_run_004_n5_x_mu_admm_osqp",
+  "overrides": [
+    "experiment=portfolio",
+    "cluster=della",
+    "experiment.problem.n=5",
+    "label=della_run_004_n5_x_mu_admm_osqp",
+    "experiment.problem.sigma=1.0e-6",
+    "experiment.problem.alpha=1.6"
+  ],
+  "variants": [
+    "simplex"
+  ],
+  "code": {
+    "fomtools_experiments": {},
+    "fomtools": {}
+  }
+}

@@ -1,0 +1,5 @@
+cluster=della
+experiment.problem.n=5
+label=della_run_004_n5_x_mu_admm_osqp
+experiment.problem.sigma=1.0e-6
+experiment.problem.alpha=1.6
