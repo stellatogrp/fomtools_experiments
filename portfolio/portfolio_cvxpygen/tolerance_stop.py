@@ -115,16 +115,18 @@ OFFSETS_C = r"""
 #include <stdio.h>
 #include "osqp_api_types.h"
 int main(void) {
-  printf("%zu %zu %zu\n", offsetof(OSQPSettings, rho), offsetof(OSQPSettings, adaptive_rho),
-         offsetof(OSQPSettings, check_dualgap));
+  OSQPSettings s;
+  printf("%zu %zu %zu %zu %zu\n", offsetof(OSQPSettings, rho), offsetof(OSQPSettings, adaptive_rho),
+         sizeof s.adaptive_rho, offsetof(OSQPSettings, check_dualgap), sizeof s.check_dualgap);
   return 0;
 }
 """
 
 
-def _settings_offsets(N: int) -> tuple[int, int, int]:
+def _settings_offsets(N: int) -> tuple[int, int, int, int, int]:
     """Byte offsets of ``rho``, ``adaptive_rho`` and ``check_dualgap`` in the generated
-    ``OSQPSettings``."""
+    ``OSQPSettings``, each integer field followed by its size (``OSQPInt`` is 8 bytes
+    with ``OSQP_USE_LONG``)."""
     solver_code = OUT / code_dir(N, "osqp") / "c" / "solver_code"
     build_dir = OUT / "bench_build" / f"n{N}_osqp_offsets"
     build_dir.mkdir(parents=True, exist_ok=True)
@@ -135,8 +137,8 @@ def _settings_offsets(N: int) -> tuple[int, int, int]:
         check=True, capture_output=True,
     )
     out = subprocess.run([str(build_dir / "offsets")], check=True, capture_output=True, text=True)
-    rho, adaptive, dualgap = (int(v) for v in out.stdout.split())
-    return rho, adaptive, dualgap
+    rho, adaptive, adaptive_size, dualgap, dualgap_size = (int(v) for v in out.stdout.split())
+    return rho, adaptive, adaptive_size, dualgap, dualgap_size
 
 
 def fixed_rho_osqp(N: int, rho: float = OSQP_RHO):
@@ -154,10 +156,11 @@ def fixed_rho_osqp(N: int, rho: float = OSQP_RHO):
     lib = ctypes.CDLL(ext.__file__)
     solver = ctypes.addressof(ctypes.c_byte.in_dll(lib, "solver"))
     settings = ctypes.addressof(ctypes.c_byte.in_dll(lib, "settings"))
-    off_rho, off_adaptive, off_dualgap = _settings_offsets(N)
+    off_rho, off_adaptive, size_adaptive, off_dualgap, size_dualgap = _settings_offsets(N)
+    c_osqp_int = {4: ctypes.c_int32, 8: ctypes.c_int64}
     settings_rho = ctypes.c_double.from_address(settings + off_rho)
-    settings_adaptive = ctypes.c_int.from_address(settings + off_adaptive)
-    settings_dualgap = ctypes.c_int.from_address(settings + off_dualgap)
+    settings_adaptive = c_osqp_int[size_adaptive].from_address(settings + off_adaptive)
+    settings_dualgap = c_osqp_int[size_dualgap].from_address(settings + off_dualgap)
     # solver.settings must point at the ``settings`` global for the writes to land.
     assert ctypes.c_void_p.from_address(solver).value == settings
     lib.osqp_update_rho.argtypes = [ctypes.c_void_p, ctypes.c_double]
