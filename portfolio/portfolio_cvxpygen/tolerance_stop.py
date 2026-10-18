@@ -247,27 +247,27 @@ def build_c(N: int, arm: str) -> Path:
     build_dir = OUT / "bench_build" / f"n{N}_{arm}"
     exe = build_dir / "bench_cpg"
     gen_dir = OUT / code_dir(N, generated)
+    defines = [
+        "-DCMAKE_BUILD_TYPE=Release",
+        f"-DGEN_DIR={gen_dir}",
+        f"-DPREFIX={prefix(N, generated)}",
+        f"-DMODE={mode}",
+        *([f"-DBENCH_RHO={OSQP_RHO}"] if mode == "OFF" else []),
+    ]
+    key_file = build_dir / "bench_defines.txt"
     sources = [*gen_dir.rglob("*"), *BENCH_SRC.iterdir()]
     newest = max(f.stat().st_mtime for f in sources if f.is_file())
-    # Rebuild when the generated solver or the driver changed since the last
-    # build: a stale binary would time a different solver.
-    if not exe.exists() or exe.stat().st_mtime < newest:
-        subprocess.run(
-            [
-                "cmake",
-                "-S", str(BENCH_SRC),
-                "-B", str(build_dir),
-                "-DCMAKE_BUILD_TYPE=Release",
-                f"-DGEN_DIR={gen_dir}",
-                f"-DPREFIX={prefix(N, generated)}",
-                f"-DMODE={mode}",
-                *([f"-DBENCH_RHO={OSQP_RHO}"] if mode == "OFF" else []),
-            ],
-            check=True,
-            capture_output=True,
-        )
+    # Rebuild when the generated solver, the driver or a -D value (rho) changed
+    # since the last build: a stale binary would time a different solver.
+    key = "\n".join(defines)
+    if (not exe.exists() or exe.stat().st_mtime < newest
+            or not key_file.exists() or key_file.read_text() != key):
+        (build_dir / "CMakeCache.txt").unlink(missing_ok=True)  # no cached -D values
+        subprocess.run(["cmake", "-S", str(BENCH_SRC), "-B", str(build_dir), *defines],
+                       check=True, capture_output=True)
         subprocess.run(["cmake", "--build", str(build_dir), "--target", "bench_cpg", "-j"],
                        check=True, capture_output=True)
+        key_file.write_text(key)
     return exe
 
 
