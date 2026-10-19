@@ -1,4 +1,4 @@
-# Generated code timings (paper §6.6)
+# Generated code timings (paper Sections 6.2–6.4)
 
 Embedded C solvers for every algorithm variant of the three verification
 experiments, generated on **exactly the instances and parameter sets that were
@@ -22,8 +22,9 @@ parameter samples.
 uv run python -m codegen_timings.run <exp> --check-only          # no agent; seconds
 uv run python -m codegen_timings.run <exp> --variants <variant>  # both agent phases
 uv run python -m codegen_timings.summarize                       # -> timings.csv
-uv run python -m codegen_timings.paper_csv                       # -> ../fomtools_paper/data/codegen_timing.csv (§6.6 table)
-uv run python -m codegen_timings.paper_csv --only portfolio network  # -> codegen_portfolio_scaling.csv (portfolio_cvxpygen, C level) and codegen_network_schedule.csv (network_schedule)
+uv run python -m codegen_timings.paper_csv                       # -> ../fomtools_paper/data/codegen_timing.csv (code generation tables)
+uv run python -m codegen_timings.network_schedule                # scheduled vs. unrolled momentum PDHG, 600 edges, K = 50
+uv run python -m codegen_timings.paper_csv --only network        # -> codegen_network_schedule.csv (network_schedule)
 ```
 
 `--check-only` compares fomtools' reference oracle on the extracted program
