@@ -6,7 +6,7 @@
 # Each run gets its own numbered folder <experiment dir>/results/run_NNN, with
 # one subfolder per variant (see fomexp/run.py).
 defaults:
-  - experiment: portfolio
+  - experiment: lasso
   - solver: gurobi
   - schedule: default
   - simulator: default

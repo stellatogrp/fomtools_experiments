@@ -21,7 +21,7 @@ from codegen_timings.common import (
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("experiment", choices=["lasso", "portfolio", "network", "rapdhg"])
+    parser.add_argument("experiment", choices=["lasso", "network", "rapdhg"])
     parser.add_argument("--variants", nargs="*", default=None)
     parser.add_argument("--check-only", action="store_true")
     parser.add_argument("--force", action="store_true")

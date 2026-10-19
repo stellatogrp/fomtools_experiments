@@ -39,7 +39,6 @@ AGENT_OPTIMIZE_TIMEOUT_S = 600
 #: experiment -> (experiment folder, verification run whose instance is used)
 RUNS = {
     "lasso": ("lasso/lasso_verify", "results/run_022"),
-    "portfolio": ("portfolio", "results/run_002"),
     "network": ("network", "results/run_005"),
     "rapdhg": ("control/rapdhg/verify", "results/run_001"),
 }

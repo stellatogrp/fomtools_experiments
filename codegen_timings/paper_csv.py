@@ -32,7 +32,6 @@ SCHEDULE = HERE / "network_schedule"
 ROWS = [
     ("lasso", "ista", "Lasso", "Lasso", "ISTA"),
     ("lasso", "fista", "Lasso", "", "FISTA"),
-    ("portfolio", "admm", "Portfolio", "Portfolio", "ADMM"),
     ("network", "unscaled", "Network", "Network", "PDHG"),
     ("network", "ruiz", "Network", "", "PDHG (Ruiz)"),
     ("network", "unscaled_momentum", "Network", "", "momentum PDHG"),

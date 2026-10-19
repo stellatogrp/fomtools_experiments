@@ -1,13 +1,12 @@
 # Generated code timings (paper §6.6)
 
-Embedded C solvers for every algorithm variant of the four verification
+Embedded C solvers for every algorithm variant of the three verification
 experiments, generated on **exactly the instances and parameter sets that were
 verified**, and timed against a direct NumPy loop at 200 iterations per solve.
 
 | Experiment | Verified run (instance source) | Solvers |
 |---|---|---|
 | lasso | `lasso/lasso_verify/results/run_022` (25 x 50, lambda 0.001) | `ista`, `fista` |
-| portfolio | `portfolio/results/run_002` (n = 10, drift 0.15, z̄ = 0.3) | `admm` (box and simplex share the iteration; checked on both sets) |
 | network | `network/results/run_005` (10 x 15, 49 edges, supply 6, eta 0.8/\|\|A\|\|) | `unscaled`, `ruiz`, `unscaled_momentum`, `ruiz_momentum` |
 | rapdhg | `control/rapdhg/verify/results/run_001` (horizon 5) | `R12`, `R6` |
 

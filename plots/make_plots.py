@@ -32,7 +32,6 @@ OUT = Path(__file__).resolve().parent
 #: experiment -> (run folder, K cut-off, variants in plotting order)
 RUNS = {
     "lasso": ("lasso/lasso_verify/results/run_022", 20, ["ista", "fista"]),
-    "portfolio": ("portfolio/results/run_002", 100, ["box", "simplex"]),
     "network": (
         "network/results/run_005",
         39,

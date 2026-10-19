@@ -21,7 +21,6 @@ from fomexp.paths import REPO
 
 DIRS = {
     "lasso": "lasso/lasso_verify",
-    "portfolio": "portfolio",
     "network": "network",
     "rapdhg": "control/rapdhg/verify",
 }
@@ -29,11 +28,6 @@ DIRS = {
 #: Wide-column templates: ``{v}`` is the variant; the value is (source, column).
 WIDE = {
     "lasso": {"{v}_mip": ("bounds", "bound"), "{v}_simulator": ("sim", "max")},
-    "portfolio": {
-        "{v}_mip_bound": ("bounds", "bound"),
-        "{v}_mip": ("bounds", "incumbent"),
-        "{v}_simulator": ("sim", "max"),
-    },
     "network": {"{v}_mip_bound": ("bounds", "bound"), "{v}_simulator": ("sim", "max")},
     "rapdhg": {
         "bound_{v}": ("bounds", "bound"),
