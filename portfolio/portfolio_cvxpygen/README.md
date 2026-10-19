@@ -8,9 +8,7 @@ repository root.
 
 ## Problem
 
-`model.py` is the single definition of the portfolio family, shared with the
-standalone verification (`portfolio/problem.py`, which builds the same problem at
-a small n and k):
+`model.py` is the single definition of the portfolio family:
 
 ```
 minimize  (kappa/2) (||y||^2 + d ||z||^2) - mu' z + lambd ||z - x||_1
@@ -115,9 +113,10 @@ results_factor/
   machine_stop.json         machine (CPU, compiler, versions) of each N's last run
   portfolio_cvxpygen_stop_*.{pdf,png}, portfolio_cvxpygen_stop_wide.csv
 results/                    archived: the dense-covariance, fixed-200-iteration sweep
-                            (N = 10 to 200) behind the paper's current
-                            codegen_portfolio_scaling.csv; its scripts (benchmark.py,
-                            check.py) are in git history
+                            (N = 10 to 200) behind codegen_portfolio_scaling.csv,
+                            superseded by the tolerance sweep above (the paper reads
+                            codegen_portfolio_tolerance.csv); its scripts
+                            (benchmark.py, check.py) are in git history
 ```
 
 The generated directories have flat names because CVXPYgen imports a code

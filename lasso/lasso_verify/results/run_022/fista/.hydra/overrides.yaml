@@ -1,0 +1,7 @@
+- experiment=lasso
+- run_dir=/nfs/sloanlab007/projects/pdopt_proj/vranjan/fomtools_experiments/lasso/lasso_verify/results/run_022
+- variant_index=1
+- experiment.problem.m=25
+- experiment.problem.n=50
+- experiment.problem.lambd=0.001
+- label=lasso sparse 25x50 lambda 0.001

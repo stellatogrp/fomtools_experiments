@@ -5,6 +5,8 @@ squares problem, verified with and without Ruiz equilibration. Real solvers
 equilibrate internally but check termination on the original problem; this
 experiment verifies the equilibrated method in exactly that way.
 
+This experiment is supplementary and is not part of the paper.
+
 ## Problem
 
 $$

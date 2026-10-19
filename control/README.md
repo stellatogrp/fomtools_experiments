@@ -16,7 +16,14 @@ control/
 ├── common/     the plant, the simulator, the plots, the code-generation pipeline
 ├── osqp/       ADMM, in a condensed and an uncondensed formulation
 └── rapdhg/     restarted accelerated PDHG, matrix free
+    ├── codegen/  the generated controller and its flights
+    └── verify/   worst-case verification on a small horizon-5 program
 ```
+
+The verification in `rapdhg/verify/` runs through the shared driver
+(`python -m fomexp.run experiment=rapdhg experiment.problem.horizon=5`). The
+paper's run is `rapdhg/verify/results/run_001`: rAPDHG with restart periods 12
+and 6 against plain PDHG.
 
 Each study runs as a module from its own directory, so `common` is reached by a
 short path shim in each study package rather than an environment variable:

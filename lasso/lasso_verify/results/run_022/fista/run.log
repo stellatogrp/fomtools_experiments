@@ -1,0 +1,4 @@
+[2026-10-14 19:38:49,024][fomtools.canonicalizers.obbt_handler][INFO] - bound tightening failed: OBBT model not solved to optimality
+[2026-10-14 19:38:49,026][fomtools.canonicalizers.obbt_handler][INFO] - i = 12, sense=maximize
+[2026-10-14 21:49:01,480][fomtools.canonicalizers.obbt_handler][INFO] - bound tightening failed: OBBT model not solved to optimality
+[2026-10-14 21:49:01,492][fomtools.canonicalizers.obbt_handler][INFO] - i = 46, sense=minimize

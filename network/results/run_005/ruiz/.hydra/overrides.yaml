@@ -1,0 +1,11 @@
+- experiment=network
+- run_dir=/nfs/sloanlab007/projects/pdopt_proj/vranjan/fomtools_experiments/network/results/run_005
+- variant_index=1
+- experiment.problem.ns=10
+- experiment.problem.nd=15
+- experiment.problem.edge_prob=0.3
+- experiment.problem.seed=285
+- experiment.problem.supply=6
+- experiment.problem.warm_start=center
+- experiment.problem.eta_scale=0.8
+- label=eta 0 8

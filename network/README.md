@@ -168,7 +168,8 @@ Momentum PDHG:
 ## Cluster instance
 
 The tables above are for the small default instance. The cluster runs use
-$n_s = 10$, $n_d = 15$ with three changes, set in `slurm/submit_all.sh`:
+$n_s = 10$, $n_d = 15$ (`experiment.problem.ns=10 experiment.problem.nd=15`) with
+three changes, passed as overrides to `python -m fomexp.run experiment=network`:
 
 - **Random bipartite graph:** each supply–demand edge is present with
   probability 0.3 (`edge_prob: 0.3`, seed 285, 49 edges). Any demand node with
@@ -176,9 +177,14 @@ $n_s = 10$, $n_d = 15$ with three changes, set in `slurm/submit_all.sh`:
   overtakes unscaled at about $K = 36$ (PDHG) and $K = 33$ (momentum) here; on
   the complete graph (`run_002`) it is still behind at $K = 60$.
 
-- **Scarce supply:** $b_s = 4$ at each node instead of 10.
+- **Scarce supply:** $b_s = 4$ at each node instead of 10 (`supply: 4`).
 - **Warm start at the box centre:** $s^0$ is the primal-dual solution at
   $x = -5$ (`warm_start: center`), not at the largest demand.
+
+The paper's run is `results/run_005`. It uses this instance with $b_s = 6$
+(`supply: 6`) and the larger step $\eta = 0.8 / \lVert [A_s; A_d] \rVert_2$
+(`eta_scale: 0.8`); see the root README for the command. The sampling analysis
+below is for the $b_s = 4$ runs.
 
 With supply 10, the warm start serves each demand node over a single edge and no
 supply or capacity binds. Each residual row then depends on essentially one
