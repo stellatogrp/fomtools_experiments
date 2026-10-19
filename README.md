@@ -157,8 +157,7 @@ uv run python -m codegen.run_implementations
 uv run python -m codegen.run_figures --reference figure8 --iterations 3 13 275 --no-gif
 ```
 
-The same comparison with ADMM is in [`control/osqp/`](control/osqp/). There the linear
-solve sets a ceiling on what code optimization can gain.
+The same study with ADMM, which is not in the paper, is in [`control/osqp/`](control/osqp/).
 
 #### Portfolio rebalancing (Section 6.5)
 

@@ -23,8 +23,8 @@ uv run python -m codegen_timings.run <exp> --check-only          # no agent; sec
 uv run python -m codegen_timings.run <exp> --variants <variant>  # both agent phases
 uv run python -m codegen_timings.summarize                       # -> timings.csv
 uv run python -m codegen_timings.paper_csv                       # -> ../fomtools_paper/data/codegen_timing.csv (code generation tables)
+uv run python -m codegen_timings.network_schedule                # scheduled vs. unrolled momentum PDHG, 600 edges, K = 50
 uv run python -m codegen_timings.paper_csv --only network        # -> codegen_network_schedule.csv (network_schedule)
-uv run python -m codegen_timings.paper_csv --only portfolio      # -> codegen_portfolio_scaling.csv, the archived fixed-200 portfolio_cvxpygen sweep
 ```
 
 `--check-only` compares fomtools' reference oracle on the extracted program
