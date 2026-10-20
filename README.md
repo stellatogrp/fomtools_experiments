@@ -2,7 +2,8 @@
 
 This repository is by Vinit Ranjan, Daniel Deza, Anushka Acharya, Jisun Park, and
 Bartolomeo Stellato, and contains the Python source code to reproduce the experiments in
-our paper "FOMTools: Development and AI-Assisted Code Generation for First-Order Methods."
+our paper ["FOMTools: Development and AI-Assisted Code Generation for First-Order
+Methods."](https://arxiv.org/abs/2610.26743)
 The experiments rely on our package [FOMTools](https://github.com/stellatogrp/fomtools).
 
 If you find this repository helpful in your publications, please consider citing our
@@ -12,7 +13,7 @@ paper and package:
 @article{ranjan2026fomtools,
   title   = {{FOMTools}: Development and {AI}-Assisted Code Generation for First-Order Methods},
   author  = {Ranjan, Vinit and Deza, Daniel and Acharya, Anushka and Park, Jisun and Stellato, Bartolomeo},
-  journal = {arXiv preprint arXiv:XXXX.XXXXX},  % TODO: arXiv ID
+  journal = {arXiv preprint arXiv:2610.26743},
   year    = {2026},
 }
 ```
