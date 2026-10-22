@@ -1,7 +1,0 @@
-make: Entering directory '/scratch/gpfs/BSTELLATO/dd7022/fomtools_codegen_runs/full_m325000_n1300000_k8_builtin/fista/openmp'
-cc -O3 -mcmodel=medium -fopenmp -Wall -Iinclude -Itest -c src/fom_solver.c -o fom_solver.o
-cc -O3 -mcmodel=medium -fopenmp -Wall -Iinclude -Itest fom_solver.o fom_ops.o fom_data.o fom_linsolve.o verify_main.o -o verify_bin -lm
-./verify_bin
-worst max-abs error over 8 samples: 1.403e-06 (tol 1.000e-05)
-VERIFY OK
-make: Leaving directory '/scratch/gpfs/BSTELLATO/dd7022/fomtools_codegen_runs/full_m325000_n1300000_k8_builtin/fista/openmp'

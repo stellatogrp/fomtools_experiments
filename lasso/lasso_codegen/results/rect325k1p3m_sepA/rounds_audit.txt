@@ -1,7 +1,0 @@
-round 1 job 15694033: clean
-round 2 job 15694033: clean
-round 3 job 15694033: clean
-round 4 job 15694033: clean
-round 5 job 15694033: clean
-round 6 job 15694033: clean
-round 7 job 15694033: clean
