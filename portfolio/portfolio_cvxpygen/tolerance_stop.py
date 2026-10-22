@@ -35,9 +35,12 @@ are not timed. Two CVXPYgen wrappers are
 not loaded into one Python process: every Python round of every arm is its own
 subprocess (``--worker``).
 
-Writes ``out_factor/stop_n{N}.json`` (per-solve iterations and residuals),
-``results_factor/timings_stop.csv`` and ``results_factor/machine_stop.json`` (the
-machine of each N's last run).
+Writes, per repetition (``--reps``, default 1 2 3: the agent-generated ``cpg_fom``
+and ``cpg_fom_opt`` solvers of each one; the OSQP arms are the same every time)
+into ``results_factor/`` for the first and ``results_factor/reps/rep<k>/`` for the
+others: ``stop_n{N}.json`` (per-solve iterations and residuals),
+``timings_stop.csv`` and ``machine_stop.json`` (the machine, fomtools commit and
+package versions of each N's last run).
 """
 
 from __future__ import annotations
@@ -64,7 +67,6 @@ from portfolio_cvxpygen.model import (
     OSQP_RHO,
     OUT,
     PORTFOLIO,
-    RESULTS,
     SIZES,
     TOL,
     build,
@@ -72,6 +74,9 @@ from portfolio_cvxpygen.model import (
     holdings_sequence,
     load_cpg_solve,
     prefix,
+    rep_suffix,
+    results_dir,
+    set_rep,
 )
 
 ARMS = ("cvxpy_osqp", "cpg_osqp", "cpg_fom", "cpg_fom_opt")
@@ -249,7 +254,7 @@ def holdings_file(N: int) -> Path:
 
 def build_c(N: int, arm: str) -> Path:
     generated, mode = GENERATED[arm], C_MODE[arm]
-    build_dir = OUT / "bench_build" / f"n{N}_{arm}"
+    build_dir = OUT / "bench_build" / f"n{N}_{arm}{rep_suffix(arm)}"
     exe = build_dir / "bench_cpg"
     gen_dir = OUT / code_dir(N, generated)
     defines = [
@@ -283,8 +288,16 @@ def machine() -> dict:
         except OSError:
             return ""
 
-    import cvxpygen
+    import importlib.metadata
+
+    import fomtools
     import osqp
+
+    # fomexp lives at the repository root, two levels up from this package.
+    root = str(Path(__file__).resolve().parents[2])
+    if root not in sys.path:
+        sys.path.append(root)
+    from fomexp.records import git_state
 
     return dict(
         cpu=sh("sysctl", "-n", "machdep.cpu.brand_string") or platform.processor(),
@@ -293,8 +306,12 @@ def machine() -> dict:
         python=platform.python_version(),
         numpy=np.__version__,
         cvxpy=cp.__version__,
-        cvxpygen=getattr(cvxpygen, "__version__", "unknown"),
+        cvxpygen=importlib.metadata.version("cvxpygen"),
         osqp=osqp.__version__,
+        fomtools=dict(
+            **git_state(Path(fomtools.__file__).resolve().parents[1]),
+            version=fomtools.__version__,
+        ),
         date=time.strftime("%Y-%m-%d %H:%M:%S"),
     )
 
@@ -365,13 +382,23 @@ def main() -> None:
                         help="timed passes over the sequence per C run")
     parser.add_argument("--iters-only", nargs="*", choices=ARMS, default=[],
                         help="arms run once for their iterations and residuals, not timed")
+    parser.add_argument("--reps", type=int, nargs="+", default=[1, 2, 3],
+                        help="repetitions of the agent-generated solvers to time")
     parser.add_argument("--worker", nargs=2, metavar=("N", "ARM"), help=argparse.SUPPRESS)
     args = parser.parse_args()
-    if args.worker:
+    if args.worker:  # the repetition comes in through PORTFOLIO_REP
         print(json.dumps(worker(int(args.worker[0]), args.worker[1])))
         return
+    for rep in args.reps:
+        set_rep(rep)
+        print(f"repetition {rep}", flush=True)
+        run(args)
 
-    RESULTS.mkdir(parents=True, exist_ok=True)
+
+def run(args) -> None:
+    """Time every arm at every N, for the current repetition."""
+    results = results_dir()
+    results.mkdir(parents=True, exist_ok=True)
     rows = []
     for N in args.N:
         holdings = holdings_file(N)
@@ -414,15 +441,15 @@ def main() -> None:
             print(f"  {arm:12s} {level:6s} {timing}  iters {row['mean_iters']:.1f}"
                   f" (max {row['max_iters']})  max res {row['max_res']:.2e}"
                   f"  unsolved {row['unsolved']}", flush=True)
-        record_path = OUT / f"stop_n{N}.json"  # keeps the arms not re-run
+        record_path = results / f"stop_n{N}.json"  # keeps the arms not re-run
         earlier = json.loads(record_path.read_text()) if record_path.exists() else {}
         record = dict(earlier, tol=TOL, check_termination=CHECK_TERMINATION, max_iter=MAX_ITER, **record)
         check_levels(N, record)
         record_path.write_text(json.dumps(record))
 
-    path = RESULTS / "timings_stop.csv"
+    path = results / "timings_stop.csv"
     write_rows(path, rows)
-    write_machines(RESULTS / "machine_stop.json", path, args.N, machine())
+    write_machines(results / "machine_stop.json", path, args.N, machine())
     print(f"wrote {path}")
 
 

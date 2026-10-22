@@ -1,10 +1,13 @@
-"""Plot the self-stopping experiment from ``results_factor/timings_stop.csv``.
+"""Plot the self-stopping experiment from the ``tolerance_stop`` repetitions.
 
 Run from ``portfolio/``:
 
     python -m portfolio_cvxpygen.plot
 
-Plots ``timings_stop.csv`` (``tolerance_stop``: every solver stops
+First merges ``timings_stop.csv`` of every repetition (``results_factor/`` and
+``results_factor/reps/rep<k>/``) into ``results_factor/timings_stop_median.csv``:
+per (n, arm, level), the median time per solve over the repetitions with its
+range, and the median iteration counts. Then plots that table (``tolerance_stop``: every solver stops
 itself at 1e-4): (a) time per solve, C solid and Python dashed; (b) iterations to
 the tolerance, mean with the largest as a whisker. Two styles: ``paper`` (LaTeX
 serif, paper-size fonts) and ``slides`` (Helvetica Neue through XeLaTeX, large
@@ -20,6 +23,7 @@ from __future__ import annotations
 import argparse
 import csv
 from collections import defaultdict
+from pathlib import Path
 
 import matplotlib
 
@@ -28,6 +32,37 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
 from portfolio_cvxpygen.model import RESULTS  # noqa: E402
+
+#: Columns of the merged table that are medians over the repetitions.
+MEDIAN_KEYS = ("us_per_solve", "mean_iters", "max_iters", "max_res")
+
+
+def merge_reps() -> Path:
+    """Median over the repetitions' ``timings_stop.csv``; returns the merged CSV."""
+    paths = [RESULTS / "timings_stop.csv", *sorted(RESULTS.glob("reps/rep*/timings_stop.csv"))]
+    groups: dict = defaultdict(list)
+    for path in (p for p in paths if p.exists()):
+        with open(path) as f:
+            for row in csv.DictReader(f):
+                groups[int(row["N"]), row["arm"], row["level"]].append(row)
+    out = RESULTS / "timings_stop_median.csv"
+    with open(out, "w", newline="") as f:
+        writer = None
+        for (n, arm, level), rows in sorted(groups.items()):
+            merged = dict(rows[0])
+            for key in MEDIAN_KEYS:
+                vals = [float(r[key]) for r in rows if r[key] != ""]
+                merged[key] = float(np.median(vals)) if vals else ""
+            times = [float(r["us_per_solve"]) for r in rows if r["us_per_solve"] != ""]
+            merged["us_min"] = min(times) if times else ""
+            merged["us_max"] = max(times) if times else ""
+            merged["reps"] = len(rows)
+            if writer is None:
+                writer = csv.DictWriter(f, fieldnames=list(merged))
+                writer.writeheader()
+            writer.writerow(merged)
+    print(f"wrote {out} (from {sum(p.exists() for p in paths)} repetitions)")
+    return out
 
 # Okabe-Ito hues (colour-blind safe), softened: a reference, OSQP, fomtools x 2.
 STOP_ARMS = {
@@ -187,7 +222,7 @@ def main() -> None:
     parser.add_argument("--style", nargs="+", choices=[*STYLES, "slides_c"],
                         default=[*STYLES, "slides_c"])
     args = parser.parse_args()
-    path = args.csv or RESULTS / "timings_stop.csv"
+    path = args.csv or merge_reps()
     write_stop_wide(path)
     for style in args.style:
         plot_stop_slides_c(path) if style == "slides_c" else plot_stop(path, style)

@@ -14,6 +14,7 @@ front end requires.
 from __future__ import annotations
 
 import importlib
+import os
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -31,6 +32,30 @@ for path in (PORTFOLIO, ROOT):
 # fixed-200 benchmark.
 OUT = Path(__file__).parent / "out_factor"
 RESULTS = Path(__file__).parent / "results_factor"
+
+#: Arms whose solvers an agent writes, so each repetition generates its own.
+AGENT_ARMS = ("fom", "fom_opt")
+#: The repetition this process works on (``set_rep``); worker subprocesses inherit
+#: it through ``PORTFOLIO_REP``.
+REP = int(os.environ.get("PORTFOLIO_REP", "1"))
+
+
+def set_rep(rep: int) -> None:
+    """Work on repetition ``rep``: its own agent-generated solvers and results."""
+    global REP
+    REP = rep
+    os.environ["PORTFOLIO_REP"] = str(rep)
+
+
+def rep_suffix(arm: str) -> str:
+    """``_rep<k>`` for an agent-generated arm of repetition k > 1, else empty."""
+    arm = arm.removeprefix("cpg_")
+    return f"_rep{REP}" if REP > 1 and arm in AGENT_ARMS else ""
+
+
+def results_dir() -> Path:
+    """``results_factor/`` for repetition 1, ``results_factor/reps/rep<k>/`` otherwise."""
+    return RESULTS if REP == 1 else RESULTS / "reps" / f"rep{REP}"
 
 SIZES = (200, 500, 1000, 3000)
 FACTORS = 100  # k: Sigma = F F' + sigma_ridge I with F of size N x k
@@ -158,12 +183,12 @@ def build(N: int):
 
 def code_dir(N: int, arm: str) -> str:
     """Generated CVXPYgen directory beneath ``OUT``, which is also its module name."""
-    return f"cpg_n{N}_{arm}"
+    return f"cpg_n{N}_{arm}{rep_suffix(arm)}"
 
 
 def prefix(N: int, arm: str) -> str:
     """Unique CVXPYgen symbol prefix, so several generated wrappers can share one process."""
-    return f"{arm}{N}_"
+    return f"{arm}{N}{rep_suffix(arm).replace('_rep', 'r')}_"
 
 
 def load_cpg_solve(N: int, arm: str):
