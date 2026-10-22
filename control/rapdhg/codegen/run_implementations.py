@@ -27,14 +27,16 @@ Needs ``codegen.generate`` to have emitted both solvers.  Writes
 
 from __future__ import annotations
 
-from codegen.study import MAX_ITERS, build
+from pathlib import Path
+
+from codegen.study import MAX_ITERS, build, rep_out
 from common import study as pipeline
 
 #: A conservative lower bound on what one iteration can cost in any arm, in
 #: microseconds.  Used only to keep the budget grid inside the schedule tables;
 #: it is deliberately below anything measured, because being wrong in this
 #: direction drops a budget and being wrong in the other direction stops a run.
-FLOOR_US_PER_ITERATION = 0.11
+FLOOR_US_PER_ITERATION = 0.04  # the rerun's fastest solvers: 0.066 us
 
 #: Compute budgets per sampling instant, in microseconds.  The grid spans two
 #: regimes.  Tracking alone is settled within a few hundred microseconds by
@@ -71,13 +73,16 @@ def affordable(budgets, max_iters: int) -> list[float]:
     return keep
 
 
-def main() -> None:
+def main(argv=None) -> Path:
+    """Fly every implementation; returns ``implementations.csv``."""
     parser = pipeline.parser()
     parser.description = __doc__
     parser.set_defaults(budgets=list(BUDGETS_US), figure_budget=40.0)
-    args = parser.parse_args()
+    parser.add_argument("--rep", type=int, default=1, help="repetition; 2, 3, ... in out/reps/")
+    args = parser.parse_args(argv)
     args.budgets = affordable(args.budgets, MAX_ITERS)
-    pipeline.run_implementations(build(), args)
+    pipeline.run_implementations(build(rep=args.rep), args)
+    return rep_out(args.rep) / "implementations.csv"
 
 
 if __name__ == "__main__":

@@ -9,12 +9,24 @@ that is nonzero on every K-th iteration.
 
 ## Running it
 
+From `control/rapdhg/`:
+
 ```
-python -m codegen.check_against_fomtools    # the controller is the recorded algorithm
-python -m codegen.generate --max-iters 512  # both C solvers (FOMTOOLS_CODEGEN_AGENT=1)
-python -m codegen.run_implementations       # per-iteration cost of each implementation
-python -m codegen.run_figures --reference figure8 --iterations 3 13 275 --no-gif   # paper figure
+uv run python -m codegen.check_against_fomtools                          # the controller is the recorded algorithm
+FOMTOOLS_CODEGEN_AGENT=1 uv run python -m codegen.run --force            # the paper: 3 repetitions, all steps
 ```
+
+`codegen.run` does, for each repetition (`--reps`, default 1 2 3): `codegen.generate
+--max-iters 512` (both agent phases; code optimization in rounds), `codegen.extend_tables`
+(tables to `study.MAX_ITERS` = 65536, keeping every source the agent wrote),
+`codegen.run_implementations` (each implementation's cost per iteration, flown over
+the budget grid), and `codegen.run_figures --reference figure8` (the paper figure at
+a 40 us budget, with the iterations that budget buys). Each step also runs on its own
+with `--rep k`. Repetition k works in `out/reps/rep<k>/` (repetition 1 in `out/`);
+the numbers go to the tracked `results/` (`results/reps/rep<k>/`):
+`implementations.csv`, `OPTIMIZATIONS.md`, the figure PDFs and `manifest.json`
+(fomtools commit, agent times and rounds, cost per iteration of each implementation,
+the iterations behind the figure).
 
 ## Reference
 
@@ -25,7 +37,7 @@ The figure eight, flown from its position and velocity at time zero:
 with `a = 1 m`, `c = 0.4 m`, `h = 1 m`, and `w = 2 pi / 4.0`. At this period the path
 asks for about 31 degrees of tilt at its peaks, so the bound is active only there.
 
-## Result
+## Result (the archived run, before the rerun)
 
 | implementation | us/iteration | vs NumPy |
 |---|---:|---:|

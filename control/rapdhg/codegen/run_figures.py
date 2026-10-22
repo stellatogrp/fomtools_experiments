@@ -14,7 +14,7 @@ overwrites the reported results.
     python -m codegen.run_figures                       # quasi-periodic, 63 us
     python -m codegen.run_figures --budget 100
     python -m codegen.run_figures --reference figure8
-    python -m codegen.run_figures --reference figure8 --iterations 3 13 275 --no-gif  # paper figure
+    python -m codegen.run_figures --reference figure8 --no-gif   # paper figure (40 us budget)
 
 Writes ``figures_<reference>_flight.pdf``, ``figures_<reference>_error.pdf``, and
 ``figures_<reference>.gif`` to ``out/``.
@@ -75,16 +75,18 @@ def parser() -> argparse.ArgumentParser:
         default=None,
         help="iteration count per arm, in arm order; overrides the count the budget buys",
     )
+    p.add_argument("--rep", type=int, default=1, help="repetition; 2, 3, ... in out/reps/")
     return p
 
 
-def main() -> None:
-    args = parser().parse_args()
+def main(argv=None) -> dict:
+    """Draw the figures; returns their paths and each arm's iterations and cost."""
+    args = parser().parse_args(argv)
     ref = REFERENCES[args.reference](args.duration, args.period)
 
     # The reference has to go in at build time: the generated arms take their
     # cost vector from the study's params_at, which closes over it.
-    study = build(reference=ref)
+    study = build(reference=ref, rep=args.rep)
     arms = pipeline.build_arms(study)
 
     print(
@@ -95,12 +97,13 @@ def main() -> None:
         f"{'implementation':<16}{'us/iteration':>13}{'iterations':>12}   outcome"
         f"{'':16}max tilt   over {pipeline.TILT_LIMIT_DEG:.0f} deg"
     )
-    rollouts, labels, colors = [], [], []
+    rollouts, labels, colors, counts = [], [], [], {}
     if args.iterations is not None and len(args.iterations) != len(arms):
         raise SystemExit(f"--iterations needs {len(arms)} counts, one per arm")
     for i, arm in enumerate(arms):
         count = arm.iterations_for(args.budget) if args.iterations is None else args.iterations[i]
         roll = closed_loop(arm.controller, ref, count, duration=args.duration)
+        counts[arm.name] = dict(iterations=count, us_per_iteration=float(arm.us_per_iteration))
         rollouts.append(roll)
         labels.append(f"{DISPLAY.get(arm.name, arm.name)} ({count} iterations)")
         colors.append(pipeline.COLORS[arm.name])
@@ -143,6 +146,12 @@ def main() -> None:
                 show_tilt=True,
             ),
         )
+    return dict(
+        files=[out / f"{stem}_flight.pdf", out / f"{stem}_error.pdf"],
+        reference=args.reference,
+        budget_us=args.budget,
+        arms=counts,
+    )
 
 
 if __name__ == "__main__":
