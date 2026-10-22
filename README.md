@@ -55,8 +55,8 @@ cd fomtools_experiments
 uv sync
 ```
 
-`uv sync` creates a Python 3.13 environment in `.venv/` and installs fomtools (with its
-`codegen` and `gurobi` extras) in editable mode from `../fomtools`, so the experiments
+`uv sync` creates a Python 3.13 environment (`.python-version`) in `.venv/` and installs
+fomtools (with its `codegen`, `gurobi` and `cvxpygen` extras) in editable mode from `../fomtools`, so the experiments
 always run against the local checkout. In addition:
 
 - **Verification** needs a [Gurobi](https://www.gurobi.com) license, set up as described in
@@ -67,104 +67,48 @@ always run against the local checkout. In addition:
   Scripts that are run without the agent reuse the solvers already checked in or under
   `out/`.
 
-## Instructions
+## Reproducing the paper
 
-### Running experiments
+Every result in the paper comes from one entry point below, run from the repository root
+unless a line says `cd`. Code generation needs `FOMTOOLS_CODEGEN_AGENT=1` (the paper uses
+Claude Opus 5.5: `ANTHROPIC_MODEL=claude-opus-5-5`); each generated solver is produced three
+times by independent agent runs (`--reps 1 2 3`, the default), and the tables report the
+median with the range. Everything is resumable: a finished piece is skipped unless
+`--force`. Generated code goes to untracked `out/` folders; results, logs and reports are
+tracked. Each folder's README has the details.
 
-Unless a section says to `cd` into a folder, run the commands from the repository root.
-Generated code and other large outputs go to untracked `out/` directories. Each folder's
-README describes the problem, the methods, and the results in detail.
-
-The verification experiments (lasso, network, and control) all run through one
-[Hydra](https://hydra.cc) driver, `python -m fomexp.run experiment=<name>`. Its settings
-are in [`conf/`](conf/), and the defaults reproduce the small instances. Each $K$ runs
-under a one-hour Gurobi time limit with a 5% gap, $K = 1, 2, \dots$ warm-start each other,
-and a run stops at a 20-hour budget. We therefore recommend a computing cluster with
-16+ cores per job. A run writes `<experiment>/results/run_NNN/`, and
-`python -m fomexp.collect <experiment> run_NNN` merges its per-variant CSVs. Any setting
-can be overridden on the command line, e.g. a short local check:
+**Verification** (Sections 6.2-6.4; Gurobi, one Slurm array task per variant on Princeton's
+della, `conf/cluster/della.yaml`). With no overrides the configs are the paper's instances
+and horizons (lasso K <= 20, network K <= 39, control K <= 75):
 
 ```bash
-uv run python -m fomexp.run experiment=lasso solver.time_limit=10 schedule.k_max=5
+uv run python -m fomexp.submit experiment=lasso --yes      # drop --yes for sbatch --test-only
+uv run python -m fomexp.submit experiment=network --yes
+uv run python -m fomexp.submit experiment=rapdhg --yes
+uv run python -m fomexp.collect <experiment> run_NNN        # summary.csv, wide.csv, summary.json
 ```
 
-#### Lasso (Section 6.2)
+Locally, `uv run python -m fomexp.run experiment=<name>` runs every variant in turn.
 
-Worst-case verification of ISTA and FISTA on a 25 × 50 sparse coding instance
-([`lasso/lasso_verify/`](lasso/lasso_verify/)):
+**Generated C solvers for the verified instances** (Tables in Sections 6.2-6.4 and the
+appendix timing protocol; Apple M4 Pro):
 
 ```bash
-uv run python -m fomexp.run experiment=lasso experiment.problem.m=25 experiment.problem.n=50 experiment.problem.lambd=0.001
-uv run python -m fomexp.collect lasso run_NNN
+FOMTOOLS_CODEGEN_AGENT=1 uv run python -m codegen_timings.run lasso --force
+FOMTOOLS_CODEGEN_AGENT=1 uv run python -m codegen_timings.run network --force
+FOMTOOLS_CODEGEN_AGENT=1 uv run python -m codegen_timings.run rapdhg --force
+FOMTOOLS_CODEGEN_AGENT=1 uv run python -m codegen_timings.network_schedule --force   # scheduled vs. unrolled
+uv run python -m codegen_timings.summarize
 ```
 
-C solvers for the verified instance, timed against NumPy
-([`codegen_timings/`](codegen_timings/)):
+**Closed-loop flight** (Section 6.4; generate, extend the schedule tables, time each
+implementation and fly the figure eight):
 
 ```bash
-uv run python -m codegen_timings.run lasso --check-only
-FOMTOOLS_CODEGEN_AGENT=1 uv run python -m codegen_timings.run lasso
+cd control/rapdhg && FOMTOOLS_CODEGEN_AGENT=1 uv run python -m codegen.run --force
 ```
 
-Large-scale OpenMP and CUDA solvers, up to 325,000 × 1,300,000
-([`lasso/lasso_codegen/`](lasso/lasso_codegen/)). Each study's result directory lists the
-sources and the cluster jobs it ran with. The pipeline is:
-
-```bash
-cd lasso
-FOMTOOLS_CODEGEN_AGENT=1 uv run python -m lasso_codegen.generate
-uv run python -m lasso_codegen.benchmark
-```
-
-#### Network optimization (Section 6.3)
-
-PDHG and momentum PDHG on a min-cost network flow with gains, unscaled and with Ruiz
-equilibration ([`network/`](network/)):
-
-```bash
-uv run python -m fomexp.run experiment=network experiment.problem.ns=10 experiment.problem.nd=15 \
-    experiment.problem.edge_prob=0.3 experiment.problem.seed=285 experiment.problem.supply=6 \
-    experiment.problem.warm_start=center experiment.problem.eta_scale=0.8
-uv run python -m fomexp.collect network run_NNN
-```
-
-C solvers for the four verified variants, and the scheduled vs. unrolled momentum
-comparison:
-
-```bash
-FOMTOOLS_CODEGEN_AGENT=1 uv run python -m codegen_timings.run network
-FOMTOOLS_CODEGEN_AGENT=1 uv run python -m codegen_timings.network_schedule
-```
-
-#### Optimal control (Section 6.4)
-
-Model predictive control of a quadcopter ([`control/`](control/)). First, verify
-restarted accelerated PDHG (restart periods 12 and 6) against plain PDHG on a horizon-5
-program ([`control/rapdhg/verify/`](control/rapdhg/verify/)):
-
-```bash
-uv run python -m fomexp.run experiment=rapdhg experiment.problem.horizon=5
-uv run python -m fomexp.collect rapdhg run_NNN
-FOMTOOLS_CODEGEN_AGENT=1 uv run python -m codegen_timings.run rapdhg
-```
-
-Then generate the full rAPDHG controller and fly NumPy, translated C, and optimized C at
-equal compute budgets ([`control/rapdhg/codegen/`](control/rapdhg/codegen/)):
-
-```bash
-cd control/rapdhg
-FOMTOOLS_CODEGEN_AGENT=1 uv run python -m codegen.generate --max-iters 512
-uv run python -m codegen.run_implementations
-uv run python -m codegen.run_figures --reference figure8 --iterations 3 13 275 --no-gif
-```
-
-The same study with ADMM, which is not in the paper, is in [`control/osqp/`](control/osqp/).
-
-#### Portfolio rebalancing (Section 6.5)
-
-CVXPYgen with FOMTools ADMM against CVXPYgen with OSQP, solving to a tolerance of 10⁻⁴
-for 200 to 3000 assets ([`portfolio/portfolio_cvxpygen/`](portfolio/portfolio_cvxpygen/),
-results in [`RESULTS_tolerance_objective.md`](RESULTS_tolerance_objective.md)):
+**Portfolio rebalancing with CVXPYgen** (Section 6.5):
 
 ```bash
 cd portfolio
@@ -173,39 +117,36 @@ uv run python -m portfolio_cvxpygen.tolerance_stop --rounds 3 --passes 3
 uv run python -m portfolio_cvxpygen.plot
 ```
 
-#### Figures and tables
-
-Once the runs above have finished, these scripts write the plots, the probabilistic
-(KL-inverse) bounds, and the CSVs the paper reads. The runs and $K$ cut-offs are set in
-`RUNS` in `plots/make_plots.py`.
+**Large-scale Lasso on a GPU** (Section 6.2; della: the agent runs on a login node, its
+builds go to one-hour A100 holder jobs, and the benchmark runs in an A100 batch job). See
+[`lasso/lasso_codegen/README.md`](lasso/lasso_codegen/README.md) for the one-time setup;
+then, in tmux on the login node:
 
 ```bash
-uv run python plots/make_plots.py              # plots/<experiment>.{csv,pdf,png}
-uv run python plots/kl_bounds.py               # plots/kl_<experiment>.csv, kl_tables.md
-uv run python plots/export_paper_data.py       # ../fomtools_paper/data/{lasso,network}_residual.csv, control_rapdhg.csv
-uv run python -m codegen_timings.summarize     # codegen_timings/timings.csv
-uv run python -m codegen_timings.paper_csv     # ../fomtools_paper/data/codegen_timing.csv
+sbatch lasso/lasso_codegen/della/gate.sbatch                       # BASELINE_GATE_OK
+bash lasso/lasso_codegen/della/holders.sh                          # window 1: keeps an A100 holder
+bash -c 'source lasso/lasso_codegen/della/env.sh && cd lasso && exec "$PY" -m lasso_codegen.generate'   # window 2
+sbatch --export=ALL,RUN=<name> lasso/lasso_codegen/della/bench.sbatch   # after generate finishes
 ```
 
-#### Supplementary: nonnegative least squares
-
-PGD with and without Ruiz equilibration, verified with the MIP and SDP backends. This
-experiment is not in the paper ([`nnls/`](nnls/)):
+**Paper data.** Both scripts are dry runs that print what they would write; `--write`
+writes into the paper's `data/` (default
+`~/Library/CloudStorage/Dropbox/work/research/papers/2026/fomtools/data`, or `--paper-data`).
 
 ```bash
-cd nnls
-uv run python verify.py && uv run python check.py && uv run python plot.py
+uv run python plots/make_plots.py && uv run python plots/kl_bounds.py
+uv run python plots/export_paper_data.py [--write]
+uv run python -m codegen_timings.paper_csv [--write]
 ```
 
 ## Repository layout
 
 | folder | contents |
 |---|---|
-| [`fomexp/`](fomexp/), [`conf/`](conf/) | Hydra driver and settings for every verification run |
+| [`fomexp/`](fomexp/), [`conf/`](conf/) | Hydra driver, settings and della submission for every verification run |
 | [`lasso/`](lasso/) | `lasso_verify/` (ISTA and FISTA verification), `lasso_codegen/` (large-scale OpenMP and CUDA) |
 | [`network/`](network/) | network flow verification, with and without Ruiz equilibration |
-| [`control/`](control/) | quadcopter MPC: `rapdhg/` (verification and code generation), `osqp/` (ADMM study), `common/` |
+| [`control/`](control/) | quadcopter MPC: `rapdhg/verify/` and `rapdhg/codegen/`, shared `common/` |
 | [`portfolio/`](portfolio/) | `portfolio_cvxpygen/`, the CVXPYgen comparison |
 | [`codegen_timings/`](codegen_timings/) | generated C solvers for the verified instances, with timings |
 | [`plots/`](plots/) | figure, KL-bound, and paper-data scripts with their outputs |
-| [`nnls/`](nnls/) | supplementary NNLS experiment |
