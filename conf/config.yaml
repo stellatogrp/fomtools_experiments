@@ -10,7 +10,7 @@ defaults:
   - solver: gurobi
   - schedule: default
   - simulator: default
-  - cluster: eosloan
+  - cluster: della
   - _self_
 
 # Set by fomexp.run / slurm/submit.sh; leave null to allocate the next run_NNN.
