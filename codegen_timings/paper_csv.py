@@ -1,16 +1,22 @@
 """Write the paper's code generation data from the timing runs, and print the numbers its text quotes.
 
-    uv run python -m codegen_timings.paper_csv
-    uv run python -m codegen_timings.paper_csv --only portfolio network
+    uv run python -m codegen_timings.paper_csv                     # dry run: print only
+    uv run python -m codegen_timings.paper_csv --write             # write into the paper
+    uv run python -m codegen_timings.paper_csv --only portfolio network --write
 
-Writes, under ``../fomtools_paper/data/``, so no number in the paper is copied by hand:
+Every number is the median over the agent repetitions (``summarize``), so no number
+in the paper is copied by hand. Writes, under ``--paper-dir`` (default
+``~/Library/CloudStorage/Dropbox/work/research/papers/2026/fomtools/data``):
 
-- ``codegen_timing.csv`` (``table``): one row per generated solver of §6.6, grouped by family;
-- ``codegen_portfolio_scaling.csv`` (``portfolio``): C time per solve of CVXPYgen with
-  OSQP and with the fomtools ADMM backend against the number of assets, from
-  ``portfolio/portfolio_cvxpygen/results/timings.csv``;
+- ``codegen_timing.csv`` (``table``): one row per generated solver of the code
+  generation tables, grouped by family;
 - ``codegen_network_schedule.csv`` (``network``): momentum PDHG generated with a
-  scheduled and an unrolled iteration, from ``codegen_timings/network_schedule``.
+  scheduled and an unrolled iteration, from ``codegen_timings/network_schedule``;
+- ``codegen_portfolio_tolerance.csv`` (``portfolio``): time per solve to the tolerance
+  of CVXPYgen with OSQP and with the fomtools ADMM backend, translated and
+  optimized, against the number of assets, from
+  ``portfolio/portfolio_cvxpygen/results_factor/portfolio_cvxpygen_stop_wide.csv``
+  (``portfolio_cvxpygen.plot``).
 """
 
 from __future__ import annotations
@@ -20,12 +26,19 @@ import csv
 import json
 import re
 import statistics
+from pathlib import Path
 
 from codegen_timings.common import HERE, REPO
+from codegen_timings.summarize import _row, median_row, repetitions
 
-PAPER_DATA = REPO.parent / "fomtools_paper" / "data"
-PAPER_CSV = PAPER_DATA / "codegen_timing.csv"
-PORTFOLIO_TIMINGS = REPO / "portfolio" / "portfolio_cvxpygen" / "results" / "timings.csv"
+PAPER_DATA = Path.home() / "Library/CloudStorage/Dropbox/work/research/papers/2026/fomtools/data"
+PORTFOLIO_WIDE = (
+    REPO
+    / "portfolio"
+    / "portfolio_cvxpygen"
+    / "results_factor"
+    / "portfolio_cvxpygen_stop_wide.csv"
+)
 SCHEDULE = HERE / "network_schedule"
 
 #: (experiment, variant, group, problem title, method label), in table order.
@@ -52,11 +65,30 @@ FIELDS = [
 ]
 
 
-def write_table() -> None:
-    timings = {(e, v): json.loads((HERE / e / v / "timing.json").read_text()) for e, v, *_ in ROWS}
-    rows = []
+def _out(args, name: str, fields: list[str], rows: list[dict]) -> None:
+    path = Path(args.paper_dir) / name
+    if not args.write:
+        print(f"(dry run) would write {path}: {len(rows)} rows")
+        return
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+    print(f"wrote {path}")
+
+
+def _timings(base: Path) -> list[dict]:
+    """Every repetition's ``timing.json`` of the solver in ``base``."""
+    return [json.loads(p.read_text()) for p in repetitions(base)]
+
+
+def write_table(args) -> None:
+    rows, medians, reps = [], [], []
     for e, v, group, problem, method in ROWS:
-        t = timings[(e, v)]
+        runs = _timings(HERE / e / v)
+        reps += runs
+        t = median_row([_row(r) for r in runs])
+        medians.append(t)
         rows.append(
             dict(
                 group=group,
@@ -70,114 +102,104 @@ def write_table() -> None:
                 speedtotal=f"{t['speedup_total']:.0f}",
             )
         )
-    with open(PAPER_CSV, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=FIELDS)
-        writer.writeheader()
-        writer.writerows(rows)
-    print(f"wrote {PAPER_CSV}")
-
-    ts = list(timings.values())
-
-    def rng(key):
-        vals = [t[key] for t in ts]
-        return min(vals), max(vals)
+        print(
+            f"{e}/{v}: {rows[-1]['optimizedus']} us [{t['optimized_us_min']:.2f}, "
+            f"{t['optimized_us_max']:.2f}], total {rows[-1]['speedtotal']}x "
+            f"[{t['speedup_total_min']:.0f}, {t['speedup_total_max']:.0f}] over {t['reps']} reps"
+        )
+    _out(args, "codegen_timing.csv", FIELDS, rows)
 
     for key in ("speedup_translation", "speedup_optimization", "speedup_total"):
-        lo, hi = rng(key)
-        print(f"{key}: {lo:.2f} .. {hi:.2f}")
-    worst = max(max(d.values()) for t in ts for d in t["max_abs_dev"].values())
-    print(f"worst max|C - NumPy|: {worst:.2e}")
-    print(f"all optimizations kept: {all(t['optimization_kept'] for t in ts)}")
-
+        vals = [m[key] for m in medians]
+        print(f"{key} (medians): {min(vals):.2f} .. {max(vals):.2f}")
+    worst = max(max(d.values()) for t in reps for d in t["max_abs_dev"].values())
+    print(f"worst max|C - NumPy| over every repetition: {worst:.2e}")
+    print(f"all optimizations kept: {all(t['optimization_kept'] for t in reps)}")
     for arm in ("numpy", "translated", "optimized"):
-        spreads = []
-        for t in ts:
-            r = t["timing_rounds"][arm]
-            spreads.append((max(r) - min(r)) / statistics.median(r))
+        spreads = [
+            (max(r) - min(r)) / statistics.median(r)
+            for t in reps
+            for r in [t["timing_rounds"][arm]]
+        ]
         print(f"round spread {arm}: max (max-min)/median = {max(spreads):.1%}")
-    for (e, v), t in timings.items():
-        a = t["agent_wall_s"]
-        neon = (HERE / e / v / "optimized" / "src" / "fom_solver.c").read_text().count("arm_neon.h")
-        print(
-            f"{e}/{v}: translation {a['translation']:.0f} s, code optimization "
-            f"{a['code_optimization'] / 60:.1f} min, NEON={bool(neon)}"
-        )
-    print(f"machine: {ts[0]['machine']}")
+    translation = [t["agent_wall_s"]["translation"] for t in reps]
+    optimization = [t["agent_wall_s"]["code_optimization"] for t in reps]
+    print(
+        f"agent time: translation {min(translation):.0f}-{max(translation):.0f} s, code "
+        f"optimization {min(optimization) / 60:.1f}-{max(optimization) / 60:.1f} min "
+        f"over {len(reps)} runs"
+    )
+    print(f"machine: {reps[0]['machine']}")
 
 
-def write_portfolio_scaling() -> None:
-    """C time per 200-iteration solve against the number of assets."""
-    arms = {"cpg_osqp": "osqpus", "cpg_fom": "fomus", "cpg_fom_opt": "fomoptus"}
-    by_n: dict[int, dict] = {}
-    with open(PORTFOLIO_TIMINGS, newline="") as f:
-        for r in csv.DictReader(f):
-            if r["level"] == "c" and r["arm"] in arms:
-                by_n.setdefault(int(r["N"]), {})[arms[r["arm"]]] = float(r["us_per_solve"])
-    out = PAPER_DATA / "codegen_portfolio_scaling.csv"
-    with open(out, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["N", "osqpus", "fomus", "fomoptus", "speedosqp", "speedopt"])
-        writer.writeheader()
-        for n in sorted(by_n):
-            t = by_n[n]
-            writer.writerow(
-                dict(
-                    N=n,
-                    osqpus=f"{t['osqpus']:.2f}",
-                    fomus=f"{t['fomus']:.2f}",
-                    fomoptus=f"{t['fomoptus']:.2f}",
-                    speedosqp=f"{t['osqpus'] / t['fomoptus']:.2f}",
-                    speedopt=f"{t['fomus'] / t['fomoptus']:.2f}",
-                )
-            )
-            print(
-                f"portfolio N={n}: OSQP {t['osqpus']:.1f}, fomtools {t['fomus']:.1f} -> {t['fomoptus']:.1f} us; "
-                f"OSQP/optimized {t['osqpus'] / t['fomoptus']:.2f}x, translated/optimized {t['fomus'] / t['fomoptus']:.2f}x"
-            )
-    print(f"wrote {out}")
-
-
-def write_network_schedule() -> None:
-    """Scheduled vs unrolled momentum PDHG: times and memory footprint (KB)."""
+def write_network_schedule(args) -> None:
+    """Scheduled vs unrolled momentum PDHG: median times and memory footprint (KB)."""
     header = (SCHEDULE / "scheduled" / "emitted" / "include" / "fom_data.h").read_text()
     sched_len = int(re.search(r"#define FOM_SCHED_XI_LEN (\d+)", header).group(1))
     rows = []
-    for arm, label in (("scheduled", "scheduled"), ("unrolled", "unrolled")):
-        t = json.loads((SCHEDULE / arm / "timing.json").read_text())
-        ir, lib = t["size"]["ir"], t["size"]["optimized"]["library_bytes"]
+    for arm in ("scheduled", "unrolled"):
+        runs = _timings(SCHEDULE / arm)
+        med = {
+            k: statistics.median(r[k] for r in runs)
+            for k in ("numpy_us", "translated_us", "optimized_us", "speedup_total")
+        }
+        ir = runs[0]["size"]["ir"]
+        lib = statistics.median(r["size"]["optimized"]["library_bytes"] for r in runs)
         # Every table entry and coefficient is a double.
         sched_kb = f"{sched_len * 8 / 1000:.1f}" if ir["schedules"] else "--"
         rows.append(
             dict(
-                method=label,
+                method=arm,
                 steps=ir["body_steps"],
                 blocks=ir["coefficient_blocks"],
-                numpyus=f"{t['numpy_us']:.0f}",
-                translatedus=f"{t['translated_us']:.1f}",
-                optimizedus=f"{t['optimized_us']:.1f}",
-                speedtotal=f"{t['speedup_total']:.1f}",
+                numpyus=f"{med['numpy_us']:.0f}",
+                translatedus=f"{med['translated_us']:.1f}",
+                optimizedus=f"{med['optimized_us']:.1f}",
+                speedtotal=f"{med['speedup_total']:.1f}",
                 schedkb=sched_kb,
                 coefkb=f"{ir['coefficient_nonzeros'] * 8 / 1000:.0f}",
                 libkb=f"{lib / 1000:.0f}",
             )
         )
-        dev = max(t["max_abs_dev"].values())
-        print(f"network {arm}: {rows[-1]}, max|C - NumPy| {dev:.1e}, kept {t['optimization_kept']}")
-    out = PAPER_DATA / "codegen_network_schedule.csv"
-    with open(out, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0]))
-        writer.writeheader()
-        writer.writerows(rows)
-    print(f"wrote {out}")
+        dev = max(max(r["max_abs_dev"].values()) for r in runs)
+        times = [round(r["optimized_us"], 1) for r in runs]
+        print(f"network {arm}: {rows[-1]}, optimized per rep {times}, max|C - NumPy| {dev:.1e}")
+    _out(args, "codegen_network_schedule.csv", list(rows[0]), rows)
 
 
-WRITERS = {"table": write_table, "portfolio": write_portfolio_scaling, "network": write_network_schedule}
+def write_portfolio_tolerance(args) -> None:
+    """Time per solve to the tolerance (ms) and iterations, median over the repetitions."""
+    times = dict(osqpms="cpg_osqp_c_ms", fomms="cpg_fom_c_ms", fomoptms="cpg_fom_opt_c_ms")
+    iters = dict(osqpiters="cpg_osqp_mean_iters", fomiters="cpg_fom_opt_mean_iters")
+    rows = []
+    with open(PORTFOLIO_WIDE, newline="") as f:
+        for r in csv.DictReader(f):
+            row = dict(N=r["n"])
+            row.update({k: f"{float(r[c]):.3f}" for k, c in times.items()})
+            row.update({k: f"{float(r[c]):.2f}" for k, c in iters.items()})
+            rows.append(row)
+            osqp, fom, opt = (float(r[c]) for c in times.values())
+            print(
+                f"portfolio n={r['n']}: OSQP/optimized {osqp / opt:.2f}x, translated/OSQP {fom / osqp:.2f}"
+            )
+    _out(args, "codegen_portfolio_tolerance.csv", ["N", *times, *iters], rows)
+
+
+WRITERS = {
+    "table": write_table,
+    "network": write_network_schedule,
+    "portfolio": write_portfolio_tolerance,
+}
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--only", nargs="*", default=list(WRITERS), choices=list(WRITERS))
-    for name in parser.parse_args().only:
-        WRITERS[name]()
+    parser.add_argument("--paper-dir", default=str(PAPER_DATA), help="the paper's data/ folder")
+    parser.add_argument("--write", action="store_true", help="write the CSVs (default: dry run)")
+    args = parser.parse_args()
+    for name in args.only:
+        WRITERS[name](args)
 
 
 if __name__ == "__main__":

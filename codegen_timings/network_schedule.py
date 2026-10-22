@@ -1,7 +1,8 @@
 """Scheduled vs unrolled code generation for Ruiz-equilibrated momentum PDHG.
 
     uv run python -m codegen_timings.network_schedule --check-only   # no agent; seconds
-    uv run python -m codegen_timings.network_schedule                # both arms, both agent phases
+    FOMTOOLS_CODEGEN_AGENT=1 uv run python -m codegen_timings.network_schedule --force  # reps 1 2 3
+    (rep 1 in ``network_schedule/<arm>/``, the others in ``<arm>/reps/rep<k>/``)
 
 Momentum PDHG extrapolates with ``xi_t = t / (t + 3)``, so its iteration is not
 stationary. fomtools can generate it two ways from the same method:
@@ -44,18 +45,31 @@ from codegen_timings.common import (
     bench_us,
     load_adapter,
     machine,
+    rep_dir,
 )
 
 NS, ND = 20, 30
 K = 50
 VARIANT = "ruiz_momentum"
 ARMS = ["scheduled", "unrolled"]
+#: The paper's instance, every problem setting spelled out so that the
+#: verification defaults in conf/experiment/network.yaml (a different, smaller
+#: instance) cannot move it: complete bipartite, 600 edges, eta = 0.0927.
 OVERRIDES = [
     "experiment=network",
     f"experiment.problem.ns={NS}",
     f"experiment.problem.nd={ND}",
+    "experiment.problem.edge_prob=1.0",
+    "experiment.problem.seed=20",
+    "experiment.problem.gain_spread=100.0",
+    "experiment.problem.cost_range=[1.0,10.0]",
+    "experiment.problem.capacity_range=[2.0,6.0]",
     "experiment.problem.supply=4",
+    "experiment.problem.x_lb=-6.0",
+    "experiment.problem.x_ub=-4.0",
     "experiment.problem.warm_start=center",
+    "experiment.problem.ruiz_iters=30",
+    "experiment.problem.eta_scale=0.5",
 ]
 OUT = HERE / "network_schedule"
 
@@ -93,18 +107,18 @@ class Setup:
         """
         p, pv = self.problem, self.pv
         E_d = np.diag(pv.e_d)
-        x = v.add_param(p.nd, lb=p.x_lb, ub=p.x_ub)
-        state = [v.add_iterate(len(a), lb=a, ub=a) for a in (pv.z0, pv.v0, pv.w0)]
+        x = v.parameter(p.nd, lb=p.x_lb, ub=p.x_ub)
+        state = [v.iterate(len(a), lb=a, ub=a) for a in (pv.z0, pv.v0, pv.w0)]
         Z, Y, W = (v.iterate_trajectory(len(xis) + 1) for _ in range(3))
         Z[0], Y[0], W[0] = state
         iterates = []
         for k, xi in enumerate(xis):
             z, y, w = Z[k], Y[k], W[k]
-            Z[k + 1] = v.step.satlin(
+            Z[k + 1] = v.satlin(
                 z - pv.eta * (pv.mu + pv.A_s.T @ y - pv.A_d.T @ w), l=np.zeros(p.ne), u=pv.c
             )
             z_bar = (2.0 + 2.0 * xi) * Z[k + 1] - (1.0 + 2.0 * xi) * z
-            Y[k + 1] = v.step.relu(y + pv.eta * (pv.A_s @ z_bar - pv.b_s))
+            Y[k + 1] = v.relu(y + pv.eta * (pv.A_s @ z_bar - pv.b_s))
             W[k + 1] = w + pv.eta * (E_d @ x - pv.A_d @ z_bar)
             iterates.append([Z[k + 1], Y[k + 1], W[k + 1]])
         return x, state, iterates
@@ -176,8 +190,9 @@ def ir_size(ir) -> dict:
         unrolled=bool(ir.unrolled),
         body_steps=len(ir.body),
         coefficient_blocks=len(mats),
-        coefficient_entries_dense=int(sum(np.asarray(m.array).size for m in mats)),
-        coefficient_nonzeros=int(sum(np.count_nonzero(m.array) for m in mats)),
+        # MatrixData may hold a sparse array: count from its shape and nnz().
+        coefficient_entries_dense=int(sum(np.prod(m.shape) for m in mats)),
+        coefficient_nonzeros=int(sum(m.nnz() for m in mats)),
         schedules=sorted(ir.schedules),
     )
 
@@ -205,9 +220,11 @@ def translate(setup: Setup, arm: str, out_dir: Path, config, force: bool):
             setup.scheduled_recording(), setup.boxes(), out_dir, name, config=config, force=force
         )
     emitted = out_dir / "emitted"
-    if not force and codegen_driver._verifies(emitted, config):
-        print(f"reusing the verified solver already in {emitted}")
-        return extract(setup, arm, config), emitted
+    if not force:
+        ir = extract(setup, arm, config)
+        if codegen_driver._verifies(emitted, config, ir):
+            print(f"reusing the verified solver already in {emitted}")
+            return ir, emitted
     v, x, state, iterates = setup.unrolled_recording()
     result = generate_code(
         v,
@@ -261,11 +278,11 @@ def artifact_size(directory: Path) -> dict:
     )
 
 
-def run_arm(setup: Setup, arm: str, check_only: bool, force: bool) -> dict:
+def run_arm(setup: Setup, arm: str, check_only: bool, force: bool, rep: int = 1) -> dict:
     from common import codegen_driver
 
     config = codegen_config()
-    out_dir = OUT / arm
+    out_dir = rep_dir(OUT / arm, rep)
     out_dir.mkdir(parents=True, exist_ok=True)
     pre = check(setup, extract(setup, arm, config))
     print(f"[{arm}] pre-flight: {pre}", flush=True)
@@ -293,6 +310,7 @@ def run_arm(setup: Setup, arm: str, check_only: bool, force: bool) -> dict:
     result = dict(
         experiment="network_schedule",
         arm=arm,
+        rep=rep,
         variant=VARIANT,
         iterations=K,
         overrides=OVERRIDES,
@@ -304,6 +322,8 @@ def run_arm(setup: Setup, arm: str, check_only: bool, force: bool) -> dict:
         speedup_total=med["numpy"] / med["optimized"],
         optimization_kept=bool(opt.kept),
         optimization_notes=opt.notes,
+        optimization_rounds=opt.rounds,
+        rule_friction=opt.rule_friction,
         max_abs_dev=deviation,
         timing_rounds=rounds,
         size=dict(
@@ -336,12 +356,14 @@ def main() -> None:
     parser.add_argument("--arms", nargs="*", default=ARMS, choices=ARMS)
     parser.add_argument("--check-only", action="store_true")
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--reps", nargs="+", type=int, default=[1, 2, 3])
     args = parser.parse_args()
 
     add_control_to_path()
     setup = Setup()
-    for arm in args.arms:
-        run_arm(setup, arm, args.check_only, args.force)
+    for rep in [1] if args.check_only else args.reps:
+        for arm in args.arms:
+            run_arm(setup, arm, args.check_only, args.force, rep)
 
 
 if __name__ == "__main__":
