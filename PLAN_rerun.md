@@ -23,6 +23,9 @@ Not the Overleaf copy (abandoned). Do not write into it without asking (step 5).
 - Experiments not in the paper are deleted from this branch (`c41237e`).
 - Agent: Claude Opus 5.5 (`ANTHROPIC_MODEL=claude-opus-5-5`), fomtools defaults (5 rounds,
   2% minimum gain) unless an experiment sets its budgets (codegen_timings: 600 s per phase).
+- Reproducibility (Bart): every paper result comes from a clean, documented entry point
+  (`python -m ...`, plus Slurm job files only where della needs them), listed in order in the
+  README section "Reproducing the paper"; no ad hoc shell scripts; resumable after a crash.
 - Commands on della go through Bart's ControlMaster with `ssh -o BatchMode=yes`; stop on the
   first connection failure. Job submissions through the slurm helper, test-only first.
 
@@ -59,4 +62,5 @@ results file in the producing folder.
 
 ## Log
 
-- 2026-10-22: plan written; fomtools pinned to `25b3f73`; dropped experiments removed (`c41237e`).
+- 2026-10-22: plan written; fomtools pinned to `25b3f73` (#154 merged); dropped experiments removed
+  (`c41237e`). Migration split in three parallel forks: verification (A), CPU codegen (B), GPU (C).
