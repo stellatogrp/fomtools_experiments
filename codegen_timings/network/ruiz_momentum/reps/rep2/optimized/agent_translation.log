@@ -1,0 +1,16 @@
+I wrote `src/fom_solver.c` and `make verify` passes: it prints `VERIFY OK`, with a worst error of 1.0e-14 over 8 samples against a tolerance of 1e-6. I didn't run a separate speed benchmark.
+
+How it works:
+- **Parameter term:** `fom_update_params` computes the `su_p_p0 @ p0` term once with `fom_apply_su_p_p0` and keeps it in `work->acc`. Every iteration then reuses it as a fixed offset. It also resets the state to `FOM_STATE_INIT`, as `fom_setup` does.
+- **Skipping copies:** the state update just copies `t0` into rows 0..48 and `t1` into rows 49..58. So `fom_step_t0` and `fom_step_t1` write straight into those rows of the next state, and `fom_step_su__rest` computes only the other 15 rows (59..73).
+- **No state copying between iterations:** the loop swaps two pointers between `work->state` and `work->new_state` instead of copying the state each time. `fom_sched_xi(it)` is read once at the top of each iteration.
+- **Residual:** the tolerance is 0, so the solver always runs the full `max_iter` iterations. The residual `max_abs(new_state - state)` is therefore computed only once, after the last iteration.
+- **Constraints met:** there is no dynamic memory and no `/` operator. The code doesn't read any multiply-matrix data directly; every product goes through the provided helpers.
+I wrote `src/fom_solver.c` and `make verify` passes: it prints `VERIFY OK`, with a worst error of 1.0e-14 over 8 samples against a tolerance of 1e-6. I didn't run a separate speed benchmark.
+
+How it works:
+- **Parameter term:** `fom_update_params` computes the `su_p_p0 @ p0` term once with `fom_apply_su_p_p0` and keeps it in `work->acc`. Every iteration then reuses it as a fixed offset. It also resets the state to `FOM_STATE_INIT`, as `fom_setup` does.
+- **Skipping copies:** the state update just copies `t0` into rows 0..48 and `t1` into rows 49..58. So `fom_step_t0` and `fom_step_t1` write straight into those rows of the next state, and `fom_step_su__rest` computes only the other 15 rows (59..73).
+- **No state copying between iterations:** the loop swaps two pointers between `work->state` and `work->new_state` instead of copying the state each time. `fom_sched_xi(it)` is read once at the top of each iteration.
+- **Residual:** the tolerance is 0, so the solver always runs the full `max_iter` iterations. The residual `max_abs(new_state - state)` is therefore computed only once, after the last iteration.
+- **Constraints met:** there is no dynamic memory and no `/` operator. The code doesn't read any multiply-matrix data directly; every product goes through the provided helpers.

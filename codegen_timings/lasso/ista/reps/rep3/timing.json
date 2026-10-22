@@ -1,0 +1,177 @@
+{
+  "experiment": "lasso",
+  "variant": "ista",
+  "rep": 3,
+  "iterations": 200,
+  "verified_run": "lasso/lasso_verify/results/run_022",
+  "numpy_us": 822.7709913626313,
+  "translated_us": 87.445,
+  "optimized_us": 24.978,
+  "speedup_translation": 9.40901127980595,
+  "speedup_optimization": 3.500880775082072,
+  "speedup_total": 32.93982670200301,
+  "optimization_kept": true,
+  "optimization_notes": "",
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 85.7992,
+      "us_after": 30.388,
+      "gain": 0.6458242034890768,
+      "agent_wall_s": 100.35884175007232,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 31.6956,
+      "us_after": 28.6188,
+      "gain": 0.09707341082042929,
+      "agent_wall_s": 97.0632823749911,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 28.4584,
+      "us_after": 24.7326,
+      "gain": 0.1309209231720687,
+      "agent_wall_s": 104.18905616691336,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 4,
+      "changed": false,
+      "correct": true,
+      "kept": false,
+      "us_before": null,
+      "us_after": null,
+      "gain": null,
+      "agent_wall_s": 70.76899591693655,
+      "truncated": false,
+      "stop_reason": "the round left the sources unchanged"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Store a transposed or column-major copy of `t0_state`, computed at setup, for a register-resident outer-product formulation (25 vector accumulators, broadcast `x[j]`)",
+      "rule": "`fom_data.c` is fixed, and `fom_setup` may not probe matrices via `fom_apply_*` (inlining 2500 literals in `fom_step_t0` is allowed but impractical within the time budget)",
+      "expected_gain": "unknown, likely <10%"
+    },
+    {
+      "round": 1,
+      "idea": "Use `-ffast-math`, `-mcpu=native` or other build flags to let the compiler auto-vectorize the reduction",
+      "rule": "Makefile and build flags are fixed",
+      "expected_gain": "small; hand-written NEON already covers it"
+    },
+    {
+      "round": 2,
+      "idea": "Use the original row-major `FOM_MAT_t0_state` directly in the column kernel, relying on `I - t A^T A` being symmetric, to skip the transposed copy",
+      "rule": "the data is only symmetric to about 4e-18 (not bitwise), and verify compares exact entries",
+      "expected_gain": "small (only removes the one-time transpose)"
+    },
+    {
+      "round": 2,
+      "idea": "Apply `t0_state` as `I - (t A^T)(A)` with a rank-25 factor taken from `t0_p_p0` (`t A^T`), about half the FLOPs",
+      "rule": "kernel rule: `fom_step_t0` may read only its own matrix's data, not `t0_p_p0`, and recovering `t` or a factorization needs division",
+      "expected_gain": "about 1.5 to 2x on the iteration"
+    },
+    {
+      "round": 3,
+      "idea": "Apply M as x - (tA^T)(A x) using the rank-25 factor (`t0_p_p0` holds tA^T, so this is about 2x fewer flops)",
+      "rule": "`fom_apply_t0_*` / step helpers may read only their own matrix's data; rebuilding A would also need a division by t or a factorization at setup",
+      "expected_gain": "~1.5-2x on the iterations"
+    },
+    {
+      "round": 3,
+      "idea": "Use symmetry to load each off-diagonal entry once",
+      "rule": "not blocked by a rule; skipped for lack of time (the triangular scatter is hard to vectorize)",
+      "expected_gain": "unknown"
+    }
+  ],
+  "max_abs_dev": {
+    "translated": {
+      "verified_set": 2.042810365310288e-14
+    },
+    "optimized": {
+      "verified_set": 2.275957200481571e-14
+    }
+  },
+  "timing_rounds": {
+    "numpy": [
+      859.0631186962128,
+      822.7709913626313,
+      807.8955579549074,
+      837.3124292120337,
+      821.0624800994992,
+      809.3334035947919,
+      836.1251093447208
+    ],
+    "translated": [
+      85.4608,
+      85.8012,
+      84.5178,
+      87.445,
+      88.3408,
+      88.366,
+      87.5086
+    ],
+    "optimized": [
+      25.4728,
+      24.3962,
+      25.172,
+      24.978,
+      23.604,
+      25.2436,
+      24.24
+    ]
+  },
+  "agent_wall_s": {
+    "translation": 26.62567687034607,
+    "code_optimization": 379.556440114975
+  },
+  "agent_budgets_s": {
+    "translation": 600,
+    "code_optimization": 600
+  },
+  "check": {
+    "numpy_vs_verify_recurrence": 0.0,
+    "oracle_vs_numpy_max_rel": 1.0035918521402922e-14,
+    "state_dim": 50,
+    "params": {
+      "p0": 25
+    }
+  },
+  "info": {
+    "m": 25,
+    "n": 50,
+    "lambd": 0.001,
+    "eta": 0.2212861544693803,
+    "method": "ista"
+  },
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "os": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
+    "python": "3.13.11",
+    "numpy": "2.5.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "fomtools_commit": "25b3f73",
+    "fomtools_dirty": false,
+    "fomtools_branch": "",
+    "fomtools_path": "/Users/bs37/Documents/projects/fomtools/fomtools"
+  },
+  "started_utc": "2026-10-22T18:35:04+00:00",
+  "finished_utc": "2026-10-22T18:42:02+00:00"
+}

@@ -1,0 +1,9 @@
+{
+  "oracle_vs_numpy_max_rel": 1.396984055726076e-15,
+  "unrolled": true,
+  "body_steps": 149,
+  "coefficient_blocks": 217,
+  "coefficient_entries_dense": 4959920,
+  "coefficient_nonzeros": 150230,
+  "schedules": []
+}

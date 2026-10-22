@@ -1,0 +1,206 @@
+
+===== code optimization round 1 =====
+Vectorized the dense 50×50 product (87 → ~36 µs). Now trying a 5-row block to reuse each x load more.
+The solver now runs about 3x faster: whole-solve `mean_us` went from 87.5 to about 29–30, and `make verify` still prints `VERIFY OK` after the final edit. All the work is in one kernel, the dense 50×50 product inside `fom_step_t0` in `src/fom_ops.c`. The NEON path is guarded by `#if defined(__ARM_NEON)`. The plain-C fallback for other targets was never compiled or verified, because this machine is arm64.
+
+FOMTOOLS-SUMMARY-BEGIN
+**Whole-solve mean_us:** 87.50 initially, about 29–30 finally (last bench 28.80). Overall speedup is about 3.0x. Minimum time went from 80 to 23 µs.
+
+**Final profile breakdown (`make profile`):**
+| region | total_us (5000 solves) | % |
+|---|---|---|
+| iterations (200 × `fom_step_t0`: dense 50×50 matvec + bias + soft-threshold) | 158313 | 99.89 |
+| residual_output (max-abs residual, copy-out, state reset) | 176 | 0.11 |
+
+**Optimizations applied:**
+- **Vectorized dense row dot products** in `fom_step_t0` and `fom_apply_t0_state`, using 2-wide NEON FMAs with several independent accumulator chains. Structure: `t0_state` is dense 50×50, stored row-major and contiguous (only 1 zero). The original scalar reduction over `j` could not vectorize without `-ffast-math`, and its single dependency chain was bound by FMA latency. 87.5 → 46 µs.
+- **Row blocking (2, then 5, then 10 rows per pass)**, so each pair of `x` values is loaded once and reused across the block. This also gives 20 independent FMA chains that hide the FMA latency. Structure: 50 rows split evenly into blocks of 10, and every row has length 50 (24 pairs plus one tail pair). 46 → ~36 → ~30 → ~29 µs.
+- **Fused bias and soft-threshold into the block epilogue.** `lambda` is read once from the `act` argument, and results go straight to `out`. Structure: `su_t_t0` is the identity, so the solver already swaps state buffers and skips the state-update copy. The constant `t0_p_p0 @ p0` term stays hoisted into `acc` once per parameter update.
+- Kept the `FOM_PROF_BEGIN/END` markers around the iteration loop and the residual/output section.
+
+Blocked by rules:
+- Store a transposed or column-major copy of `t0_state`, computed at setup, for a register-resident outer-product formulation (25 vector accumulators, broadcast `x[j]`) | `fom_data.c` is fixed, and `fom_setup` may not probe matrices via `fom_apply_*` (inlining 2500 literals in `fom_step_t0` is allowed but impractical within the time budget) | unknown, likely <10%
+- Use `-ffast-math`, `-mcpu=native` or other build flags to let the compiler auto-vectorize the reduction | Makefile and build flags are fixed | small; hand-written NEON already covers it
+FOMTOOLS-SUMMARY-END
+The solver now runs about 3x faster: whole-solve `mean_us` went from 87.5 to about 29–30, and `make verify` still prints `VERIFY OK` after the final edit. All the work is in one kernel, the dense 50×50 product inside `fom_step_t0` in `src/fom_ops.c`. The NEON path is guarded by `#if defined(__ARM_NEON)`. The plain-C fallback for other targets was never compiled or verified, because this machine is arm64.
+
+FOMTOOLS-SUMMARY-BEGIN
+**Whole-solve mean_us:** 87.50 initially, about 29–30 finally (last bench 28.80). Overall speedup is about 3.0x. Minimum time went from 80 to 23 µs.
+
+**Final profile breakdown (`make profile`):**
+| region | total_us (5000 solves) | % |
+|---|---|---|
+| iterations (200 × `fom_step_t0`: dense 50×50 matvec + bias + soft-threshold) | 158313 | 99.89 |
+| residual_output (max-abs residual, copy-out, state reset) | 176 | 0.11 |
+
+**Optimizations applied:**
+- **Vectorized dense row dot products** in `fom_step_t0` and `fom_apply_t0_state`, using 2-wide NEON FMAs with several independent accumulator chains. Structure: `t0_state` is dense 50×50, stored row-major and contiguous (only 1 zero). The original scalar reduction over `j` could not vectorize without `-ffast-math`, and its single dependency chain was bound by FMA latency. 87.5 → 46 µs.
+- **Row blocking (2, then 5, then 10 rows per pass)**, so each pair of `x` values is loaded once and reused across the block. This also gives 20 independent FMA chains that hide the FMA latency. Structure: 50 rows split evenly into blocks of 10, and every row has length 50 (24 pairs plus one tail pair). 46 → ~36 → ~30 → ~29 µs.
+- **Fused bias and soft-threshold into the block epilogue.** `lambda` is read once from the `act` argument, and results go straight to `out`. Structure: `su_t_t0` is the identity, so the solver already swaps state buffers and skips the state-update copy. The constant `t0_p_p0 @ p0` term stays hoisted into `acc` once per parameter update.
+- Kept the `FOM_PROF_BEGIN/END` markers around the iteration loop and the residual/output section.
+
+Blocked by rules:
+- Store a transposed or column-major copy of `t0_state`, computed at setup, for a register-resident outer-product formulation (25 vector accumulators, broadcast `x[j]`) | `fom_data.c` is fixed, and `fom_setup` may not probe matrices via `fom_apply_*` (inlining 2500 literals in `fom_step_t0` is allowed but impractical within the time budget) | unknown, likely <10%
+- Use `-ffast-math`, `-mcpu=native` or other build flags to let the compiler auto-vectorize the reduction | Makefile and build flags are fixed | small; hand-written NEON already covers it
+FOMTOOLS-SUMMARY-END
+===== code optimization round 2 =====
+Trying a column-oriented NEON kernel for the dense 50x50 step; fixing the single-definition rule now.
+This round gave only a marginal gain, about 5%. I rewrote the step kernel in `src/fom_ops.c` to work column by column, and it passes `make verify` (`VERIFY OK`, worst error 8.2e-15). Individual bench runs are noisy, roughly ±1.5 us. In three alternating A/B pairs (two runs each), the new kernel averaged about 28.6 us against 30.3 us for the round-1 kernel, and the best-case time dropped from about 24 to 22 us. The final standalone `make bench` read 30.24 us, which is inside that noise. The pipeline may treat this as too small a gain and stop.
+
+FOMTOOLS-SUMMARY-BEGIN
+**Whole-solve time**
+- Translated solver: 85.799 us.
+- Start of this round: 30.388 us (pipeline figure). My own reruns of the round-1 kernel gave 28.5 to 31.7 us.
+- Final: about 28.6 us mean over interleaved A/B runs, against about 30.3 us for the round-1 kernel. That is roughly 5% this round and about 3.0x overall.
+- The final standalone `make bench` gave 30.24 us. Its best-case time was 22 us, against 23 to 24 us before. The machine noise (±1.5 us) is about as large as the gain.
+
+**Final profile** (`make profile`, hottest first; that run's BENCH mean was 29.04 us):
+- iterations: 144631 us, 99.87%
+- residual_output: 191 us, 0.13%
+
+**Optimizations applied**
+- **Column-oriented dense kernel for `fom_step_t0`.** `t0_state` is a dense 50x50 matrix. The kernel now uses a transposed copy of it, built once from `FOM_MAT_t0_state` into a static buffer the first time the step is called (no allocation). It computes `out = bias + sum_j M[:,j] * x[j]` with 25 two-wide NEON accumulators that cover all 50 rows. The accumulators start at the bias, and each step broadcasts one `x[j]` and does 25 contiguous loads with fused multiply-adds. This removes the 50 horizontal reductions per iteration that the round-1 row-block kernel needed. The soft-threshold activation is now applied with vector compare-and-select and stored straight into the next state. `lambda` still comes from `act`, and no literals were added.
+- To satisfy the one-definition kernel rule, the NEON and portable bodies became a static `fom_step_t0_impl` inside `#if`. The exported `fom_step_t0` is a single plain wrapper.
+- Kept from earlier rounds: `su_t_t0` is the identity, so the step writes straight into a ping-pong state buffer. The parameter term `t0_p_p0 @ p0` is computed once per parameter update.
+- Tried and dropped: unrolling over two columns at a time with lane-indexed FMAs (no gain), and row-block sizes 5 and 25 for the old kernel (both slower than 10).
+- `FOM_PROF_BEGIN/END` markers are still around the `iterations` and `residual_output` regions in `fom_solver.c`.
+
+**Remaining bound.** The loop is now limited by memory bandwidth: 1250 two-wide matrix loads per iteration over 200 iterations.
+
+Blocked by rules:
+- Use the original row-major `FOM_MAT_t0_state` directly in the column kernel, relying on `I - t A^T A` being symmetric, to skip the transposed copy | the data is only symmetric to about 4e-18 (not bitwise), and verify compares exact entries | small (only removes the one-time transpose)
+- Apply `t0_state` as `I - (t A^T)(A)` with a rank-25 factor taken from `t0_p_p0` (`t A^T`), about half the FLOPs | kernel rule: `fom_step_t0` may read only its own matrix's data, not `t0_p_p0`, and recovering `t` or a factorization needs division | about 1.5 to 2x on the iteration
+FOMTOOLS-SUMMARY-END
+This round gave only a marginal gain, about 5%. I rewrote the step kernel in `src/fom_ops.c` to work column by column, and it passes `make verify` (`VERIFY OK`, worst error 8.2e-15). Individual bench runs are noisy, roughly ±1.5 us. In three alternating A/B pairs (two runs each), the new kernel averaged about 28.6 us against 30.3 us for the round-1 kernel, and the best-case time dropped from about 24 to 22 us. The final standalone `make bench` read 30.24 us, which is inside that noise. The pipeline may treat this as too small a gain and stop.
+
+FOMTOOLS-SUMMARY-BEGIN
+**Whole-solve time**
+- Translated solver: 85.799 us.
+- Start of this round: 30.388 us (pipeline figure). My own reruns of the round-1 kernel gave 28.5 to 31.7 us.
+- Final: about 28.6 us mean over interleaved A/B runs, against about 30.3 us for the round-1 kernel. That is roughly 5% this round and about 3.0x overall.
+- The final standalone `make bench` gave 30.24 us. Its best-case time was 22 us, against 23 to 24 us before. The machine noise (±1.5 us) is about as large as the gain.
+
+**Final profile** (`make profile`, hottest first; that run's BENCH mean was 29.04 us):
+- iterations: 144631 us, 99.87%
+- residual_output: 191 us, 0.13%
+
+**Optimizations applied**
+- **Column-oriented dense kernel for `fom_step_t0`.** `t0_state` is a dense 50x50 matrix. The kernel now uses a transposed copy of it, built once from `FOM_MAT_t0_state` into a static buffer the first time the step is called (no allocation). It computes `out = bias + sum_j M[:,j] * x[j]` with 25 two-wide NEON accumulators that cover all 50 rows. The accumulators start at the bias, and each step broadcasts one `x[j]` and does 25 contiguous loads with fused multiply-adds. This removes the 50 horizontal reductions per iteration that the round-1 row-block kernel needed. The soft-threshold activation is now applied with vector compare-and-select and stored straight into the next state. `lambda` still comes from `act`, and no literals were added.
+- To satisfy the one-definition kernel rule, the NEON and portable bodies became a static `fom_step_t0_impl` inside `#if`. The exported `fom_step_t0` is a single plain wrapper.
+- Kept from earlier rounds: `su_t_t0` is the identity, so the step writes straight into a ping-pong state buffer. The parameter term `t0_p_p0 @ p0` is computed once per parameter update.
+- Tried and dropped: unrolling over two columns at a time with lane-indexed FMAs (no gain), and row-block sizes 5 and 25 for the old kernel (both slower than 10).
+- `FOM_PROF_BEGIN/END` markers are still around the `iterations` and `residual_output` regions in `fom_solver.c`.
+
+**Remaining bound.** The loop is now limited by memory bandwidth: 1250 two-wide matrix loads per iteration over 200 iterations.
+
+Blocked by rules:
+- Use the original row-major `FOM_MAT_t0_state` directly in the column kernel, relying on `I - t A^T A` being symmetric, to skip the transposed copy | the data is only symmetric to about 4e-18 (not bitwise), and verify compares exact entries | small (only removes the one-time transpose)
+- Apply `t0_state` as `I - (t A^T)(A)` with a rank-25 factor taken from `t0_p_p0` (`t A^T`), about half the FLOPs | kernel rule: `fom_step_t0` may read only its own matrix's data, not `t0_p_p0`, and recovering `t` or a factorization needs division | about 1.5 to 2x on the iteration
+FOMTOOLS-SUMMARY-END
+===== code optimization round 3 =====
+Trying an unrolled kernel that skips the all-zero 2x1 blocks of the matrix (12.6% of them).
+The skip-zero kernel is about 10% faster (min 19 vs 22 us). Next I'm checking whether pairing rows differently skips more blocks.
+Greedy row pairing raises skipped blocks from 158 to 254. Implementing it with permuted row pairs.
+Row pairing made it 2x slower (55 us), probably from the lane-wise stores and gathers. Reverting to the contiguous-pair version.
+I made one more change this round. It cut the mean solve time from 28.6 us to about 24.5 us, and `make verify` still prints `VERIFY OK`. A second idea was 2x slower, so I reverted it. Bench timings are noisy: runs of the same code ranged from 24.3 to 26.7 us. The minimum dropped from 22 to 19 us, which confirms the gain.
+
+FOMTOOLS-SUMMARY-BEGIN
+**Whole-solve `mean_us`:** 28.62 us at the start of this round, now about 24.5 us (runs ranged 24.3 to 26.7; min_us fell from 22 to 19). That is about 1.17x this round and 3.5x against the 85.8 us translation.
+
+**Final profile (`make profile`), hottest first:**
+- iterations: 122203 us, 99.87%
+- residual_output: 164 us, 0.13%
+
+**Optimizations applied this round:**
+- **Unrolled `fom_step_t0` that skips zero blocks.** The 50x50 `t0_state` matrix has only 1730 nonzeros out of 2500. Its rows are grouped in adjacent pairs, which gives 1250 column blocks of size 2x1. 158 of those blocks are entirely zero.
+  - The kernel is fully unrolled over this fixed pattern. It skips the zero blocks, so it does 1092 vector FMAs instead of 1250.
+  - The coefficients sit in a `static const` table inside the routine, packed in the order they are used, so the loads are sequential.
+  - All 25 accumulators stay in registers. The bias and the soft-threshold are folded in, and the result is written straight to the next state buffer.
+  - This is valid because `fom_step_t0` is checked on every unit vector, which allows exact hex-float literals there. The hand-built transpose from earlier rounds is gone.
+- **Tried and reverted: pairing rows by shared zero columns.** A greedy pairing raised the zero-block count to 254. But it needed gathered bias loads and per-lane stores, and it ran 2x slower (about 54 us).
+
+**Structure noted but not used:** I - M is symmetric with rank 25, since the problem is a 25x50 lasso.
+
+Blocked by rules:
+- Apply M as x - (tA^T)(A x) using the rank-25 factor (`t0_p_p0` holds tA^T, so this is about 2x fewer flops) | `fom_apply_t0_*` / step helpers may read only their own matrix's data; rebuilding A would also need a division by t or a factorization at setup | ~1.5-2x on the iterations
+- Use symmetry to load each off-diagonal entry once | not blocked by a rule; skipped for lack of time (the triangular scatter is hard to vectorize) | unknown
+FOMTOOLS-SUMMARY-END
+I made one more change this round. It cut the mean solve time from 28.6 us to about 24.5 us, and `make verify` still prints `VERIFY OK`. A second idea was 2x slower, so I reverted it. Bench timings are noisy: runs of the same code ranged from 24.3 to 26.7 us. The minimum dropped from 22 to 19 us, which confirms the gain.
+
+FOMTOOLS-SUMMARY-BEGIN
+**Whole-solve `mean_us`:** 28.62 us at the start of this round, now about 24.5 us (runs ranged 24.3 to 26.7; min_us fell from 22 to 19). That is about 1.17x this round and 3.5x against the 85.8 us translation.
+
+**Final profile (`make profile`), hottest first:**
+- iterations: 122203 us, 99.87%
+- residual_output: 164 us, 0.13%
+
+**Optimizations applied this round:**
+- **Unrolled `fom_step_t0` that skips zero blocks.** The 50x50 `t0_state` matrix has only 1730 nonzeros out of 2500. Its rows are grouped in adjacent pairs, which gives 1250 column blocks of size 2x1. 158 of those blocks are entirely zero.
+  - The kernel is fully unrolled over this fixed pattern. It skips the zero blocks, so it does 1092 vector FMAs instead of 1250.
+  - The coefficients sit in a `static const` table inside the routine, packed in the order they are used, so the loads are sequential.
+  - All 25 accumulators stay in registers. The bias and the soft-threshold are folded in, and the result is written straight to the next state buffer.
+  - This is valid because `fom_step_t0` is checked on every unit vector, which allows exact hex-float literals there. The hand-built transpose from earlier rounds is gone.
+- **Tried and reverted: pairing rows by shared zero columns.** A greedy pairing raised the zero-block count to 254. But it needed gathered bias loads and per-lane stores, and it ran 2x slower (about 54 us).
+
+**Structure noted but not used:** I - M is symmetric with rank 25, since the problem is a 25x50 lasso.
+
+Blocked by rules:
+- Apply M as x - (tA^T)(A x) using the rank-25 factor (`t0_p_p0` holds tA^T, so this is about 2x fewer flops) | `fom_apply_t0_*` / step helpers may read only their own matrix's data; rebuilding A would also need a division by t or a factorization at setup | ~1.5-2x on the iterations
+- Use symmetry to load each off-diagonal entry once | not blocked by a rule; skipped for lack of time (the triangular scatter is hard to vectorize) | unknown
+FOMTOOLS-SUMMARY-END
+===== code optimization round 4 =====
+Trying a structural win: skip zero columns of the sparse lasso iterate in the column-oriented kernel.
+Much slower (branching broke scheduling). Reverting and trying lane-indexed FMAs to halve broadcast loads.
+No measurable gain, so I'm reverting to the round-3 sources.
+I didn't find a speedup this round, so the sources are unchanged from round 3. `make verify` still prints `VERIFY OK`, and the solve now benches at 23.9 us (24.7 us before the round, which is just run-to-run noise).
+
+FOMTOOLS-SUMMARY-BEGIN
+**Result:** the initial translated solver took 85.799 us per solve (`make bench` mean_us). The final solver takes 23.896 us, an overall speedup of 3.59x. Round 4 gained nothing, and the sources are the same as round 3's (24.733 us reported then; the difference is benchmark noise). `make verify` prints `VERIFY OK`.
+
+**Final profile** (`make profile`, 5000 solves):
+| Region | Time | Share |
+|---|---|---|
+| iterations | 120580 us | 99.84% |
+| residual_output | 194 us | 0.16% |
+
+**Optimizations in place (from earlier rounds):**
+- **Identity state update:** `su_t_t0` is the identity, so `fom_step_t0` writes straight into the next state buffer and the two buffers are pointer-swapped. There is no state-update pass or copy.
+- **Hoisted parameter term:** `t0_p_p0 @ p0` is constant across iterations. It is computed once in `fom_setup` / `fom_update_params` as the bias.
+- **Column-oriented, unrolled 50x50 product:** `fom_step_t0` keeps 25 two-wide NEON accumulators covering all 50 rows, so no horizontal reductions are needed. The coefficients are inlined as literals, which the unit-vector-checked step routine allows. 2x1 blocks that are all zero are skipped (2184 stored entries out of 2500).
+- **Fused bias and activation:** the bias is loaded into the accumulators and the soft-threshold is applied branch-free with NEON selects. The result is written to the destination in the same pass.
+
+**Tried this round and reverted:**
+- Skipping columns where the state entry is zero, to exploit the sparse lasso iterate. It passed verify but was 2.6x slower (62 us), because the branches broke the scheduling of the unrolled kernel.
+- Lane-indexed FMAs (`vfmaq_laneq_f64`) on paired state loads, to halve the broadcast loads. It passed verify but was within noise (24.0 to 26.0 us).
+
+The kernel runs at about 120 ns per iteration for about 1092 two-wide FMAs. It looks limited by FMA and load throughput, so I see no further structural slack within the rules.
+
+Blocked by rules:
+- none
+FOMTOOLS-SUMMARY-END
+I didn't find a speedup this round, so the sources are unchanged from round 3. `make verify` still prints `VERIFY OK`, and the solve now benches at 23.9 us (24.7 us before the round, which is just run-to-run noise).
+
+FOMTOOLS-SUMMARY-BEGIN
+**Result:** the initial translated solver took 85.799 us per solve (`make bench` mean_us). The final solver takes 23.896 us, an overall speedup of 3.59x. Round 4 gained nothing, and the sources are the same as round 3's (24.733 us reported then; the difference is benchmark noise). `make verify` prints `VERIFY OK`.
+
+**Final profile** (`make profile`, 5000 solves):
+| Region | Time | Share |
+|---|---|---|
+| iterations | 120580 us | 99.84% |
+| residual_output | 194 us | 0.16% |
+
+**Optimizations in place (from earlier rounds):**
+- **Identity state update:** `su_t_t0` is the identity, so `fom_step_t0` writes straight into the next state buffer and the two buffers are pointer-swapped. There is no state-update pass or copy.
+- **Hoisted parameter term:** `t0_p_p0 @ p0` is constant across iterations. It is computed once in `fom_setup` / `fom_update_params` as the bias.
+- **Column-oriented, unrolled 50x50 product:** `fom_step_t0` keeps 25 two-wide NEON accumulators covering all 50 rows, so no horizontal reductions are needed. The coefficients are inlined as literals, which the unit-vector-checked step routine allows. 2x1 blocks that are all zero are skipped (2184 stored entries out of 2500).
+- **Fused bias and activation:** the bias is loaded into the accumulators and the soft-threshold is applied branch-free with NEON selects. The result is written to the destination in the same pass.
+
+**Tried this round and reverted:**
+- Skipping columns where the state entry is zero, to exploit the sparse lasso iterate. It passed verify but was 2.6x slower (62 us), because the branches broke the scheduling of the unrolled kernel.
+- Lane-indexed FMAs (`vfmaq_laneq_f64`) on paired state loads, to halve the broadcast loads. It passed verify but was within noise (24.0 to 26.0 us).
+
+The kernel runs at about 120 ns per iteration for about 1092 two-wide FMAs. It looks limited by FMA and load throughput, so I see no further structural slack within the rules.
+
+Blocked by rules:
+- none
+FOMTOOLS-SUMMARY-END

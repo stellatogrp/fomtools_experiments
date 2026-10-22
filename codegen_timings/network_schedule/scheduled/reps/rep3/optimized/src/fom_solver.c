@@ -41,15 +41,10 @@ fom_int fom_solve(FomWorkspace *work) {
         fom_float *tmp;
         /* Selection rows of su: rows 0..599 are t0 and 600..619 are t1, so
            both temporaries are written straight into the new state. */
-        FOM_PROF_BEGIN(t0);
-        fom_step_t0(x, FOM_MAT_t0_c, &FOM_ACT_t0, xn);
-        FOM_PROF_END(t0);
-        FOM_PROF_BEGIN(t1);
-        fom_step_t1(x, xn, xi, FOM_MAT_t1_c, &FOM_ACT_t1, xn + FOM_T0_DIM);
-        FOM_PROF_END(t1);
-        FOM_PROF_BEGIN(su);
-        fom_step_su__rest(x, xn, xn + FOM_T0_DIM, xi, bias, xn);
-        FOM_PROF_END(su);
+        FOM_PROF_BEGIN(iterate);
+        fom_iterate(x, xi, FOM_MAT_t0_c, FOM_MAT_t1_c, bias, &FOM_ACT_t0, &FOM_ACT_t1,
+                    xn, xn + FOM_T0_DIM, xn);
+        FOM_PROF_END(iterate);
         /* Only the final residual is reported (no tolerance check). */
         if (it == max_iter - 1) {
             FOM_PROF_BEGIN(residual);

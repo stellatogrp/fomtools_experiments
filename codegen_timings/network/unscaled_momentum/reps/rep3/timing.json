@@ -1,0 +1,160 @@
+{
+  "experiment": "network",
+  "variant": "unscaled_momentum",
+  "rep": 3,
+  "iterations": 200,
+  "verified_run": "network/results/run_005",
+  "numpy_us": 1431.2084531411529,
+  "translated_us": 42.9954,
+  "optimized_us": 9.9456,
+  "speedup_translation": 33.28747850098273,
+  "speedup_optimization": 4.323057432432432,
+  "speedup_total": 143.9036813406082,
+  "optimization_kept": true,
+  "optimization_notes": "",
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 42.4404,
+      "us_after": 16.3538,
+      "gain": 0.6146643292711661,
+      "agent_wall_s": 49.38379029207863,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 16.335,
+      "us_after": 10.4994,
+      "gain": 0.35724517906336095,
+      "agent_wall_s": 136.2921769998502,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": false,
+      "correct": true,
+      "kept": false,
+      "us_before": null,
+      "us_after": null,
+      "gain": null,
+      "agent_wall_s": 89.64494670904242,
+      "truncated": false,
+      "stop_reason": "the round left the sources unchanged"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 2,
+      "idea": "Fusing t0, t1 and su_rest into one `fom_iterate` pass that writes new_state rows 0..58 in place",
+      "rule": "`fom_iterate` must be right for any caller buffers and biases, so it would need pointer-compare branches and could not alias its outputs under `restrict`",
+      "expected_gain": "unknown, probably small since LTO already inlines the steps"
+    },
+    {
+      "round": 2,
+      "idea": "`restrict` on the prototypes in `include/fom_ops.h`",
+      "rule": "headers are fixed",
+      "expected_gain": "none, since the qualifier on the definitions is enough"
+    },
+    {
+      "round": 3,
+      "idea": "Precompute the per-iteration coefficient tables (a + xi_k\u00b7b) for su_rest and t1 over the known 200-value xi schedule, so each iteration does one FMA per entry instead of two",
+      "rule": "src/fom_ops.c may not read the schedule, and src/fom_solver.c may not read matrix data or probe matrices in setup",
+      "expected_gain": "about 10-20% of su_rest/t1, unknown overall"
+    },
+    {
+      "round": 3,
+      "idea": "Exploit the near-relation in su_rest between each state[j] coefficient and its t_t0[j] coefficient (about -1/2 times, with a different xi factor) to share one product",
+      "rule": "the coefficients agree only to rounding, not exactly, so verify's exactness check against the matrix forbids it",
+      "expected_gain": "about 30% of su_rest"
+    },
+    {
+      "round": 3,
+      "idea": "Change build flags, for example -march=native for wider SIMD",
+      "rule": "the Makefile and build flags are fixed",
+      "expected_gain": "unknown"
+    }
+  ],
+  "max_abs_dev": {
+    "translated": {
+      "verified_set": 7.843725668976731e-14
+    },
+    "optimized": {
+      "verified_set": 8.054668043655511e-14
+    }
+  },
+  "timing_rounds": {
+    "numpy": [
+      1431.2084531411529,
+      1447.5419884547591,
+      1409.1461198404431,
+      1409.9169056862593,
+      1421.333639882505,
+      1451.2708876281977,
+      1442.187000066042
+    ],
+    "translated": [
+      42.9,
+      42.9954,
+      42.2332,
+      44.2974,
+      44.8018,
+      42.9024,
+      44.6852
+    ],
+    "optimized": [
+      9.0332,
+      9.9456,
+      10.033,
+      8.9806,
+      10.3086,
+      10.5234,
+      9.7748
+    ]
+  },
+  "agent_wall_s": {
+    "translation": 46.8703727722168,
+    "code_optimization": 280.44134616851807
+  },
+  "agent_budgets_s": {
+    "translation": 600,
+    "code_optimization": 600
+  },
+  "check": {
+    "oracle_vs_numpy_max_rel": 1.424876430695218e-14,
+    "state_dim": 74,
+    "params": {
+      "p0": 15
+    }
+  },
+  "info": {
+    "ns": 10,
+    "nd": 15,
+    "ne": 49,
+    "eta": 0.08226303133234722,
+    "momentum": true,
+    "ruiz": false,
+    "state_dim": 74
+  },
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "os": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
+    "python": "3.13.11",
+    "numpy": "2.5.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "fomtools_commit": "25b3f73",
+    "fomtools_dirty": false,
+    "fomtools_branch": "",
+    "fomtools_path": "/Users/bs37/Documents/projects/fomtools/fomtools"
+  },
+  "started_utc": "2026-10-22T19:32:00+00:00",
+  "finished_utc": "2026-10-22T19:37:36+00:00"
+}

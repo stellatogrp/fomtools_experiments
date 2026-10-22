@@ -1,0 +1,105 @@
+
+===== code optimization round 1 =====
+Unrolled kernels with inlined coefficients: 41.3 → 19.7 µs, verify OK. Adding profile markers now.
+I accidentally reverted my edits with that checkout. Regenerating them now.
+The files are untracked, so the checkout didn't change anything. The edits are still in place (395 lines). Re-verifying:
+The solver went from 41.3 µs to about 17.2 µs per solve, roughly 2.4x faster, and `make verify` still prints `VERIFY OK`. The worst error is about 4e-15 against a 1e-6 tolerance.
+
+All the gain came from one change in `src/fom_ops.c`: the step routines now have every row written out with its coefficients inlined. A second idea was rejected because it would have changed the coefficients slightly. One note on the commands: the `git checkout` I ran near the end did nothing, because `src/` is untracked in this worktree. Your edits are intact, and I re-ran verify afterwards.
+
+FOMTOOLS-SUMMARY-BEGIN
+**Whole-solve `mean_us`:** initial 41.32 µs, final about 17.2 µs (three runs: 17.42, 16.57, 17.21; a fourth gave 17.45). Speedup is about 2.4x.
+
+**Final profile breakdown** (`make profile`; the profiled build runs at about 35 µs because of timer overhead, so the shares matter more than the absolute times):
+| Region | Time (µs, 5000 solves) | % |
+|---|---|---|
+| step_su_rest | 37329 | 35.1 |
+| step_t0 | 37099 | 34.9 |
+| step_t1 | 32025 | 30.1 |
+
+**Optimizations applied:**
+1. **Unrolled the step kernels with literal coefficients** (`fom_step_t0`, `fom_step_t1`, `fom_step_su`, `fom_step_su__rest`). These routines are checked on every unit vector, so the rules allow literal coefficients there. The routines are generated from the CSR data in `fom_data.c`, and each coefficient is written at full round-trip precision.
+   - Structure exploited: the sparsity pattern is small and fixed (about 3 nonzeros per row in `t0_state`, about 10 per row in t1 and in the 15 remaining su rows).
+   - Removed: all row-pointer and column-index loads, the inner-loop control, and the multiplies for the many unit (±1) coefficients, such as the identity part of `t0_state` and the `state[49+i]` term in t1.
+2. **Fused the two products scaled by the schedule value.** The `state__d_xi` and `t_t0__d_xi` terms of each row are summed together and multiplied by `sc_xi` once per row. Likewise, the products of the plain matrices `state`, `t_t0` and `t_t1` form one expression per row.
+   - Structure exploited: each output block's members share the same schedule value.
+   - This removes a multiply per member and gives the compiler longer independent chains to schedule.
+3. **Kept the existing solver structure.** It already writes the selection rows directly (rows 0..58 of the next state are `t_t0` and `t_t1` written in place), calls `__rest` for rows 59..73, and computes `su_p_p0 @ p0` once per parameter update. I added `FOM_PROF_BEGIN/END` markers around the three steps.
+
+**Considered but not done:**
+- Rewriting each row as A·(t_t0 − c·state). The `state`, `t_t0` and `_d_xi` coefficients look like near-exact multiples of each other (for example −0.3148… and 0.6296…), which would cut the multiply count by about half. They differ in the last digits, though, so this would change the effective coefficients by about 1e-16 relative. I rejected it as not exact; no rule blocked it.
+
+Blocked by rules:
+- Inlining the per-iteration products directly into the solver loop of `src/fom_solver.c`, removing the call boundaries | src/fom_solver.c must not read matrix data or write matrix-vector loops/literals | small (LTO already inlines most of it), ~2-5%
+- Factoring the near-proportional `state`/`t_t0`/`_d_xi` coefficient pairs into one product with a derived scalar | exactness of the coefficients each member applies (literal values must be exactly the matrix's), and no new float constants | ~30-40% of the step time
+FOMTOOLS-SUMMARY-END
+The solver went from 41.3 µs to about 17.2 µs per solve, roughly 2.4x faster, and `make verify` still prints `VERIFY OK`. The worst error is about 4e-15 against a 1e-6 tolerance.
+
+All the gain came from one change in `src/fom_ops.c`: the step routines now have every row written out with its coefficients inlined. A second idea was rejected because it would have changed the coefficients slightly. One note on the commands: the `git checkout` I ran near the end did nothing, because `src/` is untracked in this worktree. Your edits are intact, and I re-ran verify afterwards.
+
+FOMTOOLS-SUMMARY-BEGIN
+**Whole-solve `mean_us`:** initial 41.32 µs, final about 17.2 µs (three runs: 17.42, 16.57, 17.21; a fourth gave 17.45). Speedup is about 2.4x.
+
+**Final profile breakdown** (`make profile`; the profiled build runs at about 35 µs because of timer overhead, so the shares matter more than the absolute times):
+| Region | Time (µs, 5000 solves) | % |
+|---|---|---|
+| step_su_rest | 37329 | 35.1 |
+| step_t0 | 37099 | 34.9 |
+| step_t1 | 32025 | 30.1 |
+
+**Optimizations applied:**
+1. **Unrolled the step kernels with literal coefficients** (`fom_step_t0`, `fom_step_t1`, `fom_step_su`, `fom_step_su__rest`). These routines are checked on every unit vector, so the rules allow literal coefficients there. The routines are generated from the CSR data in `fom_data.c`, and each coefficient is written at full round-trip precision.
+   - Structure exploited: the sparsity pattern is small and fixed (about 3 nonzeros per row in `t0_state`, about 10 per row in t1 and in the 15 remaining su rows).
+   - Removed: all row-pointer and column-index loads, the inner-loop control, and the multiplies for the many unit (±1) coefficients, such as the identity part of `t0_state` and the `state[49+i]` term in t1.
+2. **Fused the two products scaled by the schedule value.** The `state__d_xi` and `t_t0__d_xi` terms of each row are summed together and multiplied by `sc_xi` once per row. Likewise, the products of the plain matrices `state`, `t_t0` and `t_t1` form one expression per row.
+   - Structure exploited: each output block's members share the same schedule value.
+   - This removes a multiply per member and gives the compiler longer independent chains to schedule.
+3. **Kept the existing solver structure.** It already writes the selection rows directly (rows 0..58 of the next state are `t_t0` and `t_t1` written in place), calls `__rest` for rows 59..73, and computes `su_p_p0 @ p0` once per parameter update. I added `FOM_PROF_BEGIN/END` markers around the three steps.
+
+**Considered but not done:**
+- Rewriting each row as A·(t_t0 − c·state). The `state`, `t_t0` and `_d_xi` coefficients look like near-exact multiples of each other (for example −0.3148… and 0.6296…), which would cut the multiply count by about half. They differ in the last digits, though, so this would change the effective coefficients by about 1e-16 relative. I rejected it as not exact; no rule blocked it.
+
+Blocked by rules:
+- Inlining the per-iteration products directly into the solver loop of `src/fom_solver.c`, removing the call boundaries | src/fom_solver.c must not read matrix data or write matrix-vector loops/literals | small (LTO already inlines most of it), ~2-5%
+- Factoring the near-proportional `state`/`t_t0`/`_d_xi` coefficient pairs into one product with a derived scalar | exactness of the coefficients each member applies (literal values must be exactly the matrix's), and no new float constants | ~30-40% of the step time
+FOMTOOLS-SUMMARY-END
+===== code optimization round 2 =====
+Checking the baseline. The kernels are already fully unrolled with inlined coefficients, so I'm testing whether any headroom is left.
+I left the sources unchanged this round. The solver still prints `VERIFY OK` (worst error 4.4e-15) and benches at 18.96 us per solve, the same as the 18.38 us baseline within noise. I found no exact speedup to make.
+
+- **Already near the hardware limit:** One iteration is about 95 ns for about 650 multiply-adds. Those are mostly fused multiply-adds with no dependencies between rows, so the arithmetic itself sets the floor.
+- **No call overhead left:** Link-time optimization (`-flto`) is on, so the three step calls are already inlined. Merging them into `fom_iterate` would gain nothing.
+- **The remaining structure is only approximate:** The xi-scaled matrices are about twice the base ones, and each `t_t0` coefficient is about −2 times the matching `state` coefficient. If those held exactly, each row could collapse to `c*(2*t0 - s)` and roughly halve the work. They differ in the last bits, so using them would mean writing values that are not exactly the matrix's.
+
+FOMTOOLS-SUMMARY-BEGIN
+Initial vs final: 18.380 us -> 18.960 us mean_us per solve (no change; the difference is run-to-run noise). The speedup over the translated solver stays 2.49x (45.685 us). The sources are unchanged this round.
+
+Final profile (`make profile`, hottest first; profiling adds overhead, so the profiled solve is 31.9 us):
+- step_su_rest   33921 us   35.0%
+- step_t0        33721 us   34.8%
+- step_t1        29184 us   30.1%
+
+Optimizations applied this round: none. The previous rounds' kernels are already fully unrolled over the fixed sparsity, with the coefficients inlined. They skip zero and unit coefficients and fold the bias, activation and selection-row writes straight into the next state. The steps are inlined through LTO. One iteration costs about 95 ns for about 650 multiply-adds with no dependencies between rows, so it is close to the FMA throughput bound. Merging the steps into `fom_iterate` gains nothing, because LTO already inlines them. Splitting each row into more accumulators would shorten the dependency chains, but out-of-order execution across rows already hides that latency.
+
+Blocked by rules:
+- Exploit the near-relations between member coefficients (xi-matrices ~= 2x the base ones, t_t0 coefficient ~= -2x the state coefficient). Each row of t1 and su would then collapse to c_j*(2*t0_j - s_j) + xi*2c_j*(t0_j - s_j), cutting the work about in half | the relations hold only to the last few bits, so the result would not apply exactly the package's coefficients ("values must be exactly the matrix's") | ~30-45%
+FOMTOOLS-SUMMARY-END
+I left the sources unchanged this round. The solver still prints `VERIFY OK` (worst error 4.4e-15) and benches at 18.96 us per solve, the same as the 18.38 us baseline within noise. I found no exact speedup to make.
+
+- **Already near the hardware limit:** One iteration is about 95 ns for about 650 multiply-adds. Those are mostly fused multiply-adds with no dependencies between rows, so the arithmetic itself sets the floor.
+- **No call overhead left:** Link-time optimization (`-flto`) is on, so the three step calls are already inlined. Merging them into `fom_iterate` would gain nothing.
+- **The remaining structure is only approximate:** The xi-scaled matrices are about twice the base ones, and each `t_t0` coefficient is about −2 times the matching `state` coefficient. If those held exactly, each row could collapse to `c*(2*t0 - s)` and roughly halve the work. They differ in the last bits, so using them would mean writing values that are not exactly the matrix's.
+
+FOMTOOLS-SUMMARY-BEGIN
+Initial vs final: 18.380 us -> 18.960 us mean_us per solve (no change; the difference is run-to-run noise). The speedup over the translated solver stays 2.49x (45.685 us). The sources are unchanged this round.
+
+Final profile (`make profile`, hottest first; profiling adds overhead, so the profiled solve is 31.9 us):
+- step_su_rest   33921 us   35.0%
+- step_t0        33721 us   34.8%
+- step_t1        29184 us   30.1%
+
+Optimizations applied this round: none. The previous rounds' kernels are already fully unrolled over the fixed sparsity, with the coefficients inlined. They skip zero and unit coefficients and fold the bias, activation and selection-row writes straight into the next state. The steps are inlined through LTO. One iteration costs about 95 ns for about 650 multiply-adds with no dependencies between rows, so it is close to the FMA throughput bound. Merging the steps into `fom_iterate` gains nothing, because LTO already inlines them. Splitting each row into more accumulators would shorten the dependency chains, but out-of-order execution across rows already hides that latency.
+
+Blocked by rules:
+- Exploit the near-relations between member coefficients (xi-matrices ~= 2x the base ones, t_t0 coefficient ~= -2x the state coefficient). Each row of t1 and su would then collapse to c_j*(2*t0_j - s_j) + xi*2c_j*(t0_j - s_j), cutting the work about in half | the relations hold only to the last few bits, so the result would not apply exactly the package's coefficients ("values must be exactly the matrix's") | ~30-45%
+FOMTOOLS-SUMMARY-END

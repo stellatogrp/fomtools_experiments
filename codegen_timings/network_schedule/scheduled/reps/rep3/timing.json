@@ -1,0 +1,227 @@
+{
+  "experiment": "network_schedule",
+  "arm": "scheduled",
+  "rep": 3,
+  "variant": "ruiz_momentum",
+  "iterations": 50,
+  "overrides": [
+    "experiment=network",
+    "experiment.problem.ns=20",
+    "experiment.problem.nd=30",
+    "experiment.problem.edge_prob=1.0",
+    "experiment.problem.seed=20",
+    "experiment.problem.gain_spread=100.0",
+    "experiment.problem.cost_range=[1.0,10.0]",
+    "experiment.problem.capacity_range=[2.0,6.0]",
+    "experiment.problem.supply=4",
+    "experiment.problem.x_lb=-6.0",
+    "experiment.problem.x_ub=-4.0",
+    "experiment.problem.warm_start=center",
+    "experiment.problem.ruiz_iters=30",
+    "experiment.problem.eta_scale=0.5"
+  ],
+  "numpy_us": 668.5210391879082,
+  "translated_us": 124.9402,
+  "optimized_us": 30.9678,
+  "speedup_translation": 5.35072810182718,
+  "speedup_optimization": 4.034519726942179,
+  "speedup_total": 21.587618080325633,
+  "optimization_kept": true,
+  "optimization_notes": "",
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 125.3426,
+      "us_after": 59.1668,
+      "gain": 0.5279593689615503,
+      "agent_wall_s": 132.44440308306366,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 59.1128,
+      "us_after": 37.704,
+      "gain": 0.36216859969414406,
+      "agent_wall_s": 156.49147154111415,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 37.8136,
+      "us_after": 30.2042,
+      "gain": 0.20123447648465104,
+      "agent_wall_s": 88.7383351251483,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 4,
+      "changed": false,
+      "correct": true,
+      "kept": false,
+      "us_before": null,
+      "us_after": null,
+      "gain": null,
+      "agent_wall_s": 56.19317820901051,
+      "truncated": false,
+      "stop_reason": "the round left the sources unchanged"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Merge the two t1 products from t_t0 into `(1+xi)*(t1_t_t0 @ t0)` because `t1_t_t0 == t1_t_t0__d_xi` (likely the same for su_t_t0 on rest rows)",
+      "rule": "none (fused/step routines may hardcode literals; I ran out of time to check exact equality and inline the values)",
+      "expected_gain": "~10% of t1"
+    },
+    {
+      "round": 1,
+      "idea": "Precompute a solver-side layout of t0's 3-per-row structure (shared column 600 and its constant coefficient) at setup",
+      "rule": "solver must not read FOM_MAT data, and setup cannot probe matrices",
+      "expected_gain": "small, unknown"
+    },
+    {
+      "round": 1,
+      "idea": "none other",
+      "rule": "",
+      "expected_gain": ""
+    },
+    {
+      "round": 2,
+      "idea": "Precomputing transposed copies of the su rest and t1 value arrays at setup, for unit-stride vector loads",
+      "rule": "`fom_setup` and `src/fom_solver.c` may not read `FOM_MAT_*` data, and all `src/fom_ops.c` functions except the entry points must be `static` (`static const` tables inside the routine are allowed, but they mean regenerating the literal coefficients)",
+      "expected_gain": "small, about 1 to 2 us"
+    },
+    {
+      "round": 2,
+      "idea": "Letting the compiler reassociate and vectorize the reductions with fast-math flags",
+      "rule": "the Makefile and build flags are fixed",
+      "expected_gain": "unknown, small"
+    },
+    {
+      "round": 3,
+      "idea": "Hardware vector instructions (AVX2/NEON FMA) through build flags such as `-march=native`",
+      "rule": "Makefile and build flags are fixed",
+      "expected_gain": "unknown, maybe 10\u201320%"
+    },
+    {
+      "round": 3,
+      "idea": "Skip adding `bias_su` on selection rows 0..619, since it is zero there in the solver (p0 only reaches rows 620+)",
+      "rule": "`fom_iterate` must be right for any bias, and `fom_update_params` may not probe the matrix",
+      "expected_gain": "under 2%"
+    },
+    {
+      "round": 3,
+      "idea": "Do the repacking in `fom_setup` instead of a first-call check in `fom_iterate`",
+      "rule": "`src/fom_solver.c` may not read the `FOM_MAT_` data of matrices it multiplies",
+      "expected_gain": "negligible"
+    },
+    {
+      "round": 4,
+      "idea": "Fold the t0 bias into the clip bounds (`clip(b+y,l,h) = b + clip(y,l-b,h-b)`), precomputed once per solve",
+      "rule": "`fom_iterate` must be right for any bias and activation passed on each call, and `fom_solver.c` may not read matrix or activation data in a way that replaces the checked routines",
+      "expected_gain": "~3-5%"
+    },
+    {
+      "round": 4,
+      "idea": "Repack the coefficient tables in `fom_setup` instead of behind a lazy first-call init flag",
+      "rule": "`fom_solver.c` must not read `FOM_MAT_*` data, and setup may not call apply routines",
+      "expected_gain": "<1%"
+    }
+  ],
+  "max_abs_dev": {
+    "translated": 9.325873406851315e-15,
+    "optimized": 5.773159728050814e-15
+  },
+  "timing_rounds": {
+    "numpy": [
+      714.6045099943876,
+      663.4789751842618,
+      667.520915158093,
+      668.5210391879082,
+      661.7704639211297,
+      674.8954765498638,
+      680.1249692216516
+    ],
+    "translated": [
+      124.8898,
+      124.6348,
+      125.774,
+      124.4862,
+      124.9402,
+      125.1658,
+      124.9966
+    ],
+    "optimized": [
+      31.1616,
+      30.6354,
+      30.9678,
+      32.2104,
+      30.558,
+      29.2896,
+      31.5626
+    ]
+  },
+  "size": {
+    "ir": {
+      "oracle_vs_numpy_max_rel": 1.5055579460674808e-15,
+      "unrolled": false,
+      "body_steps": 2,
+      "coefficient_blocks": 15,
+      "coefficient_entries_dense": 2099320,
+      "coefficient_nonzeros": 8520,
+      "schedules": [
+        "xi"
+      ]
+    },
+    "translated": {
+      "solver_c_lines": 75,
+      "data_c_bytes": 246564,
+      "library_bytes": 169440
+    },
+    "optimized": {
+      "solver_c_lines": 72,
+      "data_c_bytes": 246564,
+      "library_bytes": 186272
+    }
+  },
+  "agent_wall_s": {
+    "translation": 30.575409173965454,
+    "code_optimization": 442.78669595718384
+  },
+  "agent_budgets_s": {
+    "translation": 600,
+    "code_optimization": 600
+  },
+  "instance": {
+    "ns": 20,
+    "nd": 30,
+    "ne": 600,
+    "eta": 0.09268607528845305
+  },
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "os": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
+    "python": "3.13.11",
+    "numpy": "2.5.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "fomtools_commit": "25b3f73",
+    "fomtools_dirty": false,
+    "fomtools_branch": "",
+    "fomtools_path": "/Users/bs37/Documents/projects/fomtools/fomtools"
+  },
+  "started_utc": "2026-10-22T23:20:09+00:00",
+  "finished_utc": "2026-10-22T23:28:15+00:00"
+}

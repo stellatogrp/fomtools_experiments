@@ -1,0 +1,202 @@
+{
+  "experiment": "network",
+  "variant": "ruiz",
+  "rep": 3,
+  "iterations": 200,
+  "verified_run": "network/results/run_005",
+  "numpy_us": 1426.6669750213623,
+  "translated_us": 42.289,
+  "optimized_us": 8.809,
+  "speedup_translation": 33.73612464284713,
+  "speedup_optimization": 4.800658417527529,
+  "speedup_total": 161.95561074144197,
+  "optimization_kept": true,
+  "optimization_notes": "",
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 40.336,
+      "us_after": 13.565,
+      "gain": 0.6636999206664023,
+      "agent_wall_s": 113.19508141605183,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 13.7336,
+      "us_after": 12.079,
+      "gain": 0.12047824314090978,
+      "agent_wall_s": 49.179481624858454,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 11.2698,
+      "us_after": 9.9742,
+      "gain": 0.11496211112885768,
+      "agent_wall_s": 43.708161749877036,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 4,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 10.1974,
+      "us_after": 8.9006,
+      "gain": 0.12716967070037455,
+      "agent_wall_s": 52.31049691699445,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 5,
+      "changed": false,
+      "correct": true,
+      "kept": false,
+      "us_before": null,
+      "us_after": null,
+      "gain": null,
+      "agent_wall_s": 27.340419916901737,
+      "truncated": false,
+      "stop_reason": "the round left the sources unchanged"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Build `w` and the unrolled kernel from the data at setup time instead of with an offline generator script",
+      "rule": "none; I generated the code offline because time was short",
+      "expected_gain": "none"
+    },
+    {
+      "round": 1,
+      "idea": "Compile flags for wider SIMD (e.g. `-march=native`) to vectorize the 49-row t0 clip pass",
+      "rule": "Makefile/build flags are fixed",
+      "expected_gain": "unknown, maybe 10\u201320%"
+    },
+    {
+      "round": 1,
+      "idea": "Add `restrict` to the `fom_iterate` pointer arguments so the compiler can keep `t_t0` in registers instead of re-reading it after stores",
+      "rule": "headers and prototypes are fixed",
+      "expected_gain": "small (<5%)"
+    },
+    {
+      "round": 3,
+      "idea": "Skip adding `bias_su` on rows 0..58, where `su_p_p0` has no entries for this data",
+      "rule": "`fom_iterate` must handle any bias it is passed, and verify uses random biases",
+      "expected_gain": "about 1-2%"
+    },
+    {
+      "round": 3,
+      "idea": "Merge `t_t0` and `new_state[0..48]` into one write, since they differ only by the bias",
+      "rule": "the temporaries must be written separately because the solver and `fom_objective` read them, and the header signatures are fixed",
+      "expected_gain": "about 2-4%"
+    },
+    {
+      "round": 4,
+      "idea": "Merge several iterations into one call, or inline `fom_iterate` into the solver loop to keep the state in registers across iterations",
+      "rule": "fixed `fom_iterate` signature, and no matrix products allowed in `src/fom_solver.c`",
+      "expected_gain": "about 5 to 10%"
+    },
+    {
+      "round": 4,
+      "idea": "Build with `-ffast-math` or `-march=native` so the compiler regroups and vectorizes the sums itself",
+      "rule": "Makefile and build flags are fixed",
+      "expected_gain": "unknown, small"
+    },
+    {
+      "round": 5,
+      "idea": "Move the 200-iteration loop into `src/fom_ops.c` so the state stays in registers across iterations",
+      "rule": "`fom_iterate` signature, headers, and loop placement are fixed (the loop must live in `src/fom_solver.c`)",
+      "expected_gain": "small, maybe 5-10%, though LTO already inlines the call"
+    }
+  ],
+  "max_abs_dev": {
+    "translated": {
+      "verified_set": 1.1102230246251565e-14
+    },
+    "optimized": {
+      "verified_set": 1.3322676295501878e-14
+    }
+  },
+  "timing_rounds": {
+    "numpy": [
+      1425.312482751906,
+      1425.6663853302598,
+      1464.9999793618917,
+      1448.5209248960018,
+      1426.6669750213623,
+      1454.0828997269273,
+      1422.145520336926
+    ],
+    "translated": [
+      43.7248,
+      40.7588,
+      42.514,
+      42.3532,
+      41.7678,
+      41.1794,
+      42.289
+    ],
+    "optimized": [
+      8.965,
+      8.809,
+      8.6084,
+      9.1214,
+      9.2162,
+      7.7922,
+      8.3954
+    ]
+  },
+  "agent_wall_s": {
+    "translation": 26.035383939743042,
+    "code_optimization": 295.11805605888367
+  },
+  "agent_budgets_s": {
+    "translation": 600,
+    "code_optimization": 600
+  },
+  "check": {
+    "oracle_vs_numpy_max_rel": 1.9850919752984223e-15,
+    "state_dim": 74,
+    "params": {
+      "p0": 15
+    }
+  },
+  "info": {
+    "ns": 10,
+    "nd": 15,
+    "ne": 49,
+    "eta": 0.3148342557928728,
+    "momentum": false,
+    "ruiz": true,
+    "state_dim": 74
+  },
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "os": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
+    "python": "3.13.11",
+    "numpy": "2.5.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "fomtools_commit": "25b3f73",
+    "fomtools_dirty": false,
+    "fomtools_branch": "",
+    "fomtools_path": "/Users/bs37/Documents/projects/fomtools/fomtools"
+  },
+  "started_utc": "2026-10-22T19:26:31+00:00",
+  "finished_utc": "2026-10-22T19:32:00+00:00"
+}

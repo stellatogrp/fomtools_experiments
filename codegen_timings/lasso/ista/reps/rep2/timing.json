@@ -1,0 +1,123 @@
+{
+  "experiment": "lasso",
+  "variant": "ista",
+  "rep": 2,
+  "iterations": 200,
+  "verified_run": "lasso/lasso_verify/results/run_022",
+  "numpy_us": 822.5830970332026,
+  "translated_us": 90.4834,
+  "optimized_us": 28.0688,
+  "speedup_translation": 9.090983506733862,
+  "speedup_optimization": 3.2236290828250587,
+  "speedup_total": 29.30595882379021,
+  "optimization_kept": true,
+  "optimization_notes": "",
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 93.0292,
+      "us_after": 27.2012,
+      "gain": 0.707605783990403,
+      "agent_wall_s": 68.92994537507184,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": false,
+      "us_before": 26.9596,
+      "us_after": 27.2158,
+      "gain": -0.009503108354723488,
+      "agent_wall_s": 73.3516248750966,
+      "truncated": false,
+      "stop_reason": "the round's sources were not faster than the best so far"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 2,
+      "idea": "Storing `t0_state` in float32 to halve the load traffic",
+      "rule": "the float64 accuracy that `make verify` requires",
+      "expected_gain": "unknown, probably 10\u201320% if it were allowed"
+    }
+  ],
+  "max_abs_dev": {
+    "translated": {
+      "verified_set": 2.042810365310288e-14
+    },
+    "optimized": {
+      "verified_set": 2.275957200481571e-14
+    }
+  },
+  "timing_rounds": {
+    "numpy": [
+      914.8333920165896,
+      800.6040006875992,
+      836.8123089894652,
+      818.1879529729486,
+      813.0205096676946,
+      822.5830970332026,
+      853.3545769751072
+    ],
+    "translated": [
+      89.5992,
+      90.4982,
+      90.4834,
+      89.6398,
+      91.5346,
+      89.8072,
+      90.6588
+    ],
+    "optimized": [
+      27.4646,
+      28.1128,
+      27.2048,
+      30.0058,
+      28.0688,
+      27.2688,
+      29.075
+    ]
+  },
+  "agent_wall_s": {
+    "translation": 26.34886121749878,
+    "code_optimization": 145.88554501533508
+  },
+  "agent_budgets_s": {
+    "translation": 600,
+    "code_optimization": 600
+  },
+  "check": {
+    "numpy_vs_verify_recurrence": 0.0,
+    "oracle_vs_numpy_max_rel": 1.0035918521402922e-14,
+    "state_dim": 50,
+    "params": {
+      "p0": 25
+    }
+  },
+  "info": {
+    "m": 25,
+    "n": 50,
+    "lambd": 0.001,
+    "eta": 0.2212861544693803,
+    "method": "ista"
+  },
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "os": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
+    "python": "3.13.11",
+    "numpy": "2.5.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "fomtools_commit": "25b3f73",
+    "fomtools_dirty": false,
+    "fomtools_branch": "",
+    "fomtools_path": "/Users/bs37/Documents/projects/fomtools/fomtools"
+  },
+  "started_utc": "2026-10-22T18:21:41+00:00",
+  "finished_utc": "2026-10-22T18:24:43+00:00"
+}

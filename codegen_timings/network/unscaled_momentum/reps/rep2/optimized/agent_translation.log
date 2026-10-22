@@ -1,0 +1,24 @@
+Verify passes at about 63 µs per solve. I'll try one speedup: copy the 59 selection rows directly instead of having the solver compute them.
+That brought it down to about 43 µs. Next, I'll write t0 and t1 straight into the next-state buffer so the copies go away.
+I wrote `src/fom_solver.c` and `make verify` prints `VERIFY OK`. Over the 8 samples, the largest gap from the reference is 5.6e-15 (tolerance 1e-6). On `make bench` a solve now takes about 41–43 µs on average, down from about 63 µs for my first version.
+
+The code has no dynamic memory, no variable-length arrays and no `/` operator. It doesn't hardcode any numbers or read any matrix data; every product goes through the generated `fom_step_*` helpers.
+
+How it works:
+- **Parameter term computed once per solve:** `su_p_p0 @ p0` doesn't change between iterations, so it's computed into `work->acc` before the loop.
+- **Copy rows skipped:** rows 0..48 of the next state are just t0 and rows 49..58 are just t1. So `fom_step_t0` and `fom_step_t1` write straight into those rows of the next-state buffer, and `fom_step_su__rest` only computes the remaining 15 rows. This change gave the speedup.
+- **No state copy per iteration:** each iteration writes into the other of two state buffers, and they swap pointers. The final state is copied into `solution.x` and `work->state` once at the end.
+- **Residual:** because the tolerance is 0 there's never an early exit, so the residual is computed once, from the last step only.
+
+One side effect: `work->t0` and `work->t1` are no longer filled in, because the temporaries live inside the state buffers. Verify only checks `solution.x`, so this doesn't affect the result, but anything that reads those two fields afterwards would see stale values.
+I wrote `src/fom_solver.c` and `make verify` prints `VERIFY OK`. Over the 8 samples, the largest gap from the reference is 5.6e-15 (tolerance 1e-6). On `make bench` a solve now takes about 41–43 µs on average, down from about 63 µs for my first version.
+
+The code has no dynamic memory, no variable-length arrays and no `/` operator. It doesn't hardcode any numbers or read any matrix data; every product goes through the generated `fom_step_*` helpers.
+
+How it works:
+- **Parameter term computed once per solve:** `su_p_p0 @ p0` doesn't change between iterations, so it's computed into `work->acc` before the loop.
+- **Copy rows skipped:** rows 0..48 of the next state are just t0 and rows 49..58 are just t1. So `fom_step_t0` and `fom_step_t1` write straight into those rows of the next-state buffer, and `fom_step_su__rest` only computes the remaining 15 rows. This change gave the speedup.
+- **No state copy per iteration:** each iteration writes into the other of two state buffers, and they swap pointers. The final state is copied into `solution.x` and `work->state` once at the end.
+- **Residual:** because the tolerance is 0 there's never an early exit, so the residual is computed once, from the last step only.
+
+One side effect: `work->t0` and `work->t1` are no longer filled in, because the temporaries live inside the state buffers. Verify only checks `solution.x`, so this doesn't affect the result, but anything that reads those two fields afterwards would see stale values.

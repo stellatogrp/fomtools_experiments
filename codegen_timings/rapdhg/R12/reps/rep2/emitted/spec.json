@@ -1,0 +1,432 @@
+{
+  "name": "rapdhg_R12",
+  "dtype": "float64",
+  "unrolled": false,
+  "factorizations": {},
+  "termination": {
+    "kind": "max_iters",
+    "max_iters": 200,
+    "tol": null,
+    "check_termination": 1
+  },
+  "params": [
+    {
+      "name": "p0",
+      "dim": 16
+    },
+    {
+      "name": "p1",
+      "dim": 48
+    }
+  ],
+  "state": {
+    "dim": 160,
+    "slots": [
+      [
+        "s0",
+        16
+      ],
+      [
+        "s1",
+        48
+      ],
+      [
+        "s2",
+        16
+      ],
+      [
+        "s3",
+        48
+      ],
+      [
+        "s4",
+        16
+      ],
+      [
+        "s5",
+        16
+      ]
+    ]
+  },
+  "body": [
+    {
+      "name": "t0",
+      "out_dim": 48,
+      "linear_op": {
+        "out_dim": 48,
+        "terms": [
+          {
+            "source": "state",
+            "matrix": "t0_state",
+            "scale": null
+          },
+          {
+            "source": "state",
+            "matrix": "t0_state__d_taux",
+            "scale": "taux"
+          },
+          {
+            "source": "state",
+            "matrix": "t0_state__d_tth",
+            "scale": "tth"
+          },
+          {
+            "source": "param:p1",
+            "matrix": "t0_p_p1",
+            "scale": null
+          },
+          {
+            "source": "param:p1",
+            "matrix": "t0_p_p1__d_tau",
+            "scale": "tau"
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t1",
+      "out_dim": 16,
+      "linear_op": {
+        "out_dim": 16,
+        "terms": [
+          {
+            "source": "state",
+            "matrix": "t1_state",
+            "scale": null
+          },
+          {
+            "source": "state",
+            "matrix": "t1_state__d_eta",
+            "scale": "eta"
+          },
+          {
+            "source": "param:p0",
+            "matrix": "t1_p_p0",
+            "scale": null
+          },
+          {
+            "source": "param:p0",
+            "matrix": "t1_p_p0__d_eta",
+            "scale": "eta"
+          },
+          {
+            "source": "tmp:t0",
+            "matrix": "t1_t_t0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t0",
+            "matrix": "t1_t_t0__d_eta",
+            "scale": "eta"
+          }
+        ],
+        "const": null
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t1_lo",
+        "upper": "t1_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    }
+  ],
+  "state_update": {
+    "out_dim": 160,
+    "terms": [
+      {
+        "source": "state",
+        "matrix": "su_state",
+        "scale": null
+      },
+      {
+        "source": "state",
+        "matrix": "su_state__d_d1",
+        "scale": "d1"
+      },
+      {
+        "source": "state",
+        "matrix": "su_state__d_g2",
+        "scale": "g2"
+      },
+      {
+        "source": "state",
+        "matrix": "su_state__d_m1",
+        "scale": "m1"
+      },
+      {
+        "source": "tmp:t0",
+        "matrix": "su_t_t0",
+        "scale": null
+      },
+      {
+        "source": "tmp:t0",
+        "matrix": "su_t_t0__d_d2",
+        "scale": "d2"
+      },
+      {
+        "source": "tmp:t0",
+        "matrix": "su_t_t0__d_g1",
+        "scale": "g1"
+      },
+      {
+        "source": "tmp:t1",
+        "matrix": "su_t_t1",
+        "scale": null
+      },
+      {
+        "source": "tmp:t1",
+        "matrix": "su_t_t1__d_d2",
+        "scale": "d2"
+      },
+      {
+        "source": "tmp:t1",
+        "matrix": "su_t_t1__d_g1",
+        "scale": "g1"
+      },
+      {
+        "source": "tmp:t1",
+        "matrix": "su_t_t1__d_m2",
+        "scale": "m2"
+      }
+    ],
+    "const": null
+  },
+  "objective": null,
+  "matrices": {
+    "t0_state": {
+      "shape": [
+        48,
+        160
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "t0_p_p1": {
+      "shape": [
+        48,
+        48
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "t1_state": {
+      "shape": [
+        16,
+        160
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "t1_p_p0": {
+      "shape": [
+        16,
+        16
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "t1_t_t0": {
+      "shape": [
+        16,
+        48
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "t1_lo": {
+      "shape": [
+        16
+      ],
+      "sparse": false,
+      "storage": "dense"
+    },
+    "t1_hi": {
+      "shape": [
+        16
+      ],
+      "sparse": false,
+      "storage": "dense"
+    },
+    "su_state": {
+      "shape": [
+        160,
+        160
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "su_t_t0": {
+      "shape": [
+        160,
+        48
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "su_t_t1": {
+      "shape": [
+        160,
+        16
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "t0_state__d_taux": {
+      "shape": [
+        48,
+        160
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "t0_state__d_tth": {
+      "shape": [
+        48,
+        160
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "t0_p_p1__d_tau": {
+      "shape": [
+        48,
+        48
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "t1_state__d_eta": {
+      "shape": [
+        16,
+        160
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "t1_p_p0__d_eta": {
+      "shape": [
+        16,
+        16
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "t1_t_t0__d_eta": {
+      "shape": [
+        16,
+        48
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "su_state__d_d1": {
+      "shape": [
+        160,
+        160
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "su_state__d_g2": {
+      "shape": [
+        160,
+        160
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "su_state__d_m1": {
+      "shape": [
+        160,
+        160
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "su_t_t0__d_d2": {
+      "shape": [
+        160,
+        48
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "su_t_t0__d_g1": {
+      "shape": [
+        160,
+        48
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "su_t_t1__d_d2": {
+      "shape": [
+        160,
+        16
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "su_t_t1__d_g1": {
+      "shape": [
+        160,
+        16
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "su_t_t1__d_m2": {
+      "shape": [
+        160,
+        16
+      ],
+      "sparse": false,
+      "storage": "csr"
+    }
+  },
+  "schedules": {
+    "d1": {
+      "len": 200
+    },
+    "d2": {
+      "len": 200
+    },
+    "eta": {
+      "len": 200
+    },
+    "g1": {
+      "len": 200
+    },
+    "g2": {
+      "len": 200
+    },
+    "m1": {
+      "len": 200
+    },
+    "m2": {
+      "len": 200
+    },
+    "tau": {
+      "len": 200
+    },
+    "taux": {
+      "len": 200
+    },
+    "tth": {
+      "len": 200
+    }
+  }
+}

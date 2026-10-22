@@ -1,0 +1,165 @@
+{
+  "experiment": "network_schedule",
+  "arm": "unrolled",
+  "rep": 2,
+  "variant": "ruiz_momentum",
+  "iterations": 50,
+  "overrides": [
+    "experiment=network",
+    "experiment.problem.ns=20",
+    "experiment.problem.nd=30",
+    "experiment.problem.edge_prob=1.0",
+    "experiment.problem.seed=20",
+    "experiment.problem.gain_spread=100.0",
+    "experiment.problem.cost_range=[1.0,10.0]",
+    "experiment.problem.capacity_range=[2.0,6.0]",
+    "experiment.problem.supply=4",
+    "experiment.problem.x_lb=-6.0",
+    "experiment.problem.x_ub=-4.0",
+    "experiment.problem.warm_start=center",
+    "experiment.problem.ruiz_iters=30",
+    "experiment.problem.eta_scale=0.5"
+  ],
+  "numpy_us": 649.3334658443928,
+  "translated_us": 108.721,
+  "optimized_us": 49.704,
+  "speedup_translation": 5.972475104574027,
+  "speedup_optimization": 2.187369225816836,
+  "speedup_total": 13.064008245702414,
+  "optimization_kept": true,
+  "optimization_notes": "",
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 111.4788,
+      "us_after": 47.6698,
+      "gain": 0.572386857411454,
+      "agent_wall_s": 304.57684429199435,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": false,
+      "us_before": 48.0876,
+      "us_after": 48.5728,
+      "gain": -0.010089919230737217,
+      "agent_wall_s": 236.44411054090597,
+      "truncated": false,
+      "stop_reason": "the round's sources were not faster than the best so far"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Fusing the bias initialization and clip/relu activation into the fused kernel, which would save two passes over 600 entries for each of the 50 steps",
+      "rule": "the bias (t0_c) and the bounds (t0_lo/hi) are not member data of `fom_fused_*`, and the fused signature is fixed in the headers",
+      "expected_gain": "~5-10%"
+    },
+    {
+      "round": 1,
+      "idea": "Merging consecutive steps into one routine to keep intermediates in registers",
+      "rule": "`fom_iterate`/`fom_step_*` not exposed for this spec and headers fixed",
+      "expected_gain": "unknown"
+    },
+    {
+      "round": 2,
+      "idea": "Fold the `t0_c` init and the clip into the fused 600-row routine (one pass instead of three)",
+      "rule": "a fused routine may read only its member matrices' data, so it cannot read `t0_c`, `t0_lo` or `t0_hi`; there is no `fom_step_<block>` entry point for these blocks",
+      "expected_gain": "about 5\u201310%"
+    },
+    {
+      "round": 2,
+      "idea": "Store `lin_step_30` coefficients transposed, built once at setup, for contiguous vector loads",
+      "rule": "`fom_setup` may not probe the matrices; precomputed tables are allowed only as `static const` literal tables inside each of about 49 fused routines, which was not feasible in this round's time",
+      "expected_gain": "unknown, probably 3\u20135%"
+    }
+  ],
+  "max_abs_dev": {
+    "translated": 5.35682609381638e-15,
+    "optimized": 5.773159728050814e-15
+  },
+  "timing_rounds": {
+    "numpy": [
+      717.1250181272626,
+      644.8745261877775,
+      660.6874521821737,
+      649.3334658443928,
+      646.4789621531963,
+      667.1665469184518,
+      634.0625695884228
+    ],
+    "translated": [
+      109.207,
+      108.721,
+      107.561,
+      107.4218,
+      110.1378,
+      108.2076,
+      109.2982
+    ],
+    "optimized": [
+      50.0138,
+      49.2818,
+      50.2174,
+      49.3562,
+      49.704,
+      49.5216,
+      49.9106
+    ]
+  },
+  "size": {
+    "ir": {
+      "oracle_vs_numpy_max_rel": 1.396984055726076e-15,
+      "unrolled": true,
+      "body_steps": 149,
+      "coefficient_blocks": 217,
+      "coefficient_entries_dense": 4959920,
+      "coefficient_nonzeros": 150230,
+      "schedules": []
+    },
+    "translated": {
+      "solver_c_lines": 604,
+      "data_c_bytes": 4114798,
+      "library_bytes": 2139248
+    },
+    "optimized": {
+      "solver_c_lines": 1205,
+      "data_c_bytes": 4114798,
+      "library_bytes": 2089680
+    }
+  },
+  "agent_wall_s": {
+    "translation": 96.51621294021606,
+    "code_optimization": 614.0845491886139
+  },
+  "agent_budgets_s": {
+    "translation": 600,
+    "code_optimization": 600
+  },
+  "instance": {
+    "ns": 20,
+    "nd": 30,
+    "ne": 600,
+    "eta": 0.09268607528845305
+  },
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "os": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
+    "python": "3.13.11",
+    "numpy": "2.5.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "fomtools_commit": "25b3f73",
+    "fomtools_dirty": false,
+    "fomtools_branch": "",
+    "fomtools_path": "/Users/bs37/Documents/projects/fomtools/fomtools"
+  },
+  "started_utc": "2026-10-22T23:07:40+00:00",
+  "finished_utc": "2026-10-22T23:20:09+00:00"
+}

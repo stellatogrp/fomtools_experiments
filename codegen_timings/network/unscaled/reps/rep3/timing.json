@@ -1,0 +1,166 @@
+{
+  "experiment": "network",
+  "variant": "unscaled",
+  "rep": 3,
+  "iterations": 200,
+  "verified_run": "network/results/run_005",
+  "numpy_us": 1440.3749955818057,
+  "translated_us": 41.746,
+  "optimized_us": 8.991,
+  "speedup_translation": 34.503305600100745,
+  "speedup_optimization": 4.6430875319764215,
+  "speedup_total": 160.2018680438,
+  "optimization_kept": true,
+  "optimization_notes": "",
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 42.3422,
+      "us_after": 8.957,
+      "gain": 0.7884616292965411,
+      "agent_wall_s": 84.5572559160646,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 8.913,
+      "us_after": 8.4906,
+      "gain": 0.04739145069000333,
+      "agent_wall_s": 98.93930374993943,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": false,
+      "correct": true,
+      "kept": false,
+      "us_before": null,
+      "us_after": null,
+      "gain": null,
+      "agent_wall_s": 38.498756791930646,
+      "truncated": false,
+      "stop_reason": "the round left the sources unchanged"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Fold the 200 iterations so `t_t0`/`t_t1` are stored only on the last one",
+      "rule": "`fom_iterate` must write every temporary each call, and only `fom_iterate`/`fom_step`/`fom_fused` may hold the products",
+      "expected_gain": "small, about 3%"
+    },
+    {
+      "round": 1,
+      "idea": "Hoist `bias_su[0..58]` into `bias_t0`/`bias_t1` so the copy rows need no add",
+      "rule": "`fom_iterate` must be exact for arbitrary independent biases, and reading the constant vectors in `src/fom_ops.c` is forbidden",
+      "expected_gain": "small, about 2%"
+    },
+    {
+      "round": 2,
+      "idea": "Skip writing `t_t0` and `t_t1` in non-final iterations, keeping them in registers",
+      "rule": "`fom_iterate` must write every temporary, and verify checks them",
+      "expected_gain": "unknown, probably small (59 stores per iteration)"
+    },
+    {
+      "round": 2,
+      "idea": "Fold `bias_su[0..58]` into the t0/t1 biases to drop one add per selection row",
+      "rule": "`fom_setup`/`fom_update_params` may not probe or rebuild matrices, and `bias_su` belongs to the update, not the step",
+      "expected_gain": "small (under 2%)"
+    },
+    {
+      "round": 3,
+      "idea": "Skip writing the `t_t0`/`t_t1` temporaries on every iteration except the last (about 59 stores per iteration)",
+      "rule": "`fom_iterate` must write every temporary each call, because verify checks them and the solver and objective need them",
+      "expected_gain": "~5%"
+    },
+    {
+      "round": 3,
+      "idea": "Run the 200-iteration loop inside `src/fom_ops.c` so the state stays in registers across iterations instead of going through buffers",
+      "rule": "the interface is fixed: `fom_iterate` runs exactly one iteration, and `src/fom_solver.c` may not read matrix data",
+      "expected_gain": "unknown, likely <5%"
+    }
+  ],
+  "max_abs_dev": {
+    "translated": {
+      "verified_set": 1.84297022087776e-14
+    },
+    "optimized": {
+      "verified_set": 1.84297022087776e-14
+    }
+  },
+  "timing_rounds": {
+    "numpy": [
+      1375.082996673882,
+      1450.3750717267394,
+      1431.5834268927574,
+      1465.8544678241014,
+      1528.1870728358626,
+      1427.9994647949934,
+      1440.3749955818057
+    ],
+    "translated": [
+      40.8434,
+      41.746,
+      40.5246,
+      41.8548,
+      42.2478,
+      40.666,
+      42.7208
+    ],
+    "optimized": [
+      9.1838,
+      9.0298,
+      7.8548,
+      8.7276,
+      8.991,
+      9.2272,
+      7.981
+    ]
+  },
+  "agent_wall_s": {
+    "translation": 26.41911292076111,
+    "code_optimization": 226.82653784751892
+  },
+  "agent_budgets_s": {
+    "translation": 600,
+    "code_optimization": 600
+  },
+  "check": {
+    "oracle_vs_numpy_max_rel": 3.142262082579316e-15,
+    "state_dim": 74,
+    "params": {
+      "p0": 15
+    }
+  },
+  "info": {
+    "ns": 10,
+    "nd": 15,
+    "ne": 49,
+    "eta": 0.08226303133234722,
+    "momentum": false,
+    "ruiz": false,
+    "state_dim": 74
+  },
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "os": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
+    "python": "3.13.11",
+    "numpy": "2.5.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "fomtools_commit": "25b3f73",
+    "fomtools_dirty": false,
+    "fomtools_branch": "",
+    "fomtools_path": "/Users/bs37/Documents/projects/fomtools/fomtools"
+  },
+  "started_utc": "2026-10-22T19:22:09+00:00",
+  "finished_utc": "2026-10-22T19:26:31+00:00"
+}

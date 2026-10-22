@@ -1,0 +1,219 @@
+{
+  "experiment": "network_schedule",
+  "arm": "unrolled",
+  "rep": 3,
+  "variant": "ruiz_momentum",
+  "iterations": 50,
+  "overrides": [
+    "experiment=network",
+    "experiment.problem.ns=20",
+    "experiment.problem.nd=30",
+    "experiment.problem.edge_prob=1.0",
+    "experiment.problem.seed=20",
+    "experiment.problem.gain_spread=100.0",
+    "experiment.problem.cost_range=[1.0,10.0]",
+    "experiment.problem.capacity_range=[2.0,6.0]",
+    "experiment.problem.supply=4",
+    "experiment.problem.x_lb=-6.0",
+    "experiment.problem.x_ub=-4.0",
+    "experiment.problem.warm_start=center",
+    "experiment.problem.ruiz_iters=30",
+    "experiment.problem.eta_scale=0.5"
+  ],
+  "numpy_us": 652.1670147776604,
+  "translated_us": 111.2968,
+  "optimized_us": 43.8878,
+  "speedup_translation": 5.859710385003525,
+  "speedup_optimization": 2.535939372673044,
+  "speedup_total": 14.85987027779156,
+  "optimization_kept": true,
+  "optimization_notes": "",
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 110.7484,
+      "us_after": 73.9624,
+      "gain": 0.33215829754651083,
+      "agent_wall_s": 200.3334477499593,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 76.6944,
+      "us_after": 50.3212,
+      "gain": 0.3438738682354905,
+      "agent_wall_s": 342.7365146249067,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 48.927,
+      "us_after": 42.63,
+      "gain": 0.12870194371206076,
+      "agent_wall_s": 156.0798498748336,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 4,
+      "changed": false,
+      "correct": true,
+      "kept": false,
+      "us_before": null,
+      "us_after": null,
+      "gain": null,
+      "agent_wall_s": 192.7267076659482,
+      "truncated": false,
+      "stop_reason": "the round left the sources unchanged"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Fold the bias initialization and clip/relu activation into the fused 600-row routine, making one pass instead of three (copy, fused add, clip)",
+      "rule": "fused routines must only accumulate `out += sum M_k src_k`, and the activation and bias stay in `src/fom_solver.c`",
+      "expected_gain": "about 10\u201315%"
+    },
+    {
+      "round": 1,
+      "idea": "Reorder the 20\u00d7600 incidence gathers into a column-sorted (CSC/scatter) layout precomputed at setup, so the 600-entry source is read contiguously",
+      "rule": "`fom_setup` may not read matrix data or probe matrices; only the `fom_apply`/`fom_fused` routines may read their own data, and `static` precomputed tables would have to be hardcoded literals derived offline",
+      "expected_gain": "unknown, likely 5\u201310%"
+    },
+    {
+      "round": 1,
+      "idea": "Fuse consecutive steps (e.g. t8 \u2192 t9 \u2192 t10) into one routine to keep intermediates in registers",
+      "rule": "each fused routine may read only its own block's members, and the step boundary is fixed by the API",
+      "expected_gain": "unknown"
+    },
+    {
+      "round": 2,
+      "idea": "Fold the bias init (`out = c`) and the clip into the fused flow kernel, giving one pass over the 600-vector instead of three",
+      "rule": "fused routines must accumulate into `out`, and `src/fom_ops.c` may read only member data (not `t0_c`/`t0_lo`/`t0_hi`)",
+      "expected_gain": "~5-10%"
+    },
+    {
+      "round": 2,
+      "idea": "Precompute the transposed (arc-major) layout of the 30-row dual values once in `fom_setup` so both value and source reads are contiguous",
+      "rule": "`fom_setup` must not rebuild matrix data, and `src/fom_solver.c` must not read `FOM_MAT_*` of multiplied matrices",
+      "expected_gain": "unknown, ~5%"
+    },
+    {
+      "round": 3,
+      "idea": "Fold each step's bias init and clip/relu activation into the fused kernel, giving one pass over the 600 rows instead of three",
+      "rule": "the fused routine must compute exactly `out += sum_k s_k M_k src_k` (an accumulating contract checked by verify), and solver-side loops cannot hold products",
+      "expected_gain": "~3-5% (init and clip are about 2 of the 3 memory passes per flow step)"
+    },
+    {
+      "round": 4,
+      "idea": "Precompute transposed (column-major) copies of the dual-step matrices at setup so both operands are read contiguously",
+      "rule": "fused routines may read only their members' data, and setup cannot build derived matrix tables from probing (setup may not call apply/fused routines)",
+      "expected_gain": "unknown, likely <5%"
+    },
+    {
+      "round": 4,
+      "idea": "Fold the clip/relu activation and the bias initialization into the fused routines, saving two passes over each 600-entry block",
+      "rule": "`fom_fused_*` must compute exactly `out += sum_k s_k M_k src_k` with no activation",
+      "expected_gain": "~5-10%"
+    },
+    {
+      "round": 4,
+      "idea": "Compile at -O3 with -march=native for wider vectorization",
+      "rule": "Makefile and build flags are fixed",
+      "expected_gain": "unknown"
+    }
+  ],
+  "max_abs_dev": {
+    "translated": 5.35682609381638e-15,
+    "optimized": 6.217248937900877e-15
+  },
+  "timing_rounds": {
+    "numpy": [
+      720.6670707091689,
+      650.7284706458449,
+      660.8539260923862,
+      639.436999335885,
+      652.1670147776604,
+      669.916975311935,
+      640.2914877980947
+    ],
+    "translated": [
+      111.0682,
+      111.2968,
+      107.7714,
+      111.5186,
+      111.7482,
+      108.9368,
+      111.796
+    ],
+    "optimized": [
+      45.1576,
+      43.5192,
+      43.6288,
+      44.379,
+      43.0598,
+      46.3664,
+      43.8878
+    ]
+  },
+  "size": {
+    "ir": {
+      "oracle_vs_numpy_max_rel": 1.396984055726076e-15,
+      "unrolled": true,
+      "body_steps": 149,
+      "coefficient_blocks": 217,
+      "coefficient_entries_dense": 4959920,
+      "coefficient_nonzeros": 150230,
+      "schedules": []
+    },
+    "translated": {
+      "solver_c_lines": 582,
+      "data_c_bytes": 4114798,
+      "library_bytes": 2139248
+    },
+    "optimized": {
+      "solver_c_lines": 879,
+      "data_c_bytes": 4114798,
+      "library_bytes": 2254848
+    }
+  },
+  "agent_wall_s": {
+    "translation": 95.64295315742493,
+    "code_optimization": 1007.2997028827667
+  },
+  "agent_budgets_s": {
+    "translation": 600,
+    "code_optimization": 600
+  },
+  "instance": {
+    "ns": 20,
+    "nd": 30,
+    "ne": 600,
+    "eta": 0.09268607528845305
+  },
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "os": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
+    "python": "3.13.11",
+    "numpy": "2.5.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "fomtools_commit": "25b3f73",
+    "fomtools_dirty": false,
+    "fomtools_branch": "",
+    "fomtools_path": "/Users/bs37/Documents/projects/fomtools/fomtools"
+  },
+  "started_utc": "2026-10-22T23:28:15+00:00",
+  "finished_utc": "2026-10-22T23:47:28+00:00"
+}

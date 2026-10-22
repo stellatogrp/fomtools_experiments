@@ -1,0 +1,25 @@
+The sed edit garbled that comment; fixing the wording now.
+I wrote `src/fom_solver.c` and `make verify` prints `VERIFY OK`. The worst max-abs error over 8 samples is 1.86e-12, against a tolerance of 1e-6, and every per-operation check showed zero error.
+
+How it works:
+- **Parameter terms computed once:** `fom_update_params` computes `t0_p_p1__d_tau @ p1` and `t1_p_p0__d_eta @ p0` a single time. Each iteration then only scales them by `tau` and `eta`, which is 64 multiplies.
+- **One call per iteration:** the loop body is a single `fom_iterate` call, which runs `t0`, `t1` and the state update together. The schedule values are read at the top of each iteration through the provided accessors.
+- **No copying between iterations:** `state` and `new_state` are swapped by pointer. The residual is computed only once, after the last iteration. That's safe because `tol=0` means the solver always runs the full `max_iter`.
+- **Buffers:** the temporary vectors live in the workspace `acc` buffer. The only static is a constant zero vector passed as the state-update bias, since that step has no parameter term.
+- **Embedded constraints:** there is no dynamic memory and no division (the only `/` characters are in comments). No coefficients are hardcoded, and all matrix products go through the provided `fom_ops` routines.
+
+The constant parameter matrices `t0_p_p1` and `t1_p_p0` have zero nonzeros in this data, so the solver leaves them out. A compile-time `#error` fires if a later generation makes them nonzero, so they can't be silently dropped.
+
+**Unrelated:** several claude.ai connectors (Asana, Atlassian, Box, Canva, Figma, HubSpot, Intercom, Linear, Notion, monday.com) need to be authorized in your claude.ai connector settings before they can be used.
+I wrote `src/fom_solver.c` and `make verify` prints `VERIFY OK`. The worst max-abs error over 8 samples is 1.86e-12, against a tolerance of 1e-6, and every per-operation check showed zero error.
+
+How it works:
+- **Parameter terms computed once:** `fom_update_params` computes `t0_p_p1__d_tau @ p1` and `t1_p_p0__d_eta @ p0` a single time. Each iteration then only scales them by `tau` and `eta`, which is 64 multiplies.
+- **One call per iteration:** the loop body is a single `fom_iterate` call, which runs `t0`, `t1` and the state update together. The schedule values are read at the top of each iteration through the provided accessors.
+- **No copying between iterations:** `state` and `new_state` are swapped by pointer. The residual is computed only once, after the last iteration. That's safe because `tol=0` means the solver always runs the full `max_iter`.
+- **Buffers:** the temporary vectors live in the workspace `acc` buffer. The only static is a constant zero vector passed as the state-update bias, since that step has no parameter term.
+- **Embedded constraints:** there is no dynamic memory and no division (the only `/` characters are in comments). No coefficients are hardcoded, and all matrix products go through the provided `fom_ops` routines.
+
+The constant parameter matrices `t0_p_p1` and `t1_p_p0` have zero nonzeros in this data, so the solver leaves them out. A compile-time `#error` fires if a later generation makes them nonzero, so they can't be silently dropped.
+
+**Unrelated:** several claude.ai connectors (Asana, Atlassian, Box, Canva, Figma, HubSpot, Intercom, Linear, Notion, monday.com) need to be authorized in your claude.ai connector settings before they can be used.

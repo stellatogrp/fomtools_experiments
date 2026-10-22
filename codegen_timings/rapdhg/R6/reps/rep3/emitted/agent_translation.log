@@ -1,0 +1,18 @@
+I wrote `src/fom_solver.c` and `make verify` prints `VERIFY OK`. The worst error over the 8 samples is 3.8e-12, against a tolerance of 1e-6. Every kernel check reports zero error.
+
+How the solver works:
+- **Reset:** `fom_setup` and `fom_update_params` both copy `FOM_STATE_INIT` into the state, so every solve starts from the same point.
+- **Parameter terms:** the products of `p0` and `p1` with their matrices are computed once per solve, through the `fom_apply_*` helpers, and kept in `work->acc`. Each iteration then forms the `t0` and `t1` offsets as `A + tau*B` and `A + eta*B`, using that iteration's schedule values.
+- **Iteration:** each step reads the schedule values through the accessors and makes one `fom_iterate` call, which chains `t0` (relu), `t1` (clip) and the state update. The state update has no parameter terms, so its offset is a static all-zero array of 160 entries. That array is the only constant I added; it is not a coefficient.
+- **Residual and termination:** the residual is the max absolute change in the state. The state and new-state buffers swap pointers instead of being copied. A tolerance check is wired in but stays off, because `FOM_USE_TOL` is 0 for this spec. The status is therefore always `FOM_MAX_ITER_REACHED`.
+
+The code uses no allocation, no VLAs and no `/`. The two short offset arrays (48 and 16 entries) are fixed-size locals on the stack, not workspace buffers. I didn't try further tuning, such as copying the 16 plain-copy rows of the state update directly instead of computing them with the other rows. I also didn't run the benchmark, so I have no timing numbers to report.
+I wrote `src/fom_solver.c` and `make verify` prints `VERIFY OK`. The worst error over the 8 samples is 3.8e-12, against a tolerance of 1e-6. Every kernel check reports zero error.
+
+How the solver works:
+- **Reset:** `fom_setup` and `fom_update_params` both copy `FOM_STATE_INIT` into the state, so every solve starts from the same point.
+- **Parameter terms:** the products of `p0` and `p1` with their matrices are computed once per solve, through the `fom_apply_*` helpers, and kept in `work->acc`. Each iteration then forms the `t0` and `t1` offsets as `A + tau*B` and `A + eta*B`, using that iteration's schedule values.
+- **Iteration:** each step reads the schedule values through the accessors and makes one `fom_iterate` call, which chains `t0` (relu), `t1` (clip) and the state update. The state update has no parameter terms, so its offset is a static all-zero array of 160 entries. That array is the only constant I added; it is not a coefficient.
+- **Residual and termination:** the residual is the max absolute change in the state. The state and new-state buffers swap pointers instead of being copied. A tolerance check is wired in but stays off, because `FOM_USE_TOL` is 0 for this spec. The status is therefore always `FOM_MAX_ITER_REACHED`.
+
+The code uses no allocation, no VLAs and no `/`. The two short offset arrays (48 and 16 entries) are fixed-size locals on the stack, not workspace buffers. I didn't try further tuning, such as copying the 16 plain-copy rows of the state update directly instead of computing them with the other rows. I also didn't run the benchmark, so I have no timing numbers to report.

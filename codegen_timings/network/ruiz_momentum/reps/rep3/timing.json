@@ -1,0 +1,166 @@
+{
+  "experiment": "network",
+  "variant": "ruiz_momentum",
+  "rep": 3,
+  "iterations": 200,
+  "verified_run": "network/results/run_005",
+  "numpy_us": 1467.645401135087,
+  "translated_us": 63.5848,
+  "optimized_us": 13.8782,
+  "speedup_translation": 23.081701934032772,
+  "speedup_optimization": 4.581631623697598,
+  "speedup_total": 105.75185550972655,
+  "optimization_kept": true,
+  "optimization_notes": "",
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 62.488,
+      "us_after": 19.3548,
+      "gain": 0.6902637306362822,
+      "agent_wall_s": 59.78208929090761,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 19.8976,
+      "us_after": 13.8632,
+      "gain": 0.30327275651334834,
+      "agent_wall_s": 47.88528137514368,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": false,
+      "correct": true,
+      "kept": false,
+      "us_before": null,
+      "us_after": null,
+      "gain": null,
+      "agent_wall_s": 46.15436720917933,
+      "truncated": false,
+      "stop_reason": "the round left the sources unchanged"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Precompute `t1_state + xi_k*t1_state__d_xi` (and the other `__d_xi` pairs) for each scheduled `xi` value, so each pair costs one product instead of two",
+      "rule": "src/fom_ops.c must not read the schedule; fom_setup/fom_update_params must not rebuild matrices; the fom_data.c schedule and matrix data are fixed",
+      "expected_gain": "~10-20%"
+    },
+    {
+      "round": 1,
+      "idea": "Compile with `-march=native` / `-ffast-math` so the compiler can reassociate and vectorize the unrolled sums",
+      "rule": "Makefile and build flags are fixed",
+      "expected_gain": "unknown, maybe 10-20%"
+    },
+    {
+      "round": 2,
+      "idea": "Write the `*__d_xi` coefficients as 2x the base coefficients, or fold the matching state and t0 coefficient pairs together, to save multiplies",
+      "rule": "verify checks each fused routine at every schedule value and against each member's exact coefficients, and those pairs agree only to about 1e-15, so the result is not exact",
+      "expected_gain": "unknown, probably about 10-20% of the floating-point work"
+    },
+    {
+      "round": 2,
+      "idea": "Inline `fom_iterate` into the solve loop to save one call per iteration",
+      "rule": "`src/fom_solver.c` may not read matrix data or contain products",
+      "expected_gain": "small, a few percent"
+    },
+    {
+      "round": 3,
+      "idea": "Write each t1 / su row with paired coefficients as `c*(t_t0[j] - state[j])`, using one shared coefficient for the matching state and t_t0 entries (they are negatives of each other up to about 1e-10, and 2x apart in the non-xi terms)",
+      "rule": "verify requires literals to equal each matrix entry exactly, far below a perturbed coefficient",
+      "expected_gain": "about 10\u201320% fewer multiplies in t1/su, maybe 5% of the solve"
+    },
+    {
+      "round": 3,
+      "idea": "Build with `-ffast-math` or `-march=native` so the compiler can reassociate and vectorize the unrolled rows",
+      "rule": "Makefile and build flags are fixed",
+      "expected_gain": "unknown, maybe 5\u201315%"
+    }
+  ],
+  "max_abs_dev": {
+    "translated": {
+      "verified_set": 9.459100169806334e-14
+    },
+    "optimized": {
+      "verified_set": 9.459100169806334e-14
+    }
+  },
+  "timing_rounds": {
+    "numpy": [
+      1444.728928618133,
+      1449.521048925817,
+      1480.2708756178617,
+      1467.645401135087,
+      1480.8333944529295,
+      1468.333532102406,
+      1453.9376134052873
+    ],
+    "translated": [
+      62.337,
+      64.2096,
+      65.962,
+      62.9532,
+      65.7894,
+      63.5848,
+      62.7958
+    ],
+    "optimized": [
+      13.8782,
+      13.0826,
+      12.9172,
+      13.8992,
+      14.6794,
+      13.8942,
+      13.072
+    ]
+  },
+  "agent_wall_s": {
+    "translation": 28.73829698562622,
+    "code_optimization": 159.05737400054932
+  },
+  "agent_budgets_s": {
+    "translation": 600,
+    "code_optimization": 600
+  },
+  "check": {
+    "oracle_vs_numpy_max_rel": 1.6154593423045516e-14,
+    "state_dim": 74,
+    "params": {
+      "p0": 15
+    }
+  },
+  "info": {
+    "ns": 10,
+    "nd": 15,
+    "ne": 49,
+    "eta": 0.3148342557928728,
+    "momentum": true,
+    "ruiz": true,
+    "state_dim": 74
+  },
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "os": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
+    "python": "3.13.11",
+    "numpy": "2.5.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "fomtools_commit": "25b3f73",
+    "fomtools_dirty": false,
+    "fomtools_branch": "",
+    "fomtools_path": "/Users/bs37/Documents/projects/fomtools/fomtools"
+  },
+  "started_utc": "2026-10-22T19:37:36+00:00",
+  "finished_utc": "2026-10-22T19:40:53+00:00"
+}

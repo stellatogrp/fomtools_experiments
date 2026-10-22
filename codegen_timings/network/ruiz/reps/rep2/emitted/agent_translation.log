@@ -1,0 +1,23 @@
+Passes. A quick tweak: skip the residual on iterations where it isn't needed.
+I wrote `src/fom_solver.c` and `make verify` prints `VERIFY OK`. The worst error over the 8 samples is 4.9e-15, against a tolerance of 1e-6. The bench averages about 32 µs per solve and 26 µs at best, over 5000 solves of 200 iterations.
+
+How it works:
+- **Setup:** `fom_setup` and `fom_update_params` reset the state to `FOM_STATE_INIT`. They also compute the parameter term `su_p_p0 @ p0` once per parameter set, storing it in `work->acc` and reusing it as the state-update bias.
+- **Each iteration:**
+  - `fom_step_t0` runs with bias `FOM_MAT_t0_c` and the clip bounds.
+  - `fom_step_t1` runs with bias `FOM_MAT_t1_c` and relu.
+  - State rows 0..48 and 49..58 are plain copies of `t0` and `t1`, so they are copied with `memcpy`. `fom_step_su__rest` computes the other 15 rows.
+- **Buffers:** `state` and `new_state` swap pointers instead of copying. If the result ends up in `new_state`, it is copied back once at the end.
+- **Residual:** this method has no tolerance, so it always runs `max_iter` iterations. The residual is therefore computed only on the last iteration. If a positive `tol` is set with `check_termination` on, it is computed every iteration and the solve stops early.
+- **Constraints:** no allocation, no variable-length arrays, and no `/` operator; the only slashes are in comments. Every matrix product goes through the provided helpers.
+I wrote `src/fom_solver.c` and `make verify` prints `VERIFY OK`. The worst error over the 8 samples is 4.9e-15, against a tolerance of 1e-6. The bench averages about 32 µs per solve and 26 µs at best, over 5000 solves of 200 iterations.
+
+How it works:
+- **Setup:** `fom_setup` and `fom_update_params` reset the state to `FOM_STATE_INIT`. They also compute the parameter term `su_p_p0 @ p0` once per parameter set, storing it in `work->acc` and reusing it as the state-update bias.
+- **Each iteration:**
+  - `fom_step_t0` runs with bias `FOM_MAT_t0_c` and the clip bounds.
+  - `fom_step_t1` runs with bias `FOM_MAT_t1_c` and relu.
+  - State rows 0..48 and 49..58 are plain copies of `t0` and `t1`, so they are copied with `memcpy`. `fom_step_su__rest` computes the other 15 rows.
+- **Buffers:** `state` and `new_state` swap pointers instead of copying. If the result ends up in `new_state`, it is copied back once at the end.
+- **Residual:** this method has no tolerance, so it always runs `max_iter` iterations. The residual is therefore computed only on the last iteration. If a positive `tol` is set with `check_termination` on, it is computed every iteration and the solve stops early.
+- **Constraints:** no allocation, no variable-length arrays, and no `/` operator; the only slashes are in comments. Every matrix product goes through the provided helpers.

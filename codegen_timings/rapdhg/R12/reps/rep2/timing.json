@@ -1,0 +1,167 @@
+{
+  "experiment": "rapdhg",
+  "variant": "R12",
+  "rep": 2,
+  "iterations": 200,
+  "verified_run": "control/rapdhg/verify/results/run_001",
+  "numpy_us": 2367.1670351177454,
+  "translated_us": 140.2584,
+  "optimized_us": 19.3716,
+  "speedup_translation": 16.877185502741693,
+  "speedup_optimization": 7.240413801647772,
+  "speedup_total": 122.19780684702066,
+  "optimization_kept": true,
+  "optimization_notes": "",
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 138.1728,
+      "us_after": 20.2718,
+      "gain": 0.8532866092313394,
+      "agent_wall_s": 119.1130945419427,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 21.7636,
+      "us_after": 19.0044,
+      "gain": 0.1267804958738444,
+      "agent_wall_s": 58.92338916682638,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": false,
+      "correct": true,
+      "kept": false,
+      "us_before": null,
+      "us_after": null,
+      "gain": null,
+      "agent_wall_s": 63.725613333052024,
+      "truncated": false,
+      "stop_reason": "the round left the sources unchanged"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Precompute the four parameter products in `fom_update_params` instead of at the top of every `fom_solve`",
+      "rule": "`fom_setup`/`fom_update_params` must not call `fom_apply_*`",
+      "expected_gain": "under 0.3% (the params region is 0.24%)"
+    },
+    {
+      "round": 1,
+      "idea": "Pass the parameter products and schedule values straight into `fom_step_t0`/`fom_step_t1` so each iteration skips the separate 64-element bias loop",
+      "rule": "step routine signatures in `include/fom_ops.h` are fixed",
+      "expected_gain": "about 2\u20134%"
+    },
+    {
+      "round": 2,
+      "idea": "Specializing the state update to the actual schedule (`g1` is 1 and `g2` is 0 in the early iterations, which would drop terms)",
+      "rule": "`src/fom_ops.c` must not read the schedule, and the routines must be exact for any schedule value",
+      "expected_gain": "~1\u20133%"
+    },
+    {
+      "round": 3,
+      "idea": "Run the whole 200-iteration loop inside `fom_iterate` so the schedule and all buffers stay in registers across iterations",
+      "rule": "nothing in `src/fom_ops.c` may read the schedule (`fom_sched_*`), and `fom_iterate`'s per-iteration signature is fixed in the headers",
+      "expected_gain": "~5-10% (call overhead only)"
+    },
+    {
+      "round": 3,
+      "idea": "Build a transposed copy of the dense `t1_state__d_eta` block once in `fom_setup`",
+      "rule": "`fom_solver.c` must not read `FOM_MAT_*` data of matrices it multiplies by, so only a lazily built static table inside `fom_ops.c` remains; that variant was tried and was slower",
+      "expected_gain": "none measured"
+    }
+  ],
+  "max_abs_dev": {
+    "translated": {
+      "verified_set": 1.6486811915683575e-14
+    },
+    "optimized": {
+      "verified_set": 1.752764600126966e-14
+    }
+  },
+  "timing_rounds": {
+    "numpy": [
+      2397.083560936153,
+      2369.499998167157,
+      2383.062383159995,
+      2339.6664764732122,
+      2347.416477277875,
+      2367.1670351177454,
+      2334.7081150859594
+    ],
+    "translated": [
+      140.7598,
+      141.3786,
+      138.0468,
+      140.3438,
+      139.6712,
+      140.2584,
+      137.7936
+    ],
+    "optimized": [
+      17.4062,
+      19.4962,
+      19.1294,
+      19.3978,
+      19.4938,
+      18.9832,
+      19.3716
+    ]
+  },
+  "agent_wall_s": {
+    "translation": 63.85954785346985,
+    "code_optimization": 248.0069179534912
+  },
+  "agent_budgets_s": {
+    "translation": 600,
+    "code_optimization": 600
+  },
+  "check": {
+    "tables_vs_rapdhg_schedule_tables": 0.0,
+    "numpy_x_vs_verify_recurrence": 3.3306690738754696e-15,
+    "oracle_vs_numpy_max_rel": 2.4370648353260406e-13,
+    "state_dim": 160,
+    "params": {
+      "p0": 16,
+      "p1": 48
+    }
+  },
+  "info": {
+    "method": "rapdhg",
+    "restart": 12,
+    "horizon": 5,
+    "n": 16,
+    "m": 48,
+    "param_coords": [
+      0,
+      1,
+      5
+    ],
+    "state_dim": 160
+  },
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "os": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
+    "python": "3.13.11",
+    "numpy": "2.5.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "fomtools_commit": "25b3f73",
+    "fomtools_dirty": false,
+    "fomtools_branch": "",
+    "fomtools_path": "/Users/bs37/Documents/projects/fomtools/fomtools"
+  },
+  "started_utc": "2026-10-22T22:01:21+00:00",
+  "finished_utc": "2026-10-22T22:06:46+00:00"
+}

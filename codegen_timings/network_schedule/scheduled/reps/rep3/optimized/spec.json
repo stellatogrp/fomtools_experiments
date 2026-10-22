@@ -1,0 +1,260 @@
+{
+  "name": "network_scheduled",
+  "dtype": "float64",
+  "unrolled": false,
+  "factorizations": {},
+  "termination": {
+    "kind": "max_iters",
+    "max_iters": 50,
+    "tol": null,
+    "check_termination": 1
+  },
+  "params": [
+    {
+      "name": "p0",
+      "dim": 30
+    }
+  ],
+  "state": {
+    "dim": 650,
+    "slots": [
+      [
+        "s0",
+        600
+      ],
+      [
+        "s1",
+        20
+      ],
+      [
+        "s2",
+        30
+      ]
+    ]
+  },
+  "body": [
+    {
+      "name": "t0",
+      "out_dim": 600,
+      "linear_op": {
+        "out_dim": 600,
+        "terms": [
+          {
+            "source": "state",
+            "matrix": "t0_state",
+            "scale": null
+          }
+        ],
+        "const": "t0_c"
+      },
+      "activation": {
+        "kind": "saturated_linear",
+        "lambd": null,
+        "lower": "t0_lo",
+        "upper": "t0_hi",
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    },
+    {
+      "name": "t1",
+      "out_dim": 20,
+      "linear_op": {
+        "out_dim": 20,
+        "terms": [
+          {
+            "source": "state",
+            "matrix": "t1_state",
+            "scale": null
+          },
+          {
+            "source": "state",
+            "matrix": "t1_state__d_xi",
+            "scale": "xi"
+          },
+          {
+            "source": "tmp:t0",
+            "matrix": "t1_t_t0",
+            "scale": null
+          },
+          {
+            "source": "tmp:t0",
+            "matrix": "t1_t_t0__d_xi",
+            "scale": "xi"
+          }
+        ],
+        "const": "t1_c"
+      },
+      "activation": {
+        "kind": "relu",
+        "lambd": null,
+        "lower": null,
+        "upper": null,
+        "lower_scalar": null,
+        "upper_scalar": null
+      },
+      "solve": null
+    }
+  ],
+  "state_update": {
+    "out_dim": 650,
+    "terms": [
+      {
+        "source": "state",
+        "matrix": "su_state",
+        "scale": null
+      },
+      {
+        "source": "state",
+        "matrix": "su_state__d_xi",
+        "scale": "xi"
+      },
+      {
+        "source": "tmp:t0",
+        "matrix": "su_t_t0",
+        "scale": null
+      },
+      {
+        "source": "tmp:t0",
+        "matrix": "su_t_t0__d_xi",
+        "scale": "xi"
+      },
+      {
+        "source": "tmp:t1",
+        "matrix": "su_t_t1",
+        "scale": null
+      },
+      {
+        "source": "param:p0",
+        "matrix": "su_p_p0",
+        "scale": null
+      }
+    ],
+    "const": null
+  },
+  "objective": null,
+  "matrices": {
+    "t0_state": {
+      "shape": [
+        600,
+        650
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "t0_c": {
+      "shape": [
+        600
+      ],
+      "sparse": false,
+      "storage": "dense"
+    },
+    "t0_lo": {
+      "shape": [
+        600
+      ],
+      "sparse": false,
+      "storage": "dense"
+    },
+    "t0_hi": {
+      "shape": [
+        600
+      ],
+      "sparse": false,
+      "storage": "dense"
+    },
+    "t1_state": {
+      "shape": [
+        20,
+        650
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "t1_t_t0": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "t1_c": {
+      "shape": [
+        20
+      ],
+      "sparse": false,
+      "storage": "dense"
+    },
+    "su_state": {
+      "shape": [
+        650,
+        650
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "su_t_t0": {
+      "shape": [
+        650,
+        600
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "su_t_t1": {
+      "shape": [
+        650,
+        20
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "su_p_p0": {
+      "shape": [
+        650,
+        30
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "t1_state__d_xi": {
+      "shape": [
+        20,
+        650
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "t1_t_t0__d_xi": {
+      "shape": [
+        20,
+        600
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "su_state__d_xi": {
+      "shape": [
+        650,
+        650
+      ],
+      "sparse": false,
+      "storage": "csr"
+    },
+    "su_t_t0__d_xi": {
+      "shape": [
+        650,
+        600
+      ],
+      "sparse": false,
+      "storage": "csr"
+    }
+  },
+  "schedules": {
+    "xi": {
+      "len": 50
+    }
+  }
+}

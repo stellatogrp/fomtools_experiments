@@ -1,0 +1,30 @@
+I wrote `src/fom_solver.c` and `make verify` prints `VERIFY OK`. The worst error over 8 samples is 1.0e-14, well under the 1e-6 tolerance, and every kernel check reports zero error.
+
+**How it works:**
+- **Setup:** `fom_setup` and `fom_update_params` both reset the state from `FOM_STATE_INIT`, so every solve starts from the same point as the reference.
+- **Before the loop:** the parameter term `su_p_p0 @ p0` doesn't change between iterations, so it's computed once into `work->acc` and passed in as the state-update bias. The biases for `t0` and `t1` are just `FOM_MAT_t0_c` and `FOM_MAT_t1_c`.
+- **Each iteration:** one call to the generated `fom_iterate`, which runs the clip step, the relu step and the state update together. The schedule value `fom_sched_xi(it)` is read once at the top of the iteration.
+- **Buffers:** `state` and `new_state` swap pointers instead of copying. There is at most one final `memcpy` back into `work->state`.
+- **Residual:** with `tol=None` there is no early stop, so the solver always runs `max_iter` iterations. It computes the residual `max|new_state - state|` only on the last one.
+- **Constraints:** no malloc, no variable-length arrays and no `/` anywhere. All matrix products go through the provided `fom_ops` routines.
+
+**Speed:** `make bench` gives 64 µs mean and 53 µs min per solve (200 iterations). I didn't compare this against any other version of the solver.
+
+**Not tested:** nothing checks the reported residual, and if `max_iter` were set to 0 it would come back as 0.
+
+**Other:** several claude.ai connectors (Asana, Notion, Linear and others) need authorization in your claude.ai connector settings. They weren't needed for this task.
+I wrote `src/fom_solver.c` and `make verify` prints `VERIFY OK`. The worst error over 8 samples is 1.0e-14, well under the 1e-6 tolerance, and every kernel check reports zero error.
+
+**How it works:**
+- **Setup:** `fom_setup` and `fom_update_params` both reset the state from `FOM_STATE_INIT`, so every solve starts from the same point as the reference.
+- **Before the loop:** the parameter term `su_p_p0 @ p0` doesn't change between iterations, so it's computed once into `work->acc` and passed in as the state-update bias. The biases for `t0` and `t1` are just `FOM_MAT_t0_c` and `FOM_MAT_t1_c`.
+- **Each iteration:** one call to the generated `fom_iterate`, which runs the clip step, the relu step and the state update together. The schedule value `fom_sched_xi(it)` is read once at the top of the iteration.
+- **Buffers:** `state` and `new_state` swap pointers instead of copying. There is at most one final `memcpy` back into `work->state`.
+- **Residual:** with `tol=None` there is no early stop, so the solver always runs `max_iter` iterations. It computes the residual `max|new_state - state|` only on the last one.
+- **Constraints:** no malloc, no variable-length arrays and no `/` anywhere. All matrix products go through the provided `fom_ops` routines.
+
+**Speed:** `make bench` gives 64 µs mean and 53 µs min per solve (200 iterations). I didn't compare this against any other version of the solver.
+
+**Not tested:** nothing checks the reported residual, and if `max_iter` were set to 0 it would come back as 0.
+
+**Other:** several claude.ai connectors (Asana, Notion, Linear and others) need authorization in your claude.ai connector settings. They weren't needed for this task.

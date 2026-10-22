@@ -147,66 +147,56 @@ void fom_step_t0(const fom_float *state, const fom_float *bias, const FomAct_t0 
     const fom_float *restrict va = FOM_MAT_t0_state_VALS;
     const fom_float *restrict lo = act->lo, *restrict hi = act->hi;
     fom_int i;
-    for (i = 0; i < 600; ++i) {
-        fom_int p = 3 * i;
-        fom_float v = bias[i] + va[p] * state[ci[p]] + va[p + 1] * state[ci[p + 1]] + va[p + 2] * state[ci[p + 2]];
-        v = v < lo[i] ? lo[i] : v;
-        v = v > hi[i] ? hi[i] : v;
-        out[i] = v;
+    /* Fixed pattern (checked on every unit vector): row 30 j + k reads
+       state[30 j + k] (coefficient 1), state[600 + j] and state[620 + k].
+       No gathers, so the inner loop vectorizes. */
+    fom_int j, k;
+    (void)ci;
+    for (j = 0; j < 20; ++j) {
+        const fom_float xj = state[600 + j];
+        const fom_float *restrict xr = state + 30 * j;
+        const fom_float *restrict xk = state + 620;
+        const fom_float *restrict b = bias + 30 * j;
+        const fom_float *restrict l = lo + 30 * j, *restrict h = hi + 30 * j;
+        const fom_float *restrict v3 = va + 90 * j;
+        fom_float *restrict o = out + 30 * j;
+        for (k = 0; k < 30; ++k) {
+            fom_float v = b[k] + xr[k] + v3[3 * k + 1] * xj + v3[3 * k + 2] * xk[k];
+            v = v < l[k] ? l[k] : v;
+            v = v > h[k] ? h[k] : v;
+            o[k] = v;
+        }
     }
+    (void)i;
 }
 
 void fom_step_t1(const fom_float *state, const fom_float *t_t0, fom_float sc_xi, const fom_float *bias, const FomAct_t1 *act, fom_float *out) {
-    /* t1_state's row = t1_state__d_xi's pattern plus trailing entries;
-       t1_t_t0 and t1_t_t0__d_xi share one pattern. One gather per pair. */
-    fom_int i, k, p;
+    /* Fixed pattern (checked on every unit vector): row i of t1_state reads
+       columns 30 i .. 30 i + 29 then 600 + i; t1_state__d_xi, t1_t_t0 and
+       t1_t_t0__d_xi read the same 30 columns, and
+       t1_t_t0__d_xi = -t1_state__d_xi, so xi (D x + E t) = xi E (t - x). */
+    const fom_float *restrict lo = act->lo;
+    fom_int i, k;
     for (i = 0; i < 20; ++i) {
-        const fom_int q0 = FOM_MAT_t1_state__d_xi_ROWPTR[i];
-        const fom_int n = FOM_MAT_t1_state__d_xi_ROWPTR[i + 1] - q0;
-        const fom_int p0 = FOM_MAT_t1_state_ROWPTR[i];
-        const fom_int r0 = FOM_MAT_t1_t_t0_ROWPTR[i];
-        const fom_int m = FOM_MAT_t1_t_t0_ROWPTR[i + 1] - r0;
-        fom_float s = 0.0, sd = 0.0, u = 0.0, ud = 0.0, v;
-        if (n > 0 && FOM_MAT_t1_state__d_xi_COLIDX[q0 + n - 1] - FOM_MAT_t1_state__d_xi_COLIDX[q0] == n - 1) {
-            /* Sorted unique columns spanning n slots: a contiguous block. */
-            const fom_float *restrict xb = state + FOM_MAT_t1_state__d_xi_COLIDX[q0];
-            const fom_float *restrict va = FOM_MAT_t1_state_VALS + p0;
-            const fom_float *restrict vd = FOM_MAT_t1_state__d_xi_VALS + q0;
-            fom_float s1 = 0.0, sd1 = 0.0;
-            for (k = 0; k + 1 < n; k += 2) {
-                s += va[k] * xb[k]; sd += vd[k] * xb[k];
-                s1 += va[k + 1] * xb[k + 1]; sd1 += vd[k + 1] * xb[k + 1];
-            }
-            if (k < n) { s += va[k] * xb[k]; sd += vd[k] * xb[k]; }
-            s += s1; sd += sd1;
-        } else {
-            for (k = 0; k < n; ++k) {
-                fom_float xv = state[FOM_MAT_t1_state__d_xi_COLIDX[q0 + k]];
-                s += FOM_MAT_t1_state_VALS[p0 + k] * xv;
-                sd += FOM_MAT_t1_state__d_xi_VALS[q0 + k] * xv;
+        const fom_float *restrict xb = state + 30 * i;
+        const fom_float *restrict tb = t_t0 + 30 * i;
+        const fom_float *restrict va = FOM_MAT_t1_state_VALS + FOM_MAT_t1_state_ROWPTR[i];
+        const fom_float *restrict wa = FOM_MAT_t1_t_t0_VALS + FOM_MAT_t1_t_t0_ROWPTR[i];
+        const fom_float *restrict vd = FOM_MAT_t1_t_t0__d_xi_VALS + FOM_MAT_t1_t_t0__d_xi_ROWPTR[i];
+        fom_float sa[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0}, da[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        fom_float s, ud, v;
+        fom_int m;
+        /* Six independent partial sums break the serial FMA chain. */
+        for (k = 0; k < 30; k += 6) {
+            for (m = 0; m < 6; ++m) {
+                sa[m] += va[k + m] * xb[k + m] + wa[k + m] * tb[k + m];
+                da[m] += vd[k + m] * (tb[k + m] - xb[k + m]);
             }
         }
-        for (p = p0 + n; p < FOM_MAT_t1_state_ROWPTR[i + 1]; ++p) s += FOM_MAT_t1_state_VALS[p] * state[FOM_MAT_t1_state_COLIDX[p]];
-        if (m > 0 && FOM_MAT_t1_t_t0_COLIDX[r0 + m - 1] - FOM_MAT_t1_t_t0_COLIDX[r0] == m - 1) {
-            const fom_float *restrict tb = t_t0 + FOM_MAT_t1_t_t0_COLIDX[r0];
-            const fom_float *restrict va = FOM_MAT_t1_t_t0_VALS + r0;
-            const fom_float *restrict vd = FOM_MAT_t1_t_t0__d_xi_VALS + FOM_MAT_t1_t_t0__d_xi_ROWPTR[i];
-            fom_float u1 = 0.0, ud1 = 0.0;
-            for (k = 0; k + 1 < m; k += 2) {
-                u += va[k] * tb[k]; ud += vd[k] * tb[k];
-                u1 += va[k + 1] * tb[k + 1]; ud1 += vd[k + 1] * tb[k + 1];
-            }
-            if (k < m) { u += va[k] * tb[k]; ud += vd[k] * tb[k]; }
-            u += u1; ud += ud1;
-        } else {
-            for (k = 0; k < m; ++k) {
-                fom_float tv = t_t0[FOM_MAT_t1_t_t0_COLIDX[r0 + k]];
-                u += FOM_MAT_t1_t_t0_VALS[r0 + k] * tv;
-                ud += FOM_MAT_t1_t_t0__d_xi_VALS[FOM_MAT_t1_t_t0__d_xi_ROWPTR[i] + k] * tv;
-            }
-        }
-        v = bias[i] + s + sc_xi * sd + u + sc_xi * ud;
-        if (v < act->lo[i]) v = act->lo[i];
+        s = (sa[0] + sa[1]) + (sa[2] + sa[3]) + (sa[4] + sa[5]);
+        ud = (da[0] + da[1]) + (da[2] + da[3]) + (da[4] + da[5]);
+        v = bias[i] + va[30] * state[600 + i] + s + sc_xi * ud;
+        if (v < lo[i]) v = lo[i];
         out[i] = v;
     }
 }
@@ -260,36 +250,97 @@ void fom_fused_su__rest(const fom_float *state, const fom_float *t_t0, const fom
 }
 
 void fom_step_su__rest(const fom_float *state, const fom_float *t_t0, const fom_float *t_t1, fom_float sc_xi, const fom_float *bias, fom_float *out) {
-    /* On the rest rows su_state = su_state__d_xi's pattern plus trailing
-       entries, and su_t_t0, su_t_t0__d_xi share that same column pattern
-       (state and t_t0 indexed by the same column). One index pass. */
-    fom_int i, r, k, p;
-    for (r = 0; r < FOM_REST_su_N; ++r) {
-        fom_float s = 0.0, sd = 0.0, u = 0.0, ud = 0.0, v;
-        fom_int q0, n, p0, a0, b0;
-        i = FOM_REST_su_ROWS[r];
-        q0 = FOM_MAT_su_state__d_xi_ROWPTR[i];
-        n = FOM_MAT_su_state__d_xi_ROWPTR[i + 1] - q0;
-        p0 = FOM_MAT_su_state_ROWPTR[i];
-        a0 = FOM_MAT_su_t_t0_ROWPTR[i];
-        b0 = FOM_MAT_su_t_t0__d_xi_ROWPTR[i];
-        for (k = 0; k < n; ++k) {
-            fom_int c = FOM_MAT_su_state__d_xi_COLIDX[q0 + k];
-            fom_float xv = state[c], tv = t_t0[c];
-            s += FOM_MAT_su_state_VALS[p0 + k] * xv;
-            sd += FOM_MAT_su_state__d_xi_VALS[q0 + k] * xv;
-            u += FOM_MAT_su_t_t0_VALS[a0 + k] * tv;
-            ud += FOM_MAT_su_t_t0__d_xi_VALS[b0 + k] * tv;
+    /* Fixed pattern (checked on every unit vector): rest rows are 620 + k,
+       k < 30. Row 620 + k of su_state reads columns 30 j + k (j < 20) then
+       620 + k; su_state__d_xi, su_t_t0, su_t_t0__d_xi read the same 30 j + k
+       and su_state__d_xi = -su_t_t0__d_xi there, so
+       xi (D x + E t) = xi E (t - x). su_t_t1 is empty on these rows.
+       Loop j outside so the 30 rows run as contiguous vectors. */
+    const fom_float *restrict S = FOM_MAT_su_state_VALS + FOM_MAT_su_state_ROWPTR[620];
+    const fom_float *restrict T = FOM_MAT_su_t_t0_VALS + FOM_MAT_su_t_t0_ROWPTR[620];
+    const fom_float *restrict E = FOM_MAT_su_t_t0__d_xi_VALS + FOM_MAT_su_t_t0__d_xi_ROWPTR[620];
+    fom_float acc[30], ud[30];
+    fom_int j, k;
+    (void)t_t1;
+    for (k = 0; k < 30; ++k) { acc[k] = bias[620 + k] + S[21 * k + 20] * state[620 + k]; ud[k] = 0.0; }
+    for (j = 0; j < 20; ++j) {
+        const fom_float *restrict xr = state + 30 * j;
+        const fom_float *restrict tr = t_t0 + 30 * j;
+        for (k = 0; k < 30; ++k) {
+            acc[k] += S[21 * k + j] * xr[k] + T[20 * k + j] * tr[k];
+            ud[k] += E[20 * k + j] * (tr[k] - xr[k]);
         }
-        for (p = p0 + n; p < FOM_MAT_su_state_ROWPTR[i + 1]; ++p) s += FOM_MAT_su_state_VALS[p] * state[FOM_MAT_su_state_COLIDX[p]];
-        v = bias[i] + s + sc_xi * sd + u + sc_xi * ud;
-        for (p = FOM_MAT_su_t_t1_ROWPTR[i]; p < FOM_MAT_su_t_t1_ROWPTR[i + 1]; ++p) v += FOM_MAT_su_t_t1_VALS[p] * t_t1[FOM_MAT_su_t_t1_COLIDX[p]];
-        out[i] = v;
     }
+    for (k = 0; k < 30; ++k) out[620 + k] = acc[k] + sc_xi * ud[k];
 }
 
 void fom_iterate(const fom_float *state, fom_float sc_xi, const fom_float *bias_t0, const fom_float *bias_t1, const fom_float *bias_su, const FomAct_t0 *act_t0, const FomAct_t1 *act_t1, fom_float *t_t0, fom_float *t_t1, fom_float *new_state) {
-    fom_step_t0(state, bias_t0, act_t0, t_t0);
-    fom_step_t1(state, t_t0, sc_xi, bias_t1, act_t1, t_t1);
-    fom_step_su(state, t_t0, t_t1, sc_xi, bias_su, new_state);
+    /* One pass over the 20 blocks j (30 entries each): t0 block j, then
+       t1[j] (reads only state/t0 block j), then the su rest rows 620 + k
+       accumulate block j. Same fixed patterns as the step routines above;
+       the strided coefficients are repacked once into contiguous tables.
+       t_t0 / t_t1 may alias new_state (selection rows), so no restrict. */
+    static fom_float A1[600], A2[600], ST[600], TT[600], ET[600];
+    static int init = 0;
+    const fom_float *restrict lo0 = act_t0->lo, *restrict hi0 = act_t0->hi;
+    const fom_float *restrict lo1 = act_t1->lo;
+    const fom_float *restrict S = FOM_MAT_su_state_VALS + FOM_MAT_su_state_ROWPTR[620];
+    fom_float acc[30], ud[30];
+    fom_int j, k;
+    if (!init) {
+        const fom_float *T = FOM_MAT_su_t_t0_VALS + FOM_MAT_su_t_t0_ROWPTR[620];
+        const fom_float *E = FOM_MAT_su_t_t0__d_xi_VALS + FOM_MAT_su_t_t0__d_xi_ROWPTR[620];
+        for (j = 0; j < 20; ++j)
+            for (k = 0; k < 30; ++k) {
+                A1[30 * j + k] = FOM_MAT_t0_state_VALS[3 * (30 * j + k) + 1];
+                A2[30 * j + k] = FOM_MAT_t0_state_VALS[3 * (30 * j + k) + 2];
+                ST[30 * j + k] = S[21 * k + j];
+                TT[30 * j + k] = T[20 * k + j];
+                ET[30 * j + k] = E[20 * k + j];
+            }
+        init = 1;
+    }
+    for (k = 0; k < 30; ++k) { acc[k] = bias_su[620 + k] + S[21 * k + 20] * state[620 + k]; ud[k] = 0.0; }
+    for (j = 0; j < 20; ++j) {
+        const fom_float *restrict xr = state + 30 * j;
+        const fom_float *restrict xk = state + 620;
+        const fom_float xj = state[600 + j];
+        const fom_float *restrict b = bias_t0 + 30 * j;
+        const fom_float *restrict l = lo0 + 30 * j, *restrict h = hi0 + 30 * j;
+        const fom_float *restrict a1 = A1 + 30 * j, *restrict a2 = A2 + 30 * j;
+        const fom_float *restrict st = ST + 30 * j, *restrict tt = TT + 30 * j, *restrict et = ET + 30 * j;
+        const fom_float *restrict va = FOM_MAT_t1_state_VALS + FOM_MAT_t1_state_ROWPTR[j];
+        const fom_float *restrict wa = FOM_MAT_t1_t_t0_VALS + FOM_MAT_t1_t_t0_ROWPTR[j];
+        const fom_float *restrict vd = FOM_MAT_t1_t_t0__d_xi_VALS + FOM_MAT_t1_t_t0__d_xi_ROWPTR[j];
+        fom_float tb[30];
+        fom_float sa[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0}, da[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        fom_float s, d, v;
+        fom_int m;
+        for (k = 0; k < 30; ++k) {
+            fom_float t = b[k] + xr[k] + a1[k] * xj + a2[k] * xk[k];
+            t = t < l[k] ? l[k] : t;
+            t = t > h[k] ? h[k] : t;
+            tb[k] = t;
+            acc[k] += st[k] * xr[k] + tt[k] * t;
+            ud[k] += et[k] * (t - xr[k]);
+        }
+        /* Six independent partial sums break the serial FMA chain. */
+        for (k = 0; k < 30; k += 6)
+            for (m = 0; m < 6; ++m) {
+                sa[m] += va[k + m] * xr[k + m] + wa[k + m] * tb[k + m];
+                da[m] += vd[k + m] * (tb[k + m] - xr[k + m]);
+            }
+        s = (sa[0] + sa[1]) + (sa[2] + sa[3]) + (sa[4] + sa[5]);
+        d = (da[0] + da[1]) + (da[2] + da[3]) + (da[4] + da[5]);
+        /* When t_t0 aliases new_state (solver selection rows), skip the
+           redundant copy; new_state is written last either way. */
+        if (t_t0 != new_state)
+            for (k = 0; k < 30; ++k) t_t0[30 * j + k] = tb[k];
+        for (k = 0; k < 30; ++k) new_state[30 * j + k] = bias_su[30 * j + k] + tb[k];
+        v = bias_t1[j] + va[30] * xj + s + sc_xi * d;
+        if (v < lo1[j]) v = lo1[j];
+        t_t1[j] = v;
+        new_state[600 + j] = bias_su[600 + j] + v;
+    }
+    for (k = 0; k < 30; ++k) new_state[620 + k] = acc[k] + sc_xi * ud[k];
 }

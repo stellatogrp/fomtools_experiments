@@ -1,0 +1,22 @@
+I wrote `src/fom_solver.c` and `make verify` passes: it prints `VERIFY OK`. The worst error over 8 samples is 6.3e-11, against a tolerance of 1e-6. Every kernel check passed with zero error.
+
+How the solver works:
+- **Setup:** `fom_setup` and `fom_update_params` both reset the state to `FOM_STATE_INIT`.
+- **Parameter term:** the `t0_p_p0 @ p0` product doesn't change between iterations, so it's computed once per solve and passed in as the bias.
+- **Each iteration:** I read gamma once at the top. Then one call to the provided `fom_step_t0` does the sparse products, the gamma-scaled dense term, the bias and the soft threshold together. The state update is two 50-element copies, since `su_state` and `su_t_t0` only shift entries.
+- **Constraints:** no dynamic memory and no `/` anywhere. Products go only through the provided helpers and no numbers are hardcoded.
+
+**Residual and stopping:** since no tolerance is set, the loop always runs the full `max_iter`. So I compute `max_abs(new_state - state)` only on the last iteration. The returned status is always `FOM_MAX_ITER_REACHED`.
+
+**Speed:** I didn't run a timing benchmark, so I haven't measured how fast this is.
+I wrote `src/fom_solver.c` and `make verify` passes: it prints `VERIFY OK`. The worst error over 8 samples is 6.3e-11, against a tolerance of 1e-6. Every kernel check passed with zero error.
+
+How the solver works:
+- **Setup:** `fom_setup` and `fom_update_params` both reset the state to `FOM_STATE_INIT`.
+- **Parameter term:** the `t0_p_p0 @ p0` product doesn't change between iterations, so it's computed once per solve and passed in as the bias.
+- **Each iteration:** I read gamma once at the top. Then one call to the provided `fom_step_t0` does the sparse products, the gamma-scaled dense term, the bias and the soft threshold together. The state update is two 50-element copies, since `su_state` and `su_t_t0` only shift entries.
+- **Constraints:** no dynamic memory and no `/` anywhere. Products go only through the provided helpers and no numbers are hardcoded.
+
+**Residual and stopping:** since no tolerance is set, the loop always runs the full `max_iter`. So I compute `max_abs(new_state - state)` only on the last iteration. The returned status is always `FOM_MAX_ITER_REACHED`.
+
+**Speed:** I didn't run a timing benchmark, so I haven't measured how fast this is.

@@ -1,0 +1,20 @@
+I wrote `src/fom_solver.c` and `make verify` passes (`VERIFY OK`). The worst max-abs error over 8 samples is 1.07e-14, against a tolerance of 1e-6. All the ops checks reported zero error.
+
+How the solver works:
+- **Per iteration:** it calls the generated `fom_iterate`. That does the clip step for `t0`, the relu step for `t1`, and the state update. The biases come straight from `FOM_MAT_t0_c` and `FOM_MAT_t1_c`, and the activation bounds from `FOM_ACT_t0` and `FOM_ACT_t1`. All matrix products go through the generated kernels.
+- **Parameter term:** `su_p_p0 @ p0` is computed once per solve into `work->acc`, before the loop, since it doesn't change between iterations.
+- **No copying between iterations:** the loop alternates between the `state` and `new_state` buffers. The residual `max|new - old|` is computed once, after the last iteration. Termination is a fixed `max_iter` (200) and the tolerance is 0, so nothing is checked inside the loop.
+- **Initial state:** it is reset from `FOM_STATE_INIT` in `fom_setup`, in `fom_update_params`, and again at the end of each solve.
+- **Constraints:** there is no `malloc`, no variable-length array, no `/`, and no hardcoded numbers.
+
+I didn't run `make bench`, so I haven't measured the speed.
+I wrote `src/fom_solver.c` and `make verify` passes (`VERIFY OK`). The worst max-abs error over 8 samples is 1.07e-14, against a tolerance of 1e-6. All the ops checks reported zero error.
+
+How the solver works:
+- **Per iteration:** it calls the generated `fom_iterate`. That does the clip step for `t0`, the relu step for `t1`, and the state update. The biases come straight from `FOM_MAT_t0_c` and `FOM_MAT_t1_c`, and the activation bounds from `FOM_ACT_t0` and `FOM_ACT_t1`. All matrix products go through the generated kernels.
+- **Parameter term:** `su_p_p0 @ p0` is computed once per solve into `work->acc`, before the loop, since it doesn't change between iterations.
+- **No copying between iterations:** the loop alternates between the `state` and `new_state` buffers. The residual `max|new - old|` is computed once, after the last iteration. Termination is a fixed `max_iter` (200) and the tolerance is 0, so nothing is checked inside the loop.
+- **Initial state:** it is reset from `FOM_STATE_INIT` in `fom_setup`, in `fom_update_params`, and again at the end of each solve.
+- **Constraints:** there is no `malloc`, no variable-length array, no `/`, and no hardcoded numbers.
+
+I didn't run `make bench`, so I haven't measured the speed.

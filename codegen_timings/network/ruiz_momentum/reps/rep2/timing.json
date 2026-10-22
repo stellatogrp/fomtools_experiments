@@ -1,0 +1,136 @@
+{
+  "experiment": "network",
+  "variant": "ruiz_momentum",
+  "rep": 2,
+  "iterations": 200,
+  "verified_run": "network/results/run_005",
+  "numpy_us": 1440.4584653675556,
+  "translated_us": 43.6628,
+  "optimized_us": 17.5212,
+  "speedup_translation": 32.99051974146312,
+  "speedup_optimization": 2.4919982649590207,
+  "speedup_total": 82.21231795582241,
+  "optimization_kept": true,
+  "optimization_notes": "",
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 45.6852,
+      "us_after": 18.3798,
+      "gain": 0.5976859026555646,
+      "agent_wall_s": 76.53313216590323,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": false,
+      "correct": true,
+      "kept": false,
+      "us_before": null,
+      "us_after": null,
+      "gain": null,
+      "agent_wall_s": 59.46536483312957,
+      "truncated": false,
+      "stop_reason": "the round left the sources unchanged"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Inlining the per-iteration products directly into the solver loop of `src/fom_solver.c`, removing the call boundaries",
+      "rule": "src/fom_solver.c must not read matrix data or write matrix-vector loops/literals",
+      "expected_gain": "small (LTO already inlines most of it), ~2-5%"
+    },
+    {
+      "round": 1,
+      "idea": "Factoring the near-proportional `state`/`t_t0`/`_d_xi` coefficient pairs into one product with a derived scalar",
+      "rule": "exactness of the coefficients each member applies (literal values must be exactly the matrix's), and no new float constants",
+      "expected_gain": "~30-40% of the step time"
+    },
+    {
+      "round": 2,
+      "idea": "Exploit the near-relations between member coefficients (xi-matrices ~= 2x the base ones, t_t0 coefficient ~= -2x the state coefficient). Each row of t1 and su would then collapse to c_j*(2*t0_j - s_j) + xi*2c_j*(t0_j - s_j), cutting the work about in half",
+      "rule": "the relations hold only to the last few bits, so the result would not apply exactly the package's coefficients (\"values must be exactly the matrix's\")",
+      "expected_gain": "~30-45%"
+    }
+  ],
+  "max_abs_dev": {
+    "translated": {
+      "verified_set": 9.459100169806334e-14
+    },
+    "optimized": {
+      "verified_set": 1.056932319443149e-13
+    }
+  },
+  "timing_rounds": {
+    "numpy": [
+      1443.3125033974648,
+      1398.0205403640866,
+      1384.791568852961,
+      1463.395543396473,
+      1440.4584653675556,
+      1435.0420096889138,
+      1442.2914246097207
+    ],
+    "translated": [
+      44.9178,
+      44.2062,
+      43.6052,
+      43.6628,
+      42.5156,
+      42.4814,
+      43.8366
+    ],
+    "optimized": [
+      18.0668,
+      17.8894,
+      17.365,
+      18.057,
+      17.5212,
+      17.2774,
+      17.2632
+    ]
+  },
+  "agent_wall_s": {
+    "translation": 31.905704021453857,
+    "code_optimization": 138.99522876739502
+  },
+  "agent_budgets_s": {
+    "translation": 600,
+    "code_optimization": 600
+  },
+  "check": {
+    "oracle_vs_numpy_max_rel": 1.6154593423045516e-14,
+    "state_dim": 74,
+    "params": {
+      "p0": 15
+    }
+  },
+  "info": {
+    "ns": 10,
+    "nd": 15,
+    "ne": 49,
+    "eta": 0.3148342557928728,
+    "momentum": true,
+    "ruiz": true,
+    "state_dim": 74
+  },
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "os": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
+    "python": "3.13.11",
+    "numpy": "2.5.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "fomtools_commit": "25b3f73",
+    "fomtools_dirty": false,
+    "fomtools_branch": "",
+    "fomtools_path": "/Users/bs37/Documents/projects/fomtools/fomtools"
+  },
+  "started_utc": "2026-10-22T19:19:10+00:00",
+  "finished_utc": "2026-10-22T19:22:09+00:00"
+}
