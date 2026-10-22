@@ -1,48 +1,114 @@
-Fused CSR gave 64.5→36.6 µs. Trying one more tweak: precompute the xi-combined coefficients in a vectorizable pass.
-No gain from split accumulators; reverting to the previous best and taking the final measurements.
-The solver went from 64.5 µs to about 32–33 µs per solve, roughly 2.0× faster, and `make verify` still prints `VERIFY OK` (worst error 4.4e-15). This problem has no linear solves, so I only changed `src/fom_solver.c`.
 
-The new tables use about 84 KB of static storage, because each block is sized for up to 1024 nonzeros. The real counts are 147, 108 and 172, so lowering `FOM_NNZ_CAP` (currently 1024) to 256 would cut that to about 20 KB with no speed cost. I haven't made that change.
+===== code optimization round 1 =====
+Tight budget. Let me look at the solver and ops.
+Unrolling `fom_iterate` cut the solve from 60 to 19 µs. Next, I'll factor out the repeated coefficients in each row.
+I made the solver about 3.5x faster: `make bench` went from 60.4 µs to about 17.3 µs per solve, and `make verify` still prints `VERIFY OK`. Almost all of the gain came from one change: `fom_iterate` in `src/fom_ops.c` is now generated as straight-line code with the matrix values written in as constants. I generated it with a throwaway script, `/tmp/fomgen/gen2.py`, that reads `data.npz`; it is not in the repo. If the data changes, the routine has to be regenerated.
 
 FOMTOOLS-SUMMARY-BEGIN
-**Whole-solve mean_us:** initial 64.55 µs → final ~32.3 µs (`make bench`, 5000 solves). Speedup is about **2.0×**. `make verify` passes with worst max-abs error 4.4e-15 (tolerance 1e-6).
+**Whole-solve mean_us:** 60.36 at the start, 17.3 at the end (runs gave 17.3 to 18.4), so about 3.5x faster.
 
-**Final profile breakdown** (`make profile`; the timers add overhead, so this run's total is 50.4 µs), hottest first:
+**Final profile** (`make profile`, instrumented build, BENCH mean 22.9 µs):
 | region | total_us | pct |
 |---|---|---|
-| state_update | 95235 | 52.1% |
-| t1 | 44635 | 24.4% |
-| t0 | 42927 | 23.5% |
+| iterate | 90905 | 99.82% |
+| residual | 164 | 0.18% |
 
 **Optimizations applied:**
-1. **One combined matrix per block, using one vector `z = [x; t0; t1]`** (64.5 → 36.6 µs). The step's 11 separate sparse matrix–vector products, each a call into another source file, become 3 loops inside the solver. Every block has the form `(A + xi·D)·[sources]`: t1 uses `t1_state`, `t1_t_t0` and their `__d_xi` parts; the state update uses `su_state`, `su_t_t0`, `su_t_t1` and their `__d_xi` parts. All of these matrices stay the same across iterations; only the scalar `xi` changes. So once, at setup, I read each fixed matrix by multiplying it with unit vectors and store the merged sparsity pattern as one CSR table per block, holding a base value `a` and an xi-coefficient `d`. Each iteration then computes `out_i = c_i + Σ (a_p + xi·d_p)·z[col_p]` in a single pass. This removes the separate `acc` buffers and extra passes, and lets t0 and t1 be read directly as part of `z`. The setup is done once, has no division, and uses only static storage.
-2. **Fixed-width loop for t0** (36.6 → ~33 µs). Every row of `t0_state` has exactly 3 nonzeros (one identity entry plus two coupling terms). This is checked at build time, with the general CSR loop as a fallback. Using that structure, the t0 row is fully unrolled and computed together with the clip to [lo, hi], with no loop over each row.
-3. **Kept from the original:** the `su_p_p0 @ p0` term is computed once per solve, since it doesn't depend on the iteration.
+- **Fully unrolled `fom_iterate` with the coefficients written as literals** (60.4 to 18.8 µs). Every member matrix is fixed and small (about 620 nonzeros in total), and `fom_iterate` is checked on every unit vector, so writing the values as literals is allowed there. A generator script reads `data.npz` and writes one line of straight-line code per output row. It drops zero coefficients and multiplies by 1.0. This removes all CSR index arithmetic and indirect loads, and keeps values in registers between the t0, t1 and su blocks. Bias and activation bounds are still read from the arguments, and `sc_xi` stays a runtime argument, so the routine is correct for any schedule value.
+- **Selection rows written as plain copies** (part of the step above). Rows 0..58 of `su` are `bias + t_t0[i]` or `bias + t_t1[i-49]`, because they are 0/1 selections with no other members. Rows 59..73 are the only ones that do real multiplies.
+- **Factoring out shared coefficients within a row** (18.8 to about 17.3 µs). In `t1`, every entry of `t1_state`, `t1_t_t0` and their `__d_xi` versions is one of a few constants (-0.0823, +0.1645, -0.1645). So each row becomes `c * (sum of x over a group)`, and the same group sum is reused between the unscaled and the `sc_xi`-scaled parts. That replaces about 4 multiplies per nonzero with one per group.
+- **Unchanged from before:** `su_p_p0 @ p0` and the constant biases are computed once per solve, and the residual is only computed on the last iteration. There are no linear solves in this method, so `fom_linsolve.c` was not touched.
+- **Profiling:** `FOM_PROF_BEGIN/END` markers now wrap `iterate` and `residual` in `src/fom_solver.c`.
 
-**Tried and dropped (no gain):**
-- Computing the combined `a + xi·d` values in a separate vectorized pass each iteration: slower (39 µs).
-- Splitting the a- and d-parts into two running sums in the t1 and state-update loops: within noise.
+Blocked by rules:
+- Merge each `su` row's `x[j]` and `t_t0[j]` terms into one `c * (t_t0[j] - x[j])`, since the coefficients are equal and opposite up to about 1e-16, and the same for the `__d_xi` pair | values must be exactly the matrix's; the tiny mismatches make the merged coefficient differ from the package data | about 5-10%
+- Build flags such as `-ffast-math` or `-march=native` to let the compiler reassociate and vectorize the unrolled sums | the Makefile and build flags are fixed | unknown, maybe 10-20%
 FOMTOOLS-SUMMARY-END
-The solver went from 64.5 µs to about 32–33 µs per solve, roughly 2.0× faster, and `make verify` still prints `VERIFY OK` (worst error 4.4e-15). This problem has no linear solves, so I only changed `src/fom_solver.c`.
-
-The new tables use about 84 KB of static storage, because each block is sized for up to 1024 nonzeros. The real counts are 147, 108 and 172, so lowering `FOM_NNZ_CAP` (currently 1024) to 256 would cut that to about 20 KB with no speed cost. I haven't made that change.
+I made the solver about 3.5x faster: `make bench` went from 60.4 µs to about 17.3 µs per solve, and `make verify` still prints `VERIFY OK`. Almost all of the gain came from one change: `fom_iterate` in `src/fom_ops.c` is now generated as straight-line code with the matrix values written in as constants. I generated it with a throwaway script, `/tmp/fomgen/gen2.py`, that reads `data.npz`; it is not in the repo. If the data changes, the routine has to be regenerated.
 
 FOMTOOLS-SUMMARY-BEGIN
-**Whole-solve mean_us:** initial 64.55 µs → final ~32.3 µs (`make bench`, 5000 solves). Speedup is about **2.0×**. `make verify` passes with worst max-abs error 4.4e-15 (tolerance 1e-6).
+**Whole-solve mean_us:** 60.36 at the start, 17.3 at the end (runs gave 17.3 to 18.4), so about 3.5x faster.
 
-**Final profile breakdown** (`make profile`; the timers add overhead, so this run's total is 50.4 µs), hottest first:
+**Final profile** (`make profile`, instrumented build, BENCH mean 22.9 µs):
 | region | total_us | pct |
 |---|---|---|
-| state_update | 95235 | 52.1% |
-| t1 | 44635 | 24.4% |
-| t0 | 42927 | 23.5% |
+| iterate | 90905 | 99.82% |
+| residual | 164 | 0.18% |
 
 **Optimizations applied:**
-1. **One combined matrix per block, using one vector `z = [x; t0; t1]`** (64.5 → 36.6 µs). The step's 11 separate sparse matrix–vector products, each a call into another source file, become 3 loops inside the solver. Every block has the form `(A + xi·D)·[sources]`: t1 uses `t1_state`, `t1_t_t0` and their `__d_xi` parts; the state update uses `su_state`, `su_t_t0`, `su_t_t1` and their `__d_xi` parts. All of these matrices stay the same across iterations; only the scalar `xi` changes. So once, at setup, I read each fixed matrix by multiplying it with unit vectors and store the merged sparsity pattern as one CSR table per block, holding a base value `a` and an xi-coefficient `d`. Each iteration then computes `out_i = c_i + Σ (a_p + xi·d_p)·z[col_p]` in a single pass. This removes the separate `acc` buffers and extra passes, and lets t0 and t1 be read directly as part of `z`. The setup is done once, has no division, and uses only static storage.
-2. **Fixed-width loop for t0** (36.6 → ~33 µs). Every row of `t0_state` has exactly 3 nonzeros (one identity entry plus two coupling terms). This is checked at build time, with the general CSR loop as a fallback. Using that structure, the t0 row is fully unrolled and computed together with the clip to [lo, hi], with no loop over each row.
-3. **Kept from the original:** the `su_p_p0 @ p0` term is computed once per solve, since it doesn't depend on the iteration.
+- **Fully unrolled `fom_iterate` with the coefficients written as literals** (60.4 to 18.8 µs). Every member matrix is fixed and small (about 620 nonzeros in total), and `fom_iterate` is checked on every unit vector, so writing the values as literals is allowed there. A generator script reads `data.npz` and writes one line of straight-line code per output row. It drops zero coefficients and multiplies by 1.0. This removes all CSR index arithmetic and indirect loads, and keeps values in registers between the t0, t1 and su blocks. Bias and activation bounds are still read from the arguments, and `sc_xi` stays a runtime argument, so the routine is correct for any schedule value.
+- **Selection rows written as plain copies** (part of the step above). Rows 0..58 of `su` are `bias + t_t0[i]` or `bias + t_t1[i-49]`, because they are 0/1 selections with no other members. Rows 59..73 are the only ones that do real multiplies.
+- **Factoring out shared coefficients within a row** (18.8 to about 17.3 µs). In `t1`, every entry of `t1_state`, `t1_t_t0` and their `__d_xi` versions is one of a few constants (-0.0823, +0.1645, -0.1645). So each row becomes `c * (sum of x over a group)`, and the same group sum is reused between the unscaled and the `sc_xi`-scaled parts. That replaces about 4 multiplies per nonzero with one per group.
+- **Unchanged from before:** `su_p_p0 @ p0` and the constant biases are computed once per solve, and the residual is only computed on the last iteration. There are no linear solves in this method, so `fom_linsolve.c` was not touched.
+- **Profiling:** `FOM_PROF_BEGIN/END` markers now wrap `iterate` and `residual` in `src/fom_solver.c`.
 
-**Tried and dropped (no gain):**
-- Computing the combined `a + xi·d` values in a separate vectorized pass each iteration: slower (39 µs).
-- Splitting the a- and d-parts into two running sums in the t1 and state-update loops: within noise.
+Blocked by rules:
+- Merge each `su` row's `x[j]` and `t_t0[j]` terms into one `c * (t_t0[j] - x[j])`, since the coefficients are equal and opposite up to about 1e-16, and the same for the `__d_xi` pair | values must be exactly the matrix's; the tiny mismatches make the merged coefficient differ from the package data | about 5-10%
+- Build flags such as `-ffast-math` or `-march=native` to let the compiler reassociate and vectorize the unrolled sums | the Makefile and build flags are fixed | unknown, maybe 10-20%
+FOMTOOLS-SUMMARY-END
+===== code optimization round 2 =====
+Oops, my replace clobbered the init line. Fixing.
+I made no changes this round. The one change I tried gave no measurable gain, so I reverted it. `src/fom_ops.c` is back to the round-1 version byte for byte, and `make verify` prints `VERIFY OK` on it.
+
+FOMTOOLS-SUMMARY-BEGIN
+**Result:** no improvement this round, so the sources are unchanged from round 1.
+- Initial whole-solve `mean_us`: 19.319 (reported at the start of the round). Re-measured here at about 16.5 to 17.6; the bench varies by roughly ±5% from run to run.
+- Final whole-solve `mean_us`: the same code, so about 16.5 to 19.3 depending on the run.
+- Speedup this round: 1.00x. Overall it stays at about 3.27x against the translated solver (63.119 us).
+
+**Final profile (`make profile`), hottest first:**
+| region | time | % |
+|---|---|---|
+| iterate | 90556 us | 99.81% |
+| residual | 172 us | 0.19% |
+
+**Optimizations tried this round:**
+- I added `restrict` local aliases inside `fom_iterate` for the state, the temporaries, the new state and the activation bound pointers. The idea was to stop the compiler reloading `x[49..73]` and the bounds after each store. It passed `VERIFY OK`, but four bench runs each before and after showed no gain (about 17.4 us vs about 16.9 us, within noise), so I reverted it.
+
+**Why the round-1 solver is close to optimal:**
+- `fom_iterate` is already one fully unrolled pass over the fixed sparsity, at about 85 ns per iteration.
+- Each `t0` row has 2 off-diagonal entries.
+- Each `t1` row adds group sums of `x` and `t0`. The compiler computes each sum once and reuses it for both the base term and the `xi` term, since the expressions are identical.
+- The `su` selection rows 0..58 are plain copies.
+- The residual is computed only on the last iteration.
+- The state buffers are swapped by pointer rather than copied.
+
+**Ideas I rejected on numerical grounds:**
+- **Merging coefficients in the `su` rows 59..73.** The `x` coefficient is about -c and the `t0` coefficient about 2c, so a row could in principle use one shared coefficient. The two values differ in the last bits, though, and verify's per-entry tolerance is designed to catch exactly that kind of change.
+- **Combining `a + xi*b` into one coefficient each iteration.** Computing those coefficients costs as many FMAs as the products they replace.
+
+Blocked by rules:
+- Changing the compile flags so the compiler could vectorize the 49-row `t0` clip and the gather-heavy `su` rows | the Makefile and build flags are fixed | unknown, probably under 10%
+FOMTOOLS-SUMMARY-END
+I made no changes this round. The one change I tried gave no measurable gain, so I reverted it. `src/fom_ops.c` is back to the round-1 version byte for byte, and `make verify` prints `VERIFY OK` on it.
+
+FOMTOOLS-SUMMARY-BEGIN
+**Result:** no improvement this round, so the sources are unchanged from round 1.
+- Initial whole-solve `mean_us`: 19.319 (reported at the start of the round). Re-measured here at about 16.5 to 17.6; the bench varies by roughly ±5% from run to run.
+- Final whole-solve `mean_us`: the same code, so about 16.5 to 19.3 depending on the run.
+- Speedup this round: 1.00x. Overall it stays at about 3.27x against the translated solver (63.119 us).
+
+**Final profile (`make profile`), hottest first:**
+| region | time | % |
+|---|---|---|
+| iterate | 90556 us | 99.81% |
+| residual | 172 us | 0.19% |
+
+**Optimizations tried this round:**
+- I added `restrict` local aliases inside `fom_iterate` for the state, the temporaries, the new state and the activation bound pointers. The idea was to stop the compiler reloading `x[49..73]` and the bounds after each store. It passed `VERIFY OK`, but four bench runs each before and after showed no gain (about 17.4 us vs about 16.9 us, within noise), so I reverted it.
+
+**Why the round-1 solver is close to optimal:**
+- `fom_iterate` is already one fully unrolled pass over the fixed sparsity, at about 85 ns per iteration.
+- Each `t0` row has 2 off-diagonal entries.
+- Each `t1` row adds group sums of `x` and `t0`. The compiler computes each sum once and reuses it for both the base term and the `xi` term, since the expressions are identical.
+- The `su` selection rows 0..58 are plain copies.
+- The residual is computed only on the last iteration.
+- The state buffers are swapped by pointer rather than copied.
+
+**Ideas I rejected on numerical grounds:**
+- **Merging coefficients in the `su` rows 59..73.** The `x` coefficient is about -c and the `t0` coefficient about 2c, so a row could in principle use one shared coefficient. The two values differ in the last bits, though, and verify's per-entry tolerance is designed to catch exactly that kind of change.
+- **Combining `a + xi*b` into one coefficient each iteration.** Computing those coefficients costs as many FMAs as the products they replace.
+
+Blocked by rules:
+- Changing the compile flags so the compiler could vectorize the 49-row `t0` clip and the gather-heavy `su` rows | the Makefile and build flags are fixed | unknown, probably under 10%
 FOMTOOLS-SUMMARY-END

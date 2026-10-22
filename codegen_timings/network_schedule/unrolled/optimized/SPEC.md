@@ -655,4 +655,26 @@ Apply this once, after the steps above, and report
 `FOM_MAX_ITER_REACHED` with `iter = 1`. The residual is
 `max_abs(new_state - state)` as usual, but nothing terminates on it.
 
+## Selection matrices
+
+These products are copies: each matrix has at most one nonzero per row, and
+every nonzero is exactly 1, so `(M @ x)[i] = x[src[i]]`. On the CPU targets
+`fom_data.h` carries each map as `FOM_SEL_<name>_SRC` (-1 for an empty row).
+
+- `t3_t_t1`: identity
+- `t5_t_t2`: identity
+- `t7_t_t4`: identity
+- `su_t_t146`: shift: out[i] += x[i] for rows 0..599, 50 empty rows (left unchanged)
+- `su_t_t147`: shift: out[i] += x[i - 600] for rows 600..619, 630 empty rows (left unchanged)
+- `su_t_t148`: shift: out[i] += x[i - 620] for rows 620..649, 620 empty rows (left unchanged)
+
+## Selection rows
+
+Rows of an output block that are a plain copy: exactly one unscaled product
+has exactly one entry there, equal to 1, and the others none. On the CPU
+targets `fom_data.h` lists them as `FOM_SELROWS_<block>_ROW/SRC/COL`, and a
+`fom_fused_<block>__rest` / `fom_step_<block>__rest` computes the other rows.
+
+- `su` (650 of 650 rows): rows 0..599 copy t_t146[0..599]; rows 600..619 copy t_t147[0..19]; rows 620..649 copy t_t148[0..29]
+
 All matrices/consts are provided numerically in `data.npz` / `fom_data.c`.

@@ -70,4 +70,36 @@ do not write your own dense matrix-vector loops):
 
 Residual = `max_abs(new_state - state)`.
 
+## Selection matrices
+
+These products are copies: each matrix has at most one nonzero per row, and
+every nonzero is exactly 1, so `(M @ x)[i] = x[src[i]]`. On the CPU targets
+`fom_data.h` carries each map as `FOM_SEL_<name>_SRC` (-1 for an empty row).
+
+- `t0_state`: shift: out[i] += x[i + 16] for rows 0..47
+- `t0_p_p1`: zero
+- `t1_state`: shift: out[i] += x[i] for rows 0..15
+- `t1_p_p0`: zero
+- `t1_t_t0`: zero
+- `su_state`: shift: out[i] += x[i - 128] for rows 128..143, 144 empty rows (left unchanged)
+- `su_state__d_d1`: shift: out[i] += x[i] for rows 64..127, 96 empty rows (left unchanged)
+- `su_state__d_g2`: shift: out[i] += x[i + 64] for rows 0..63, 96 empty rows (left unchanged)
+- `su_state__d_m1`: shift: out[i] += x[i - 80] for rows 144..159, 144 empty rows (left unchanged)
+- `su_t_t0`: zero
+- `su_t_t0__d_d2`: shift: out[i] += x[i - 80] for rows 80..127, 112 empty rows (left unchanged)
+- `su_t_t0__d_g1`: shift: out[i] += x[i - 16] for rows 16..63, 112 empty rows (left unchanged)
+- `su_t_t1`: zero
+- `su_t_t1__d_d2`: shift: out[i] += x[i - 64] for rows 64..79, 144 empty rows (left unchanged)
+- `su_t_t1__d_g1`: shift: out[i] += x[i] for rows 0..15, 144 empty rows (left unchanged)
+- `su_t_t1__d_m2`: shift: out[i] += x[i - 144] for rows 144..159, 144 empty rows (left unchanged)
+
+## Selection rows
+
+Rows of an output block that are a plain copy: exactly one unscaled product
+has exactly one entry there, equal to 1, and the others none. On the CPU
+targets `fom_data.h` lists them as `FOM_SELROWS_<block>_ROW/SRC/COL`, and a
+`fom_fused_<block>__rest` / `fom_step_<block>__rest` computes the other rows.
+
+- `su` (16 of 160 rows): rows 128..143 copy state[0..15]
+
 All matrices/consts are provided numerically in `data.npz` / `fom_data.c`.

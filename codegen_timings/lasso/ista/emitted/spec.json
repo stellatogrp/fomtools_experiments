@@ -66,27 +66,31 @@
     ],
     "const": null
   },
+  "objective": null,
   "matrices": {
     "t0_state": {
       "shape": [
         50,
         50
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "t0_p_p0": {
       "shape": [
         50,
         25
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "su_t_t0": {
       "shape": [
         50,
         50
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     }
   },
   "schedules": {}

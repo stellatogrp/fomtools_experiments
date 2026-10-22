@@ -1,63 +1,122 @@
 {
   "experiment": "network",
   "variant": "ruiz_momentum",
+  "rep": 1,
   "iterations": 200,
   "verified_run": "network/results/run_005",
-  "numpy_us": 1209.6044993086252,
-  "translated_us": 63.9636,
-  "optimized_us": 17.292,
-  "speedup_translation": 18.910825833890293,
-  "speedup_optimization": 3.699028452463567,
-  "speedup_total": 69.95168281914326,
+  "numpy_us": 1448.979601264,
+  "translated_us": 61.7836,
+  "optimized_us": 12.8756,
+  "speedup_translation": 23.452495504697037,
+  "speedup_optimization": 4.798502594053869,
+  "speedup_total": 112.53686051632545,
   "optimization_kept": true,
   "optimization_notes": "",
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 63.29,
+      "us_after": 13.1036,
+      "gain": 0.7929593932690788,
+      "agent_wall_s": 99.52873050002381,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": false,
+      "correct": true,
+      "kept": false,
+      "us_before": null,
+      "us_after": null,
+      "gain": null,
+      "agent_wall_s": 62.20156587497331,
+      "truncated": false,
+      "stop_reason": "the round left the sources unchanged"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Fusing two consecutive iterations, or keeping state in registers across iterations by unrolling the outer loop",
+      "rule": "`fom_iterate` must compute exactly one iteration, and `src/fom_solver.c` may not contain matrix products or coefficient literals",
+      "expected_gain": "unknown, likely around 10% (saves the copy-out and reload of 74+59 values per iteration)"
+    },
+    {
+      "round": 1,
+      "idea": "Declaring `restrict` on the `fom_iterate` arguments so the compiler can drop the local copy-out buffers",
+      "rule": "headers and prototypes in `include/` are fixed",
+      "expected_gain": "about 1 \u00b5s (removes about 133 stores per iteration)"
+    },
+    {
+      "round": 1,
+      "idea": "Hardcoding the zero entries of `bias_su` on the selection rows, since `su_p_p0` only touches rows 59..73",
+      "rule": "`bias` is generic and must be honoured for any input, and `fom_ops.c` may not read the constant or bias data",
+      "expected_gain": "under 2%"
+    },
+    {
+      "round": 2,
+      "idea": "Merge every t1/su row's 4 coefficient groups into one product on (a0 - x), since the a0 coefficients are about -2x the x coefficients and the xi coefficients about 2x apart, cutting flops about 2x",
+      "rule": "coefficients must exactly match the package data (they differ in the last digits), so the near-equal ones cannot be merged",
+      "expected_gain": "~20-30% of iterate"
+    },
+    {
+      "round": 2,
+      "idea": "Precompute per-iteration combined coefficients (c + xi*e) for all 200 iterations at setup",
+      "rule": "`src/fom_ops.c` may not read the schedule, and `fom_setup` cannot probe matrices",
+      "expected_gain": "~30%"
+    }
+  ],
   "max_abs_dev": {
     "translated": {
-      "verified_set": 5.906386491005833e-14
+      "verified_set": 9.459100169806334e-14
     },
     "optimized": {
-      "verified_set": 5.906386491005833e-14
+      "verified_set": 1.0125233984581428e-13
     }
   },
   "timing_rounds": {
     "numpy": [
-      1222.3960002302192,
-      1198.7500020040898,
-      1209.062500493019,
-      1214.8124988016207,
-      1224.3340006534709,
-      1207.5620015821187,
-      1209.6044993086252
+      1522.187376394868,
+      1461.9994908571243,
+      1446.2085673585534,
+      1439.5625330507755,
+      1448.979601264,
+      1485.583488829434,
+      1408.332958817482
     ],
     "translated": [
-      63.3584,
-      63.4532,
-      63.88,
-      63.9636,
-      64.0332,
-      64.0734,
-      65.0524
+      61.4234,
+      59.6298,
+      63.0484,
+      61.7836,
+      63.153,
+      61.871,
+      60.151
     ],
     "optimized": [
-      19.515,
-      19.6554,
-      18.608,
-      17.292,
-      16.9778,
-      15.7232,
-      15.855
+      11.9042,
+      12.888,
+      13.5084,
+      12.3652,
+      12.8756,
+      14.992,
+      10.666
     ]
   },
   "agent_wall_s": {
-    "translation": 24.821045875549316,
-    "code_optimization": 96.20903778076172
+    "translation": 27.51784920692444,
+    "code_optimization": 164.60569286346436
   },
   "agent_budgets_s": {
     "translation": 600,
     "code_optimization": 600
   },
   "check": {
-    "oracle_vs_numpy_max_rel": 8.214200045616365e-15,
+    "oracle_vs_numpy_max_rel": 1.6154593423045516e-14,
     "state_dim": 74,
     "params": {
       "p0": 15
@@ -73,15 +132,17 @@
     "state_dim": 74
   },
   "machine": {
-    "cpu": "Apple M5",
-    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
-    "compiler": "Apple clang version 17.0.0 (clang-1700.6.3.2)",
+    "cpu": "Apple M4 Pro",
+    "os": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
     "python": "3.13.11",
     "numpy": "2.5.3",
-    "fomtools_commit": "56b7e81",
-    "fomtools_branch": "vr/cvxpygen_features",
-    "fomtools_path": "/Users/vranjan/Research/2026/fomtools/fomtools"
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "fomtools_commit": "25b3f73",
+    "fomtools_dirty": false,
+    "fomtools_branch": "",
+    "fomtools_path": "/Users/bs37/Documents/projects/fomtools/fomtools"
   },
-  "started_utc": "2026-10-15T23:34:18+00:00",
-  "finished_utc": "2026-10-15T23:36:27+00:00"
+  "started_utc": "2026-10-22T19:00:55+00:00",
+  "finished_utc": "2026-10-22T19:04:17+00:00"
 }

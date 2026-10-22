@@ -1,7 +1,7 @@
 {
   "tables_vs_rapdhg_schedule_tables": 0.0,
   "numpy_x_vs_verify_recurrence": 3.3306690738754696e-15,
-  "oracle_vs_numpy_max_rel": 1.7616467821051353e-13,
+  "oracle_vs_numpy_max_rel": 2.4370648353260406e-13,
   "state_dim": 160,
   "params": {
     "p0": 16,

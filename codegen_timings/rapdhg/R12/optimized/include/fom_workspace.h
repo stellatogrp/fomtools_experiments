@@ -8,6 +8,7 @@ typedef int fom_int;
 #define FOM_MAX_ITER 200
 #define FOM_TOL ((fom_float)0)
 #define FOM_USE_TOL 0
+#define FOM_USE_OBJECTIVE 0
 #define FOM_CHECK_TERMINATION 1
 #define FOM_NUM_PARAMS 2
 #define FOM_MAX_VEC_DIM 160

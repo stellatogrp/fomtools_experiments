@@ -3,422 +3,428 @@
 ## Timing
 
 ```
-translated (emitted)     208.4 us/solve
-optimized                 22.3 us/solve
-speedup                  9.36x
+translated (emitted)     127.1 us/solve
+optimized                 17.2 us/solve
+speedup                  7.38x
 ```
 
 Optimization outcome: **kept (re-verified correct)**.
 
+## Rounds
+
+| round | before (us) | after (us) | gain | kept | agent (s) | outcome |
+|---:|---:|---:|---:|:---:|---:|---|
+| 1 | 127.135 | 29.490 | 76.8% | yes | 105 | continued |
+| 2 | 30.758 | 15.639 | 49.2% | yes | 97 | continued |
+| 3 | 17.720 | 17.227 | 2.8% | yes | 42 | continued |
+| 4 | - | - | - | no | 170 | the round left the sources unchanged |
+
+## Kernel checks
+
+Each `fom_apply_<name>` in the shipped `fom_ops.c`, checked by `make verify` against the package's reference over the same `fom_data.c` matrix. *basis* probes every unit vector, which recovers the routine's matrix column by column (an exact check), plus random vectors; *random* uses random vectors only (the matrix is over the probe budget). A `fused_<block>` row is a `fom_fused_<block>`, checked against the sum of its members: *basis* there probes every unit vector of each source with every schedule value at 0 and with each alone at 1, which recovers every member exactly.
+
+| matrix | shape | nnz | rewritten | check | probes | max error |
+|---|---|---|---|---|---|---|
+| `t0_state` | 48x160 | 48 | no | basis | 162 | 0.000e+00 |
+| `t0_state__d_taux` | 48x160 | 112 | no | basis | 162 | 0.000e+00 |
+| `t0_state__d_tth` | 48x160 | 112 | no | basis | 162 | 0.000e+00 |
+| `t0_p_p1` | 48x48 | 0 | no | basis | 50 | 0.000e+00 |
+| `t0_p_p1__d_tau` | 48x48 | 48 | no | basis | 50 | 0.000e+00 |
+| `t1_state` | 16x160 | 16 | no | basis | 162 | 0.000e+00 |
+| `t1_state__d_eta` | 16x160 | 256 | no | basis | 162 | 0.000e+00 |
+| `t1_p_p0` | 16x16 | 0 | no | basis | 18 | 0.000e+00 |
+| `t1_p_p0__d_eta` | 16x16 | 16 | no | basis | 18 | 0.000e+00 |
+| `t1_t_t0` | 16x48 | 0 | no | basis | 50 | 0.000e+00 |
+| `t1_t_t0__d_eta` | 16x48 | 112 | no | basis | 50 | 0.000e+00 |
+| `su_state` | 160x160 | 16 | no | basis | 162 | 0.000e+00 |
+| `su_state__d_d1` | 160x160 | 64 | no | basis | 162 | 0.000e+00 |
+| `su_state__d_g2` | 160x160 | 64 | no | basis | 162 | 0.000e+00 |
+| `su_state__d_m1` | 160x160 | 16 | no | basis | 162 | 0.000e+00 |
+| `su_t_t0` | 160x48 | 0 | no | basis | 50 | 0.000e+00 |
+| `su_t_t0__d_d2` | 160x48 | 48 | no | basis | 50 | 0.000e+00 |
+| `su_t_t0__d_g1` | 160x48 | 48 | no | basis | 50 | 0.000e+00 |
+| `su_t_t1` | 160x16 | 0 | no | basis | 18 | 0.000e+00 |
+| `su_t_t1__d_d2` | 160x16 | 16 | no | basis | 18 | 0.000e+00 |
+| `su_t_t1__d_g1` | 160x16 | 16 | no | basis | 18 | 0.000e+00 |
+| `su_t_t1__d_m2` | 160x16 | 16 | no | basis | 18 | 0.000e+00 |
+| `fused_t0` | 48x160 | 272 | no | basis | 482 | 0.000e+00 |
+| `fused_t1` | 16x208 | 384 | no | basis | 418 | 0.000e+00 |
+| `fused_su` | 160x224 | 304 | no | basis | 1570 | 0.000e+00 |
+| `step_t0` | 48x160 | 272 | no | basis | 486 | 0.000e+00 |
+| `step_t1` | 16x208 | 384 | no | basis | 422 | 0.000e+00 |
+| `step_su` | 160x224 | 304 | no | basis | 1570 | 0.000e+00 |
+| `fused_su__rest` | 160x224 | 304 | no | basis | 1570 | 0.000e+00 |
+| `step_su__rest` | 160x224 | 304 | no | basis | 1570 | 0.000e+00 |
+| `iterate` | 160x160 | 960 | yes | basis | 1766 | 8.527e-14 |
+
+### Rule violations
+
+_None: the collected rewrite passed the rules and was kept._
+
+## Blocked by rules
+
+Optimizations the agent considered but did not make because a rule forbade them, in its own words.
+
+| round | idea | rule | expected gain |
+|---|---|---|---|
+| 1 | Fold `tau*q0` and `eta*q1` into `fom_iterate` to remove the separate `bias` pass (about 12% of profiled time) | the fixed `fom_iterate` signature takes only a precomputed bias, and `src/fom_ops.c` may not read the schedule | ~5–10% |
+| 1 | Unroll `t1_t_t0__d_eta` and `t0_state__d_taux` with inlined literal coefficients, exploiting their repeated ±0.0726/0.2177/... banded pattern (they look like transposes of each other, a PDHG K / Kᵀ pair) | allowed in `fom_iterate`, but not done for lack of time within the 10-minute budget, not because a rule forbids it | unknown, likely ~10–20% |
+| 2 | Add the `tau*q0` / `eta*q1` parameter terms to the bias inside `fom_iterate`, reading the hoisted terms and the schedule directly, which removes the separate bias pass | `fom_iterate` signature is fixed and `src/fom_ops.c` may not read the schedule | ~5% |
+| 2 | Compile with `-ffast-math` / `-march=native` so the dense dot-product reductions vectorize | Makefile and build flags are fixed | unknown, likely <5% |
+| 3 | Fold the `tau*q0` and `eta*q1` bias scaling into `fom_iterate` and remove the separate bias pass | fixed `fom_iterate` signature in `include/fom_ops.h` (headers not editable) | ~10-20% (the bias region's share) |
+| 3 | Stop reading the all-zero state-update bias (`ZERO_SU`) inside `fom_iterate` | verify checks `fom_iterate` with random biases, so the routine must honour `bias_su` | ~1-3% |
+| 4 | Pass `q0`, `q1` and `tau`/`eta` into `fom_iterate` so the per-iteration `bias = tau*q` scaling folds into the product pass (removes the separate 64-element bias loop) | fixed `fom_iterate` signature in `include/fom_ops.h` (headers are fixed) | about 2-5% |
+| 4 | Precompute every scheduled bias `tau(it)*q0`, `eta(it)*q1` for all 200 iterations in `fom_update_params` | workspace layout in `include/fom_workspace.h` is fixed and has no scratch space for it | about 2-5% |
+
 ## What the agent changed
 
 ```diff
---- translated (emitted)
-+++ optimized
-@@ -10,14 +10,167 @@
+--- src/fom_solver.c (translated)
++++ src/fom_solver.c (optimized)
+@@ -9,6 +9,9 @@
+ #define S_DIM FOM_STATE_DIM
  #define T0_DIM FOM_T0_DIM
  #define T1_DIM FOM_T1_DIM
- 
--static inline void zero(fom_float *v, int n) {
--    memset(v, 0, (size_t)n * sizeof(fom_float));
--}
--
--/* out += c * v */
--static inline void axpy(fom_float *restrict out, fom_float c,
--                        const fom_float *restrict v, int n) {
--    for (int i = 0; i < n; ++i) out[i] += c * v[i];
-+/* State slots (see spec.json): s0 x | s1 y | s2 | s3 | s4 x_prev | s5 */
-+#define NX FOM_PARAM_P0_DIM /* 16 */
-+#define NY FOM_PARAM_P1_DIM /* 48 */
-+#define OFF_S0 0
-+#define OFF_S1 16
-+#define OFF_S2 64
-+#define OFF_S3 80
-+#define OFF_S4 128
-+#define OFF_S5 144
 +
-+/* Operator blocks extracted once (at setup) from the fom_ops.c helpers.
-+   The remaining terms of the iteration are identity / -identity / zero
-+   blocks, applied directly below.
-+     K  (NY x NX, CSC): t0_state__d_taux restricted to s0 columns;
-+                        t0_state__d_tth on s4 columns equals -K.
-+     C  (NX x NY, CSR): t1_t_t0__d_eta (= -K^T).
-+     E  (NX x NX, dense column-major): t1_state__d_eta restricted to s5 columns. */
-+static fom_int K_colptr[NX + 1];
-+static fom_int K_row[NY * NX];
-+static fom_float K_val[NY * NX];
-+static fom_int C_rowptr[NX + 1];
-+static fom_int C_col[NX * NY];
-+static fom_float C_val[NX * NY];
-+static fom_float E_cm[NX * NX];
-+static int ops_ready = 0;
-+
-+typedef void (*apply_fn)(const fom_float *, fom_float *);
-+
-+/* Probe columns [col_off, col_off+ncols) of an operator with unit vectors
-+   and store the nrows x ncols block densely, column-major. */
-+static void extract_dense_cm(apply_fn f, int col_off, int ncols, int nrows,
-+                             fom_float *dense) {
-+    fom_float e[S_DIM];
-+    fom_float out[S_DIM];
-+    memset(e, 0, sizeof(e));
-+    for (int j = 0; j < ncols; ++j) {
-+        memset(out, 0, sizeof(out));
-+        e[col_off + j] = 1.0;
-+        f(e, out);
-+        e[col_off + j] = 0.0;
-+        memcpy(dense + j * nrows, out, (size_t)nrows * sizeof(fom_float));
-+    }
-+}
-+
-+/* Same, but stored as CSR (exact zeros dropped). */
-+static void extract_csr(apply_fn f, int col_off, int ncols, int nrows,
-+                        fom_int *rowptr, fom_int *col, fom_float *val) {
-+    fom_float dense[NY * NX];
-+    extract_dense_cm(f, col_off, ncols, nrows, dense);
-+    fom_int p = 0;
-+    for (int i = 0; i < nrows; ++i) {
-+        rowptr[i] = p;
-+        for (int j = 0; j < ncols; ++j) {
-+            const fom_float v = dense[j * nrows + i];
-+            if (v != 0.0) {
-+                col[p] = j;
-+                val[p] = v;
-+                ++p;
-+            }
-+        }
-+    }
-+    rowptr[nrows] = p;
-+}
-+
-+/* Same, but stored as CSC (exact zeros dropped). */
-+static void extract_csc(apply_fn f, int col_off, int ncols, int nrows,
-+                        fom_int *colptr, fom_int *row, fom_float *val) {
-+    fom_float dense[NY * NX];
-+    extract_dense_cm(f, col_off, ncols, nrows, dense);
-+    fom_int p = 0;
-+    for (int j = 0; j < ncols; ++j) {
-+        colptr[j] = p;
-+        for (int i = 0; i < nrows; ++i) {
-+            const fom_float v = dense[j * nrows + i];
-+            if (v != 0.0) {
-+                row[p] = i;
-+                val[p] = v;
-+                ++p;
-+            }
-+        }
-+    }
-+    colptr[ncols] = p;
-+}
-+
-+static void init_ops(void) {
-+    if (ops_ready) return;
-+    extract_csc(fom_apply_t0_state__d_taux, OFF_S0, NX, NY, K_colptr, K_row, K_val);
-+    extract_csr(fom_apply_t1_t_t0__d_eta, 0, NY, NX, C_rowptr, C_col, C_val);
-+    extract_dense_cm(fom_apply_t1_state__d_eta, OFF_S5, NX, NX, E_cm);
-+    ops_ready = 1;
-+}
-+
-+/* x <- su(x, t0, t1): identity-block state update, in place. */
-+static inline void state_update(fom_float *restrict x,
-+                                const fom_float *restrict t0,
-+                                const fom_float *restrict t1,
-+                                fom_float d1, fom_float d2, fom_float g1,
-+                                fom_float g2, fom_float m1, fom_float m2) {
-+    for (int i = 0; i < NX; ++i) {
-+        const fom_float a0 = x[OFF_S0 + i];
-+        const fom_float a2 = x[OFF_S2 + i];
-+        const fom_float u = t1[i];
-+        x[OFF_S0 + i] = g2 * a2 + g1 * u;
-+        x[OFF_S2 + i] = d1 * a2 + d2 * u;
-+        x[OFF_S4 + i] = a0;
-+        x[OFF_S5 + i] = m1 * a2 + m2 * u;
-+    }
-+    for (int i = 0; i < NY; ++i) {
-+        const fom_float a3 = x[OFF_S3 + i];
-+        const fom_float v = t0[i];
-+        x[OFF_S1 + i] = g2 * a3 + g1 * v;
-+        x[OFF_S3 + i] = d1 * a3 + d2 * v;
-+    }
-+}
-+
-+/* Same update, also returning max_abs(x_new - x_old). */
-+static inline fom_float state_update_res(fom_float *restrict x,
-+                                         const fom_float *restrict t0,
-+                                         const fom_float *restrict t1,
-+                                         fom_float d1, fom_float d2,
-+                                         fom_float g1, fom_float g2,
-+                                         fom_float m1, fom_float m2) {
-+    fom_float res = 0.0;
-+    for (int i = 0; i < NX; ++i) {
-+        const fom_float a0 = x[OFF_S0 + i];
-+        const fom_float a2 = x[OFF_S2 + i];
-+        const fom_float a4 = x[OFF_S4 + i];
-+        const fom_float a5 = x[OFF_S5 + i];
-+        const fom_float u = t1[i];
-+        const fom_float n0 = g2 * a2 + g1 * u;
-+        const fom_float n2 = d1 * a2 + d2 * u;
-+        const fom_float n5 = m1 * a2 + m2 * u;
-+        fom_float r0 = n0 - a0, r2 = n2 - a2, r4 = a0 - a4, r5 = n5 - a5;
-+        r0 = r0 < 0.0 ? -r0 : r0;
-+        r2 = r2 < 0.0 ? -r2 : r2;
-+        r4 = r4 < 0.0 ? -r4 : r4;
-+        r5 = r5 < 0.0 ? -r5 : r5;
-+        res = r0 > res ? r0 : res;
-+        res = r2 > res ? r2 : res;
-+        res = r4 > res ? r4 : res;
-+        res = r5 > res ? r5 : res;
-+        x[OFF_S0 + i] = n0;
-+        x[OFF_S2 + i] = n2;
-+        x[OFF_S4 + i] = a0;
-+        x[OFF_S5 + i] = n5;
-+    }
-+    for (int i = 0; i < NY; ++i) {
-+        const fom_float a1 = x[OFF_S1 + i];
-+        const fom_float a3 = x[OFF_S3 + i];
-+        const fom_float v = t0[i];
-+        const fom_float n1 = g2 * a3 + g1 * v;
-+        const fom_float n3 = d1 * a3 + d2 * v;
-+        fom_float r1 = n1 - a1, r3 = n3 - a3;
-+        r1 = r1 < 0.0 ? -r1 : r1;
-+        r3 = r3 < 0.0 ? -r3 : r3;
-+        res = r1 > res ? r1 : res;
-+        res = r3 > res ? r3 : res;
-+        x[OFF_S1 + i] = n1;
-+        x[OFF_S3 + i] = n3;
-+    }
-+    return res;
- }
++/* The state update has no constant term. */
++static const fom_float ZERO_SU[FOM_STATE_DIM] = {0.0};
  
  void fom_set_default_settings(FomSettings *settings) {
-@@ -27,10 +180,11 @@
+     settings->max_iter = FOM_MAX_ITER;
+@@ -49,9 +52,8 @@
+ 
+     memcpy(x, FOM_STATE_INIT, sizeof(work->state));
+     memset(b0, 0, (size_t)(2 * T0_DIM + 2 * T1_DIM) * sizeof(fom_float));
+-    fom_apply_t0_p_p1(work->params.p1, b0);
++    /* t0_p_p1 and t1_p_p0 are empty (nnz 0): their terms vanish. */
+     fom_apply_t0_p_p1__d_tau(work->params.p1, q0);
+-    fom_apply_t1_p_p0(work->params.p0, b1);
+     fom_apply_t1_p_p0__d_eta(work->params.p0, q1);
+ 
+     for (it = 0; it < max_iter; ++it) {
+@@ -67,16 +69,15 @@
+         const fom_float tth = fom_sched_tth(it);
+         fom_float *tmp;
+ 
+-        for (i = 0; i < T0_DIM; ++i) bias0[i] = b0[i] + tau * q0[i];
+-        for (i = 0; i < T1_DIM; ++i) bias1[i] = b1[i] + eta * q1[i];
++        FOM_PROF_BEGIN(bias);
++        for (i = 0; i < T0_DIM; ++i) bias0[i] = tau * q0[i];
++        for (i = 0; i < T1_DIM; ++i) bias1[i] = eta * q1[i];
++        FOM_PROF_END(bias);
+ 
+-        fom_step_t0(x, taux, tth, bias0, &FOM_ACT_t0, t0);
+-        fom_step_t1(x, t0, eta, bias1, &FOM_ACT_t1, t1);
+-
+-        memset(xn, 0, sizeof(work->new_state));
+-        fom_fused_su__rest(x, t0, t1, d1, g2, m1, d2, g1, m2, xn);
+-        for (i = 0; i < FOM_SELROWS_su_N; ++i)
+-            xn[FOM_SELROWS_su_ROW[i]] = x[FOM_SELROWS_su_COL[i]];
++        FOM_PROF_BEGIN(iterate);
++        fom_iterate(x, taux, tth, eta, d1, g2, m1, d2, g1, m2, bias0, bias1, ZERO_SU,
++                    &FOM_ACT_t0, &FOM_ACT_t1, t0, t1, xn);
++        FOM_PROF_END(iterate);
+ 
+         if (it == max_iter - 1) {
+             res = 0.0;
+--- src/fom_ops.c (translated)
++++ src/fom_ops.c (optimized)
+@@ -416,7 +416,203 @@
  }
  
- void fom_setup(FomWorkspace *work, const FomSettings *settings) {
-+    init_ops();
-     work->settings = *settings;
-     memcpy(work->state, FOM_STATE_INIT, sizeof(work->state));
--    zero(work->params.p0, FOM_PARAM_P0_DIM);
--    zero(work->params.p1, FOM_PARAM_P1_DIM);
-+    memset(work->params.p0, 0, sizeof(work->params.p0));
-+    memset(work->params.p1, 0, sizeof(work->params.p1));
-     work->solution.iter = 0;
-     work->solution.residual = 0.0;
-     work->solution.status = FOM_MAX_ITER_REACHED;
-@@ -43,12 +197,11 @@
- 
- fom_int fom_solve(FomWorkspace *work) {
-     fom_float *restrict x = work->state;
--    fom_float *restrict xn = work->new_state;
--    fom_float *restrict acc = work->acc;
-+    fom_float *restrict w = work->acc;
-     fom_float *restrict t0 = work->t0;
-     fom_float *restrict t1 = work->t1;
--    const fom_float *p0 = work->params.p0;
--    const fom_float *p1 = work->params.p1;
-+    const fom_float *restrict p0 = work->params.p0;
-+    const fom_float *restrict p1 = work->params.p1;
-     const fom_int max_iter = work->settings.max_iter;
-     const int use_tol = FOM_USE_TOL && work->settings.check_termination;
-     const fom_float tol = work->settings.tol;
-@@ -71,94 +224,65 @@
-         const fom_float taux = fom_sched_taux(it);
-         const fom_float tth = fom_sched_tth(it);
- 
--        /* t0 = relu(...) */
--        zero(t0, T0_DIM);
--        fom_apply_t0_state(x, t0);
--        fom_apply_t0_p_p1(p1, t0);
--        if (taux != 0.0) {
--            zero(acc, T0_DIM);
--            fom_apply_t0_state__d_taux(x, acc);
--            axpy(t0, taux, acc, T0_DIM);
--        }
--        if (tth != 0.0) {
--            zero(acc, T0_DIM);
--            fom_apply_t0_state__d_tth(x, acc);
--            axpy(t0, tth, acc, T0_DIM);
--        }
--        if (tau != 0.0) {
--            zero(acc, T0_DIM);
--            fom_apply_t0_p_p1__d_tau(p1, acc);
--            axpy(t0, tau, acc, T0_DIM);
--        }
--        for (int i = 0; i < T0_DIM; ++i) t0[i] = t0[i] > 0.0 ? t0[i] : 0.0;
--
--        /* t1 = clip(...) */
--        zero(t1, T1_DIM);
--        fom_apply_t1_state(x, t1);
--        fom_apply_t1_p_p0(p0, t1);
--        fom_apply_t1_t_t0(t0, t1);
--        if (eta != 0.0) {
--            zero(acc, T1_DIM);
--            fom_apply_t1_state__d_eta(x, acc);
--            fom_apply_t1_p_p0__d_eta(p0, acc);
--            fom_apply_t1_t_t0__d_eta(t0, acc);
--            axpy(t1, eta, acc, T1_DIM);
--        }
--        for (int i = 0; i < T1_DIM; ++i) {
--            fom_float v = t1[i];
--            const fom_float lo = FOM_MAT_t1_lo[i];
--            const fom_float hi = FOM_MAT_t1_hi[i];
--            v = v < lo ? lo : v;
--            v = v > hi ? hi : v;
--            t1[i] = v;
--        }
--
--        /* state update */
--        zero(xn, S_DIM);
--        fom_apply_su_state(x, xn);
--        fom_apply_su_t_t0(t0, xn);
--        fom_apply_su_t_t1(t1, xn);
--        if (d1 != 0.0) {
--            zero(acc, S_DIM);
--            fom_apply_su_state__d_d1(x, acc);
--            axpy(xn, d1, acc, S_DIM);
--        }
--        if (g2 != 0.0) {
--            zero(acc, S_DIM);
--            fom_apply_su_state__d_g2(x, acc);
--            axpy(xn, g2, acc, S_DIM);
--        }
--        if (m1 != 0.0) {
--            zero(acc, S_DIM);
--            fom_apply_su_state__d_m1(x, acc);
--            axpy(xn, m1, acc, S_DIM);
--        }
--        if (d2 != 0.0) {
--            zero(acc, S_DIM);
--            fom_apply_su_t_t0__d_d2(t0, acc);
--            fom_apply_su_t_t1__d_d2(t1, acc);
--            axpy(xn, d2, acc, S_DIM);
--        }
--        if (g1 != 0.0) {
--            zero(acc, S_DIM);
--            fom_apply_su_t_t0__d_g1(t0, acc);
--            fom_apply_su_t_t1__d_g1(t1, acc);
--            axpy(xn, g1, acc, S_DIM);
--        }
--        if (m2 != 0.0) {
--            zero(acc, S_DIM);
--            fom_apply_su_t_t1__d_m2(t1, acc);
--            axpy(xn, m2, acc, S_DIM);
--        }
--
--        /* residual + swap-in */
--        res = 0.0;
--        for (int i = 0; i < S_DIM; ++i) {
--            fom_float d = xn[i] - x[i];
--            d = d < 0.0 ? -d : d;
--            res = d > res ? d : res;
--            x[i] = xn[i];
--        }
-+        /* t0 = relu(s1 + K (taux*s0 - tth*s4) - tau*p1) */
-+        FOM_PROF_BEGIN(t0);
-+        for (int i = 0; i < NY; ++i) t0[i] = x[OFF_S1 + i] - tau * p1[i];
-+        for (int j = 0; j < NX; ++j) {
-+            const fom_float wj = taux * x[OFF_S0 + j] - tth * x[OFF_S4 + j];
-+            for (fom_int p = K_colptr[j]; p < K_colptr[j + 1]; ++p)
-+                t0[K_row[p]] += K_val[p] * wj;
+ void fom_iterate(const fom_float *state, fom_float sc_taux, fom_float sc_tth, fom_float sc_eta, fom_float sc_d1, fom_float sc_g2, fom_float sc_m1, fom_float sc_d2, fom_float sc_g1, fom_float sc_m2, const fom_float *bias_t0, const fom_float *bias_t1, const fom_float *bias_su, const FomAct_t0 *act_t0, const FomAct_t1 *act_t1, fom_float *t_t0, fom_float *t_t1, fom_float *new_state) {
+-    fom_step_t0(state, sc_taux, sc_tth, bias_t0, act_t0, t_t0);
+-    fom_step_t1(state, t_t0, sc_eta, bias_t1, act_t1, t_t1);
+-    fom_step_su(state, t_t0, t_t1, sc_d1, sc_g2, sc_m1, sc_d2, sc_g1, sc_m2, bias_su, new_state);
+-}
++    fom_int i;
++    /* t0: shift state[i+16] plus taux*A x[0:16] + tth*B x[128:144], where
++       B is -A with columns shifted by 128 (same pattern, negated values), so
++       both terms collapse to one CSR pass over w = taux*x[c] - tth*x[c+128]. */
++    {
++        fom_float w[16];
++        for (i = 0; i < 16; ++i) w[i] = sc_taux * state[i] - sc_tth * state[i + 128];
++        fom_float v;
++        /* Unrolled over the fixed sparsity of t0_state__d_taux. */
++        v = bias_t0[0] + state[16] + (w[0]);
++        if (v < act_t0->lo[0]) v = act_t0->lo[0];
++        t_t0[0] = v;
++        v = bias_t0[1] + state[17] + (w[1]);
++        if (v < act_t0->lo[1]) v = act_t0->lo[1];
++        t_t0[1] = v;
++        v = bias_t0[2] + state[18] + (w[2]);
++        if (v < act_t0->lo[2]) v = act_t0->lo[2];
++        t_t0[2] = v;
++        v = bias_t0[3] + state[19] + (w[3]);
++        if (v < act_t0->lo[3]) v = act_t0->lo[3];
++        t_t0[3] = v;
++        v = bias_t0[4] + state[20] + (w[4]);
++        if (v < act_t0->lo[4]) v = act_t0->lo[4];
++        t_t0[4] = v;
++        v = bias_t0[5] + state[21] + (w[5]);
++        if (v < act_t0->lo[5]) v = act_t0->lo[5];
++        t_t0[5] = v;
++        v = bias_t0[6] + state[22] + (w[6]);
++        if (v < act_t0->lo[6]) v = act_t0->lo[6];
++        t_t0[6] = v;
++        v = bias_t0[7] + state[23] + (w[7]);
++        if (v < act_t0->lo[7]) v = act_t0->lo[7];
++        t_t0[7] = v;
++        v = bias_t0[8] + state[24] + (w[8]);
++        if (v < act_t0->lo[8]) v = act_t0->lo[8];
++        t_t0[8] = v;
++        v = bias_t0[9] + state[25] + (w[9]);
++        if (v < act_t0->lo[9]) v = act_t0->lo[9];
++        t_t0[9] = v;
++        v = bias_t0[10] + state[26] + (w[10]);
++        if (v < act_t0->lo[10]) v = act_t0->lo[10];
++        t_t0[10] = v;
++        v = bias_t0[11] + state[27] + (w[11]);
++        if (v < act_t0->lo[11]) v = act_t0->lo[11];
++        t_t0[11] = v;
++        v = bias_t0[12] + state[28] + (w[12]);
++        if (v < act_t0->lo[12]) v = act_t0->lo[12];
++        t_t0[12] = v;
++        v = bias_t0[13] + state[29] + (w[13]);
++        if (v < act_t0->lo[13]) v = act_t0->lo[13];
++        t_t0[13] = v;
++        v = bias_t0[14] + state[30] + (w[14]);
++        if (v < act_t0->lo[14]) v = act_t0->lo[14];
++        t_t0[14] = v;
++        v = bias_t0[15] + state[31] + (w[15]);
++        if (v < act_t0->lo[15]) v = act_t0->lo[15];
++        t_t0[15] = v;
++        v = bias_t0[16] + state[32] + (-w[0]);
++        if (v < act_t0->lo[16]) v = act_t0->lo[16];
++        t_t0[16] = v;
++        v = bias_t0[17] + state[33] + (-w[1]);
++        if (v < act_t0->lo[17]) v = act_t0->lo[17];
++        t_t0[17] = v;
++        v = bias_t0[18] + state[34] + (-w[2]);
++        if (v < act_t0->lo[18]) v = act_t0->lo[18];
++        t_t0[18] = v;
++        v = bias_t0[19] + state[35] + (-w[3]);
++        if (v < act_t0->lo[19]) v = act_t0->lo[19];
++        t_t0[19] = v;
++        v = bias_t0[20] + state[36] + (-w[4]);
++        if (v < act_t0->lo[20]) v = act_t0->lo[20];
++        t_t0[20] = v;
++        v = bias_t0[21] + state[37] + (-w[5]);
++        if (v < act_t0->lo[21]) v = act_t0->lo[21];
++        t_t0[21] = v;
++        v = bias_t0[22] + state[38] + (-w[6]);
++        if (v < act_t0->lo[22]) v = act_t0->lo[22];
++        t_t0[22] = v;
++        v = bias_t0[23] + state[39] + (-w[7]);
++        if (v < act_t0->lo[23]) v = act_t0->lo[23];
++        t_t0[23] = v;
++        v = bias_t0[24] + state[40] + (-w[8]);
++        if (v < act_t0->lo[24]) v = act_t0->lo[24];
++        t_t0[24] = v;
++        v = bias_t0[25] + state[41] + (-w[9]);
++        if (v < act_t0->lo[25]) v = act_t0->lo[25];
++        t_t0[25] = v;
++        v = bias_t0[26] + state[42] + (-w[10]);
++        if (v < act_t0->lo[26]) v = act_t0->lo[26];
++        t_t0[26] = v;
++        v = bias_t0[27] + state[43] + (-w[11]);
++        if (v < act_t0->lo[27]) v = act_t0->lo[27];
++        t_t0[27] = v;
++        v = bias_t0[28] + state[44] + (-w[12]);
++        if (v < act_t0->lo[28]) v = act_t0->lo[28];
++        t_t0[28] = v;
++        v = bias_t0[29] + state[45] + (-w[13]);
++        if (v < act_t0->lo[29]) v = act_t0->lo[29];
++        t_t0[29] = v;
++        v = bias_t0[30] + state[46] + (-w[14]);
++        if (v < act_t0->lo[30]) v = act_t0->lo[30];
++        t_t0[30] = v;
++        v = bias_t0[31] + state[47] + (-w[15]);
++        if (v < act_t0->lo[31]) v = act_t0->lo[31];
++        t_t0[31] = v;
++        v = bias_t0[32] + state[48] + ((-0x1.295e9e1b0899fp-4) * w[1] + (0x1.295e9e1b0899fp-4) * w[3]);
++        if (v < act_t0->lo[32]) v = act_t0->lo[32];
++        t_t0[32] = v;
++        v = bias_t0[33] + state[49] + ((-0x1.295e9e1b0899fp-4) * w[0] + (0x1.295e9e1b0899fp-4) * w[2]);
++        if (v < act_t0->lo[33]) v = act_t0->lo[33];
++        t_t0[33] = v;
++        v = bias_t0[34] + state[50] + ((-0x1.bde3fbbd7b203p-3) * w[1] + (0x1.bde3fbbd7b203p-3) * w[3] + (-0x1.295e9e1b0899fp-4) * w[5] + (0x1.295e9e1b0899fp-4) * w[7]);
++        if (v < act_t0->lo[34]) v = act_t0->lo[34];
++        t_t0[34] = v;
++        v = bias_t0[35] + state[51] + ((-0x1.bde3fbbd7b203p-3) * w[0] + (0x1.bde3fbbd7b203p-3) * w[2] + (-0x1.295e9e1b0899fp-4) * w[4] + (0x1.295e9e1b0899fp-4) * w[6]);
++        if (v < act_t0->lo[35]) v = act_t0->lo[35];
++        t_t0[35] = v;
++        v = bias_t0[36] + state[52] + ((-0x1.738c5436b8f9bp-2) * w[1] + (0x1.738c5436b8f9bp-2) * w[3] + (-0x1.bde3fbbd7b203p-3) * w[5] + (0x1.bde3fbbd7b203p-3) * w[7] + (-0x1.295e9e1b0899fp-4) * w[9] + (0x1.295e9e1b0899fp-4) * w[11]);
++        if (v < act_t0->lo[36]) v = act_t0->lo[36];
++        t_t0[36] = v;
++        v = bias_t0[37] + state[53] + ((-0x1.738c5436b8f9bp-2) * w[0] + (0x1.738c5436b8f9bp-2) * w[2] + (-0x1.bde3fbbd7b203p-3) * w[4] + (0x1.bde3fbbd7b203p-3) * w[6] + (-0x1.295e9e1b0899fp-4) * w[8] + (0x1.295e9e1b0899fp-4) * w[10]);
++        if (v < act_t0->lo[37]) v = act_t0->lo[37];
++        t_t0[37] = v;
++        v = bias_t0[38] + state[54] + ((-0x1.041355475a31ap-1) * w[1] + (0x1.041355475a31ap-1) * w[3] + (-0x1.738c5436b8f9bp-2) * w[5] + (0x1.738c5436b8f9bp-2) * w[7] + (-0x1.bde3fbbd7b203p-3) * w[9] + (0x1.bde3fbbd7b203p-3) * w[11] + (-0x1.295e9e1b0899fp-4) * w[13] + (0x1.295e9e1b0899fp-4) * w[15]);
++        if (v < act_t0->lo[38]) v = act_t0->lo[38];
++        t_t0[38] = v;
++        v = bias_t0[39] + state[55] + ((-0x1.041355475a31ap-1) * w[0] + (0x1.041355475a31ap-1) * w[2] + (-0x1.738c5436b8f9bp-2) * w[4] + (0x1.738c5436b8f9bp-2) * w[6] + (-0x1.bde3fbbd7b203p-3) * w[8] + (0x1.bde3fbbd7b203p-3) * w[10] + (-0x1.295e9e1b0899fp-4) * w[12] + (0x1.295e9e1b0899fp-4) * w[14]);
++        if (v < act_t0->lo[39]) v = act_t0->lo[39];
++        t_t0[39] = v;
++        v = bias_t0[40] + state[56] + ((0x1.295e9e1b0899fp-4) * w[1] + (-0x1.295e9e1b0899fp-4) * w[3]);
++        if (v < act_t0->lo[40]) v = act_t0->lo[40];
++        t_t0[40] = v;
++        v = bias_t0[41] + state[57] + ((0x1.295e9e1b0899fp-4) * w[0] + (-0x1.295e9e1b0899fp-4) * w[2]);
++        if (v < act_t0->lo[41]) v = act_t0->lo[41];
++        t_t0[41] = v;
++        v = bias_t0[42] + state[58] + ((0x1.bde3fbbd7b203p-3) * w[1] + (-0x1.bde3fbbd7b203p-3) * w[3] + (0x1.295e9e1b0899fp-4) * w[5] + (-0x1.295e9e1b0899fp-4) * w[7]);
++        if (v < act_t0->lo[42]) v = act_t0->lo[42];
++        t_t0[42] = v;
++        v = bias_t0[43] + state[59] + ((0x1.bde3fbbd7b203p-3) * w[0] + (-0x1.bde3fbbd7b203p-3) * w[2] + (0x1.295e9e1b0899fp-4) * w[4] + (-0x1.295e9e1b0899fp-4) * w[6]);
++        if (v < act_t0->lo[43]) v = act_t0->lo[43];
++        t_t0[43] = v;
++        v = bias_t0[44] + state[60] + ((0x1.738c5436b8f9bp-2) * w[1] + (-0x1.738c5436b8f9bp-2) * w[3] + (0x1.bde3fbbd7b203p-3) * w[5] + (-0x1.bde3fbbd7b203p-3) * w[7] + (0x1.295e9e1b0899fp-4) * w[9] + (-0x1.295e9e1b0899fp-4) * w[11]);
++        if (v < act_t0->lo[44]) v = act_t0->lo[44];
++        t_t0[44] = v;
++        v = bias_t0[45] + state[61] + ((0x1.738c5436b8f9bp-2) * w[0] + (-0x1.738c5436b8f9bp-2) * w[2] + (0x1.bde3fbbd7b203p-3) * w[4] + (-0x1.bde3fbbd7b203p-3) * w[6] + (0x1.295e9e1b0899fp-4) * w[8] + (-0x1.295e9e1b0899fp-4) * w[10]);
++        if (v < act_t0->lo[45]) v = act_t0->lo[45];
++        t_t0[45] = v;
++        v = bias_t0[46] + state[62] + ((0x1.041355475a31ap-1) * w[1] + (-0x1.041355475a31ap-1) * w[3] + (0x1.738c5436b8f9bp-2) * w[5] + (-0x1.738c5436b8f9bp-2) * w[7] + (0x1.bde3fbbd7b203p-3) * w[9] + (-0x1.bde3fbbd7b203p-3) * w[11] + (0x1.295e9e1b0899fp-4) * w[13] + (-0x1.295e9e1b0899fp-4) * w[15]);
++        if (v < act_t0->lo[46]) v = act_t0->lo[46];
++        t_t0[46] = v;
++        v = bias_t0[47] + state[63] + ((0x1.041355475a31ap-1) * w[0] + (-0x1.041355475a31ap-1) * w[2] + (0x1.738c5436b8f9bp-2) * w[4] + (-0x1.738c5436b8f9bp-2) * w[6] + (0x1.bde3fbbd7b203p-3) * w[8] + (-0x1.bde3fbbd7b203p-3) * w[10] + (0x1.295e9e1b0899fp-4) * w[12] + (-0x1.295e9e1b0899fp-4) * w[14]);
++        if (v < act_t0->lo[47]) v = act_t0->lo[47];
++        t_t0[47] = v;
++    }
++    /* t1_t_t0__d_eta @ t0, unrolled over its fixed sparsity. */
++    fom_float ss[16];
++    ss[0] = -t_t0[0] + t_t0[16] + (0x1.295e9e1b0899fp-4) * t_t0[33] + (0x1.bde3fbbd7b203p-3) * t_t0[35] + (0x1.738c5436b8f9bp-2) * t_t0[37] + (0x1.041355475a31ap-1) * t_t0[39] + (-0x1.295e9e1b0899fp-4) * t_t0[41] + (-0x1.bde3fbbd7b203p-3) * t_t0[43] + (-0x1.738c5436b8f9bp-2) * t_t0[45] + (-0x1.041355475a31ap-1) * t_t0[47];
++    ss[1] = -t_t0[1] + t_t0[17] + (0x1.295e9e1b0899fp-4) * t_t0[32] + (0x1.bde3fbbd7b203p-3) * t_t0[34] + (0x1.738c5436b8f9bp-2) * t_t0[36] + (0x1.041355475a31ap-1) * t_t0[38] + (-0x1.295e9e1b0899fp-4) * t_t0[40] + (-0x1.bde3fbbd7b203p-3) * t_t0[42] + (-0x1.738c5436b8f9bp-2) * t_t0[44] + (-0x1.041355475a31ap-1) * t_t0[46];
++    ss[2] = -t_t0[2] + t_t0[18] + (-0x1.295e9e1b0899fp-4) * t_t0[33] + (-0x1.bde3fbbd7b203p-3) * t_t0[35] + (-0x1.738c5436b8f9bp-2) * t_t0[37] + (-0x1.041355475a31ap-1) * t_t0[39] + (0x1.295e9e1b0899fp-4) * t_t0[41] + (0x1.bde3fbbd7b203p-3) * t_t0[43] + (0x1.738c5436b8f9bp-2) * t_t0[45] + (0x1.041355475a31ap-1) * t_t0[47];
++    ss[3] = -t_t0[3] + t_t0[19] + (-0x1.295e9e1b0899fp-4) * t_t0[32] + (-0x1.bde3fbbd7b203p-3) * t_t0[34] + (-0x1.738c5436b8f9bp-2) * t_t0[36] + (-0x1.041355475a31ap-1) * t_t0[38] + (0x1.295e9e1b0899fp-4) * t_t0[40] + (0x1.bde3fbbd7b203p-3) * t_t0[42] + (0x1.738c5436b8f9bp-2) * t_t0[44] + (0x1.041355475a31ap-1) * t_t0[46];
++    ss[4] = -t_t0[4] + t_t0[20] + (0x1.295e9e1b0899fp-4) * t_t0[35] + (0x1.bde3fbbd7b203p-3) * t_t0[37] + (0x1.738c5436b8f9bp-2) * t_t0[39] + (-0x1.295e9e1b0899fp-4) * t_t0[43] + (-0x1.bde3fbbd7b203p-3) * t_t0[45] + (-0x1.738c5436b8f9bp-2) * t_t0[47];
++    ss[5] = -t_t0[5] + t_t0[21] + (0x1.295e9e1b0899fp-4) * t_t0[34] + (0x1.bde3fbbd7b203p-3) * t_t0[36] + (0x1.738c5436b8f9bp-2) * t_t0[38] + (-0x1.295e9e1b0899fp-4) * t_t0[42] + (-0x1.bde3fbbd7b203p-3) * t_t0[44] + (-0x1.738c5436b8f9bp-2) * t_t0[46];
++    ss[6] = -t_t0[6] + t_t0[22] + (-0x1.295e9e1b0899fp-4) * t_t0[35] + (-0x1.bde3fbbd7b203p-3) * t_t0[37] + (-0x1.738c5436b8f9bp-2) * t_t0[39] + (0x1.295e9e1b0899fp-4) * t_t0[43] + (0x1.bde3fbbd7b203p-3) * t_t0[45] + (0x1.738c5436b8f9bp-2) * t_t0[47];
++    ss[7] = -t_t0[7] + t_t0[23] + (-0x1.295e9e1b0899fp-4) * t_t0[34] + (-0x1.bde3fbbd7b203p-3) * t_t0[36] + (-0x1.738c5436b8f9bp-2) * t_t0[38] + (0x1.295e9e1b0899fp-4) * t_t0[42] + (0x1.bde3fbbd7b203p-3) * t_t0[44] + (0x1.738c5436b8f9bp-2) * t_t0[46];
++    ss[8] = -t_t0[8] + t_t0[24] + (0x1.295e9e1b0899fp-4) * t_t0[37] + (0x1.bde3fbbd7b203p-3) * t_t0[39] + (-0x1.295e9e1b0899fp-4) * t_t0[45] + (-0x1.bde3fbbd7b203p-3) * t_t0[47];
++    ss[9] = -t_t0[9] + t_t0[25] + (0x1.295e9e1b0899fp-4) * t_t0[36] + (0x1.bde3fbbd7b203p-3) * t_t0[38] + (-0x1.295e9e1b0899fp-4) * t_t0[44] + (-0x1.bde3fbbd7b203p-3) * t_t0[46];
++    ss[10] = -t_t0[10] + t_t0[26] + (-0x1.295e9e1b0899fp-4) * t_t0[37] + (-0x1.bde3fbbd7b203p-3) * t_t0[39] + (0x1.295e9e1b0899fp-4) * t_t0[45] + (0x1.bde3fbbd7b203p-3) * t_t0[47];
++    ss[11] = -t_t0[11] + t_t0[27] + (-0x1.295e9e1b0899fp-4) * t_t0[36] + (-0x1.bde3fbbd7b203p-3) * t_t0[38] + (0x1.295e9e1b0899fp-4) * t_t0[44] + (0x1.bde3fbbd7b203p-3) * t_t0[46];
++    ss[12] = -t_t0[12] + t_t0[28] + (0x1.295e9e1b0899fp-4) * t_t0[39] + (-0x1.295e9e1b0899fp-4) * t_t0[47];
++    ss[13] = -t_t0[13] + t_t0[29] + (0x1.295e9e1b0899fp-4) * t_t0[38] + (-0x1.295e9e1b0899fp-4) * t_t0[46];
++    ss[14] = -t_t0[14] + t_t0[30] + (-0x1.295e9e1b0899fp-4) * t_t0[39] + (0x1.295e9e1b0899fp-4) * t_t0[47];
++    ss[15] = -t_t0[15] + t_t0[31] + (-0x1.295e9e1b0899fp-4) * t_t0[38] + (0x1.295e9e1b0899fp-4) * t_t0[46];
++    /* t1: shift state[i] plus eta * (CSR state term + CSR t0 term), clip. */
++    for (i = 0; i < 16; ++i) {
++        fom_float s, v, s0 = 0.0, s1 = 0.0, s2 = 0.0, s3 = 0.0;
++        const fom_float *a = FOM_MAT_t1_state__d_eta_VALS + 16 * i;
++        const fom_float *xs = state + 144;
++        fom_int j;
++        /* t1_state__d_eta is a dense 16x16 block on state[144:160];
++           four independent partial sums break the FMA dependency chain. */
++        for (j = 0; j < 16; j += 4) {
++            s0 += a[j] * xs[j];
++            s1 += a[j + 1] * xs[j + 1];
++            s2 += a[j + 2] * xs[j + 2];
++            s3 += a[j + 3] * xs[j + 3];
 +        }
-+        for (int i = 0; i < NY; ++i) t0[i] = t0[i] > 0.0 ? t0[i] : 0.0;
-+        FOM_PROF_END(t0);
-+
-+        /* t1 = clip(s0 + eta*(E s5 + C t0 - p0)) */
-+        FOM_PROF_BEGIN(t1);
-+        {
-+            /* q = E s5 - p0, two interleaved accumulators over columns */
-+            fom_float q[NX], qb[NX];
-+            for (int i = 0; i < NX; ++i) {
-+                q[i] = -p0[i];
-+                qb[i] = 0.0;
-+            }
-+            for (int k = 0; k < NX; k += 2) {
-+                const fom_float sa = x[OFF_S5 + k];
-+                const fom_float sb = x[OFF_S5 + k + 1];
-+                for (int i = 0; i < NX; ++i) {
-+                    q[i] += E_cm[k * NX + i] * sa;
-+                    qb[i] += E_cm[(k + 1) * NX + i] * sb;
-+                }
-+            }
-+            for (int i = 0; i < NX; ++i) q[i] += qb[i];
-+            for (int i = 0; i < NX; ++i) {
-+                /* row of C t0, two accumulators to shorten the chain */
-+                fom_float sa = 0.0, sb = 0.0;
-+                const fom_int pe = C_rowptr[i + 1];
-+                fom_int p = C_rowptr[i];
-+                for (; p + 1 < pe; p += 2) {
-+                    sa += C_val[p] * t0[C_col[p]];
-+                    sb += C_val[p + 1] * t0[C_col[p + 1]];
-+                }
-+                if (p < pe) sa += C_val[p] * t0[C_col[p]];
-+                const fom_float s = q[i] + (sa + sb);
-+                fom_float v = x[OFF_S0 + i] + eta * s;
-+                const fom_float lo = FOM_MAT_t1_lo[i];
-+                const fom_float hi = FOM_MAT_t1_hi[i];
-+                v = v < lo ? lo : v;
-+                v = v > hi ? hi : v;
-+                t1[i] = v;
-+            }
-+        }
-+        FOM_PROF_END(t1);
-+
-+        /* state update (identity blocks only), in place. The residual is
-+           only observable on the last iteration unless tol-checking is on. */
-+        FOM_PROF_BEGIN(su);
-+        if (use_tol || it + 1 >= max_iter) {
-+            res = state_update_res(x, t0, t1, d1, d2, g1, g2, m1, m2);
-+        } else {
-+            state_update(x, t0, t1, d1, d2, g1, g2, m1, m2);
-+        }
-+        FOM_PROF_END(su);
- 
-         if (use_tol && res <= tol) {
-             ++it;
++        s = (s0 + s1) + (s2 + s3) + ss[i];
++        v = bias_t1[i] + state[i] + sc_eta * s;
++        if (v < act_t1->lo[i]) v = act_t1->lo[i];
++        if (v > act_t1->hi[i]) v = act_t1->hi[i];
++        t_t1[i] = v;
++    }
++    /* su: every member is a 0/1 shift. */
++    for (i = 0; i < 16; ++i) new_state[i] = bias_su[i] + sc_g2 * state[i + 64] + sc_g1 * t_t1[i];
++    for (i = 16; i < 64; ++i) new_state[i] = bias_su[i] + sc_g2 * state[i + 64] + sc_g1 * t_t0[i - 16];
++    for (i = 64; i < 80; ++i) new_state[i] = bias_su[i] + sc_d1 * state[i] + sc_d2 * t_t1[i - 64];
++    for (i = 80; i < 128; ++i) new_state[i] = bias_su[i] + sc_d1 * state[i] + sc_d2 * t_t0[i - 80];
++    for (i = 128; i < 144; ++i) new_state[i] = bias_su[i] + state[i - 128];
++    for (i = 144; i < 160; ++i) new_state[i] = bias_su[i] + sc_m1 * state[i - 80] + sc_m2 * t_t1[i - 144];
++}
 ```
 
 ## Agent notes
 
 ```
-**Whole-solve time (`make bench`, 200 iterations, 160-dim state)**
-- Initial: mean_us ≈ 199 (199.3 / 198.4 on two runs).
-- Final: mean_us ≈ 20.6 on a quiet machine, 24–25 under load; min_us 19 in both cases.
-- Overall speedup: about **8–9.5×**.
+### Round 1
 
-**Final profile (`make profile`; each region's time includes about 20 ns of timer overhead per call)**
+**Whole-solve time:** initial `mean_us` = 125.5, final `mean_us` ≈ 29.0 to 30.7 across repeated `make bench` runs (min 25 µs). Overall speedup is about 4.2x. `make verify` prints `VERIFY OK` (worst end-to-end error 1.8e-12).
 
-| region | total_us | calls | % |
-|---|---|---|---|
-| t0 (K·w scatter, then relu) | 77,588 | 1,000,000 | 46.2 |
-| t1 (E·s5 plus C·t0, then clip) | 55,769 | 1,000,000 | 33.2 |
-| su (in-place state update) | 34,560 | 1,000,000 | 20.6 |
+**Final profile breakdown** (from `make profile`, which has instrumentation overhead), hottest first:
+- `iterate` (the fused `fom_iterate`: t0, t1 and the state update): 151.3 ms over 1,000,000 calls, 88.2%
+- `bias` (per-iteration `b0 + tau*q0` and `b1 + eta*q1`): 20.2 ms over 1,000,000 calls, 11.8%
 
-Initial profile for comparison: su 61.9%, t0 17.7%, t1 13.6%, residual 6.8%.
+**Optimizations applied:**
+1. **One fused `fom_iterate` pass replaces step_t0, step_t1, the zeroing of xn, and fused_su__rest plus the selection-row copies.** 125.5 → 50.3 µs. Structure exploited: every unscaled member is a 0/1 shift. `t0_state` is `x[i+16]` and `t1_state` is `x[i]`. All su members are shifts, so the whole state update becomes six contiguous scaled-copy loops, `new_state[i] = bias + s_a*x[...] + s_b*t[...]`, with no CSR traversal and no zero pass. The zero members (`t0_p_p1`, `t1_t_t0`, `su_t_t*`) are dropped.
+2. **The two t0 CSR terms are merged into one.** 50.3 → 42.5 µs. Structure exploited: `t0_state__d_tth` has exactly the same row pointers as `t0_state__d_taux`, column indices shifted by +128, and exactly negated values (I checked this exactly in the data). So `taux*A x[0:16] + tth*B x[128:144]` equals `A (taux*x[0:16] - tth*x[128:144])`. That is one CSR pass over a 16-vector `w`, and the identity holds for any schedule values.
+3. **Dense kernel for `t1_state__d_eta`.** 42.5 → 29.0 µs. Structure exploited: this 256-nonzero matrix is a dense 16×16 block on `state[144:160]` (row i, column 144+j). It now runs as a fixed-stride dense loop that the compiler can vectorize, with no index indirection.
+4. **Earlier work kept:** the parameter products (`t0_p_p1 @ p1`, `t1_p_p0 @ p0` and their `__d_` variants) are still computed once per solve. The residual is still computed only on the last iteration.
 
-**Optimizations applied**
-1. **Applied the identity, −identity and zero blocks directly** (largest gain: 199 → 42 µs).
-   - The 22 operators break down as follows. `t0_p_p1`, `t1_p_p0`, `t1_t_t0`, `su_t_t0` and `su_t_t1` are all zero. `t0_state`, `t1_state` and all `su_*` operators are unit shifts between state slots. `t0_p_p1__d_tau` and `t1_p_p0__d_eta` are −I.
-   - The state update collapses to:
-     - s0 ← g2·s2 + g1·t1
-     - s1 ← g2·s3 + g1·t0
-     - s2 ← d1·s2 + d2·t1
-     - s3 ← d1·s3 + d2·t0
-     - s4 ← s0 (old value)
-     - s5 ← m1·s2 + m2·t1
-   - This runs as two fused in-place passes. They replace 7 CSR sweeps over 160 rows plus the zero/accumulate/axpy passes, and drop the `new_state` copy.
-2. **Reduced t0 to one sparse product with K.** The `t0_state__d_tth` block on the s4 columns equals −K, where K is the `t0_state__d_taux` block on the s0 columns. So t0 = relu(s1 + K(taux·s0 − tth·s4) − tau·p1): one 112-nonzero product instead of two.
-3. **Extracted the non-trivial blocks once at setup, no hand-copied data.** `fom_setup` probes the provided `fom_apply_*` helpers with unit vectors and stores:
-   - K (48×16, 112 nonzeros) as CSC, scattered by column so there is no reduction chain;
-   - C = `t1_t_t0__d_eta` (equal to −Kᵀ) as CSR;
-   - E = `t1_state__d_eta` (16×16, dense) column-major.
-   All three live in fixed-size static arrays.
-4. **Residual computed only when it is observable** (42 → 26 µs). With `FOM_USE_TOL = 0` it only feeds `solution.residual` on the final iteration. Earlier iterations use an update with no residual; the version with the max-abs residual runs on the last iteration, or every iteration if tolerance checking is on.
-5. **Column-major E with two accumulators** (24 → 21 µs). The dense 16×16 product becomes contiguous, vectorized axpy steps, and the two accumulators halve the floating-point dependency chain.
-6. **Two accumulators in the C·t0 row dot products** (about 2–3%). This shortens the dependency chain on the serial x → t0 → t1 → x critical path.
+**Tried and reverted:** a single-entry fast path for t0 rows 0..31 (each has one nonzero). The gain was within noise, so I kept the simpler code.
 
-**Tried and rejected**
-- Dense K and C: about 2× slower, because without fast-math the reductions don't vectorize and dense column-major K is limited by the 768 multiply-adds.
-- Splitting K's 32 single-entry rows from a CSR remainder: indistinguishable within noise, so I kept the simpler CSC form.
+Blocked by rules:
+- Fold `tau*q0` and `eta*q1` into `fom_iterate` to remove the separate `bias` pass (about 12% of profiled time) | the fixed `fom_iterate` signature takes only a precomputed bias, and `src/fom_ops.c` may not read the schedule | ~5–10%
+- Unroll `t1_t_t0__d_eta` and `t0_state__d_taux` with inlined literal coefficients, exploiting their repeated ±0.0726/0.2177/... banded pattern (they look like transposes of each other, a PDHG K / Kᵀ pair) | allowed in `fom_iterate`, but not done for lack of time within the 10-minute budget, not because a rule forbids it | unknown, likely ~10–20%
 
-The last three kept changes each gained 3% or less, so I stopped there. The remaining time of about 100 ns per iteration is dominated by the serial dependency chain through two sparse products and one 16×16 dense product.
+### Round 2
+
+**Whole solve (`make bench` mean_us):** 29.490 us at the start of this round, about 15.3 us now. Four runs gave 15.0 to 17.6 us; the machine is noisy. That is about 1.93x faster this round. Against the translated solver (127.135 us) it is about 8.3x overall.
+
+**Final profile (`make profile`, -O3 with timers on, hottest first):**
+- iterate: 72897 us, 77.5%
+- bias: 21152 us, 22.5%
+
+The bias share is mostly timer overhead. That loop is only 64 multiply-adds per iteration.
+
+**Optimizations this round:**
+- **Unrolled `t0_state__d_taux` with its values written in (inside `fom_iterate`).** It is a fixed 48x16 pattern with 112 nonzeros: rows 0..31 have one entry each, and rows 32..47 have 2 to 8. The ±1 coefficients became plain adds and subtracts. This removes the row-pointer and column-index loads and the short inner loops. The earlier `w = taux*x[0:16] - tth*x[128:144]` merge is kept. It is valid because `t0_state__d_tth` is the negated, column-shifted copy of `d_taux`. This change is the main win, roughly 29.5 to 15.5 us.
+- **Unrolled `t1_t_t0__d_eta` the same way.** It is 16x48 with 112 nonzeros and is structurally `-(t0_state__d_taux[:, :16])^T`. It is now 16 fixed sums over `t_t0`, computed in `fom_iterate` right after `t0`.
+- **Four independent partial sums for the dense 16x16 `t1_state__d_eta` block** (state[144:160]). This shortens the chain of dependent multiply-adds. The gain is small, within noise.
+- **Tried and dropped:** a fully unrolled dense block with its values written in, and a column-stored dense block (16 axpy updates). Neither beat the 4-sum loop.
+
+Blocked by rules:
+- Add the `tau*q0` / `eta*q1` parameter terms to the bias inside `fom_iterate`, reading the hoisted terms and the schedule directly, which removes the separate bias pass | `fom_iterate` signature is fixed and `src/fom_ops.c` may not read the schedule | ~5%
+- Compile with `-ffast-math` / `-march=native` so the dense dot-product reductions vectorize | Makefile and build flags are fixed | unknown, likely <5%
+
+### Round 3
+
+**Timing**
+- Initial (translated) solver: 127.135 µs per solve. Start of this round: 15.639 µs.
+- Final: about 14.6 µs (five runs gave 14.31, 14.37, 14.71, 14.82 and 14.93 µs).
+- Overall speedup: about 8.7x over the translation. This round's gain is about 7%.
+
+**Final profile (`make profile`), hottest first**
+- iterate: 74254 µs, 77.4%
+- bias: 21696 µs, 22.6%
+
+The profile build adds timer overhead to every call, so its whole-solve figure (29.1 µs) is about twice the real one. The split between the two regions is therefore only rough.
+
+**Optimizations**
+- **This round: dropped the empty parameter products.** `t0_p_p1` and `t1_p_p0` have zero nonzeros (`FOM_MAT_*_NNZ 0`). Their products are always zero, whatever the parameters. The solver no longer calls them or adds them to the bias, so the bias is now just `tau*q0` and `eta*q1`, each computed once per solve and scaled per iteration. This removes 64 loads and 64 adds per iteration and one zeroing pass per solve.
+- **Kept from earlier rounds: one-pass `fom_iterate`.**
+  - In `t0`, the two scheduled terms are the same matrix with opposite signs on shifted columns. They collapse into one sparse pass over `w = taux*x[0:16] - tth*x[128:144]`, unrolled with the activation folded in.
+  - `t1` uses an unrolled `t1_t_t0__d_eta` product plus a dense 16x16 block, accumulated with four partial sums.
+  - The state update is all 0/1 shifts, so it is written as plain scaled copies.
+
+**Nothing else to gain.** Each iteration now takes about 70 ns and is a single pass. The bias pass cannot be removed because `fom_iterate` takes the bias as an array, so the `tau`/`eta` scaling must happen outside it. I found no further changes worth making.
+
+Blocked by rules:
+- Fold the `tau*q0` and `eta*q1` bias scaling into `fom_iterate` and remove the separate bias pass | fixed `fom_iterate` signature in `include/fom_ops.h` (headers not editable) | ~10-20% (the bias region's share)
+- Stop reading the all-zero state-update bias (`ZERO_SU`) inside `fom_iterate` | verify checks `fom_iterate` with random biases, so the routine must honour `bias_su` | ~1-3%
+
+### Round 4
+
+- Initial (round-4 start): 17.227 us per solve. Final: unchanged, about 16 to 17 us (three `make bench` runs: 16.00, 17.87, 16.24; run-to-run noise is about 15%). Speedup over the translated solver (127.135 us) stays at about 7.4x. This round gained nothing.
+- Final profile (`make profile`), hottest first:
+  - iterate: 74502 us, 77.6%
+  - bias: 21564 us, 22.4% (mostly timer overhead around a 64-multiply loop)
+- Tried and reverted this round:
+  - Exploited the 4x4 block-circulant structure of the dense 16x16 block `t1_state__d_eta` (columns 144..159). Each 4x4 block is symmetric circulant `[a b c b]`, and the property holds exactly in the data. Adding the two `b` partners first saves one multiply in four (192 instead of 256). It passed `make verify` (error 1.8e-12) but was slower (17.5 to 19.2 us), because the per-row index arithmetic stopped the compiler from vectorizing the dense 4-way-split FMA loop.
+- Kept from earlier rounds (unchanged):
+  - One-pass `fom_iterate`. `t0_state__d_tth` is `-t0_state__d_taux` shifted by 128 columns, so the two scheduled products merge into one unrolled pass over `w = taux*x[0:16] - tth*x[128:144]`.
+  - `t1_t_t0__d_eta` unrolled over its fixed sparsity with literal coefficients.
+  - `t1_state__d_eta` as a dense block with 4 independent partial sums.
+  - Every `su` member applied as a 0/1 shift (selection rows written as copies).
+  - Empty parameter products (`t0_p_p1`, `t1_p_p0`) dropped, and the parameter terms hoisted out of the iteration loop.
+- Profile markers `bias` and `iterate` are still in `src/fom_solver.c`.
+
+Blocked by rules:
+- Pass `q0`, `q1` and `tau`/`eta` into `fom_iterate` so the per-iteration `bias = tau*q` scaling folds into the product pass (removes the separate 64-element bias loop) | fixed `fom_iterate` signature in `include/fom_ops.h` (headers are fixed) | about 2-5%
+- Precompute every scheduled bias `tau(it)*q0`, `eta(it)*q1` for all 200 iterations in `fom_update_params` | workspace layout in `include/fom_workspace.h` is fixed and has no scratch space for it | about 2-5%
 ```

@@ -1,26 +1,22 @@
-`src/fom_solver.c` was already written when I started. I checked it against the constraints and ran `make verify`, which printed **`VERIFY OK`** with a worst max-abs error of 5.3e-15 over 8 samples (tolerance 1e-6). I didn't change the file.
+I rewrote the iteration loop in `src/fom_solver.c`, and `make verify` prints `VERIFY OK`. The worst error over 8 samples is 4.9e-15, against a tolerance of 1e-6. The fused-kernel checks also pass.
 
-How it meets the constraints:
-- **ABI:** it implements all five functions in `fom_solver.h`. `fom_setup` and `fom_update_params` both reset the state from `FOM_STATE_INIT`.
-- **No allocation and no `/`:** it only uses the buffers already in the workspace (`state`, `new_state`, `acc`, `t0`, `t1`), and the only `/` in the file is inside a comment. There are no matrix inverses, no hardcoded numbers, and no hand-written matvec loops.
-- **Iteration:** each step follows SPEC. `t0` is `clip(t0_c + t0_state·x, lo, hi)`, `t1` is `relu(t1_c + t1_state·x + t1_t_t0·t0)`, and the state update uses the accumulating `fom_apply_*` helpers. SPEC has no affine-solve steps, so it never calls `fom_lin_solve_*`.
+`make bench` gives a mean of 36.5 µs per solve over 5000 solves, with a minimum of 29 µs. I didn't time the earlier version of the file, so I can't say how much faster the new loop is.
 
-What makes it fast:
-- `su_p_p0 @ p0` is the same every iteration, so it's computed once before the loop and kept in `acc`.
-- `state` and `new_state` are swapped by pointer each iteration instead of copied; if the result ends up in `new_state`, it's copied back once at the end.
-- The max-abs residual is only computed when the tolerance check is active, or on the last iteration. With the defaults (`tol = 0`, 200 iterations), that's just the final iteration.
+How each iteration now works:
+- **Fused steps:** `t0` and `t1` each come from one call, `fom_step_t0` and `fom_step_t1`. They use `FOM_MAT_t0_c` and `FOM_MAT_t1_c` directly as the bias, so the old zero/accumulate/clip passes are gone.
+- **State update:** 59 of the 74 rows are plain copies of `t0` and `t1`. I write those from the `FOM_SELROWS_su_*` maps, and `fom_step_su__rest` computes the other 15 rows.
+- **Hoisted parameter term:** `su_p_p0 @ p0` is computed once per solve into `work->acc`, and the per-iteration step uses it as its bias.
+- **Residual:** it is only computed on the last iteration, because `tol = 0` here.
 
-I didn't run `make bench`, so I don't have timing numbers.
-`src/fom_solver.c` was already written when I started. I checked it against the constraints and ran `make verify`, which printed **`VERIFY OK`** with a worst max-abs error of 5.3e-15 over 8 samples (tolerance 1e-6). I didn't change the file.
+I kept the constraints: no dynamic memory, no `/` operator, every matrix product goes through the provided helpers, and the state resets to `FOM_STATE_INIT` in `fom_setup` and `fom_update_params`. No other files were changed.
+I rewrote the iteration loop in `src/fom_solver.c`, and `make verify` prints `VERIFY OK`. The worst error over 8 samples is 4.9e-15, against a tolerance of 1e-6. The fused-kernel checks also pass.
 
-How it meets the constraints:
-- **ABI:** it implements all five functions in `fom_solver.h`. `fom_setup` and `fom_update_params` both reset the state from `FOM_STATE_INIT`.
-- **No allocation and no `/`:** it only uses the buffers already in the workspace (`state`, `new_state`, `acc`, `t0`, `t1`), and the only `/` in the file is inside a comment. There are no matrix inverses, no hardcoded numbers, and no hand-written matvec loops.
-- **Iteration:** each step follows SPEC. `t0` is `clip(t0_c + t0_state·x, lo, hi)`, `t1` is `relu(t1_c + t1_state·x + t1_t_t0·t0)`, and the state update uses the accumulating `fom_apply_*` helpers. SPEC has no affine-solve steps, so it never calls `fom_lin_solve_*`.
+`make bench` gives a mean of 36.5 µs per solve over 5000 solves, with a minimum of 29 µs. I didn't time the earlier version of the file, so I can't say how much faster the new loop is.
 
-What makes it fast:
-- `su_p_p0 @ p0` is the same every iteration, so it's computed once before the loop and kept in `acc`.
-- `state` and `new_state` are swapped by pointer each iteration instead of copied; if the result ends up in `new_state`, it's copied back once at the end.
-- The max-abs residual is only computed when the tolerance check is active, or on the last iteration. With the defaults (`tol = 0`, 200 iterations), that's just the final iteration.
+How each iteration now works:
+- **Fused steps:** `t0` and `t1` each come from one call, `fom_step_t0` and `fom_step_t1`. They use `FOM_MAT_t0_c` and `FOM_MAT_t1_c` directly as the bias, so the old zero/accumulate/clip passes are gone.
+- **State update:** 59 of the 74 rows are plain copies of `t0` and `t1`. I write those from the `FOM_SELROWS_su_*` maps, and `fom_step_su__rest` computes the other 15 rows.
+- **Hoisted parameter term:** `su_p_p0 @ p0` is computed once per solve into `work->acc`, and the per-iteration step uses it as its bias.
+- **Residual:** it is only computed on the last iteration, because `tol = 0` here.
 
-I didn't run `make bench`, so I don't have timing numbers.
+I kept the constraints: no dynamic memory, no `/` operator, every matrix product goes through the provided helpers, and the state resets to `FOM_STATE_INIT` in `fom_setup` and `fom_update_params`. No other files were changed.

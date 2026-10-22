@@ -32,52 +32,27 @@ void fom_update_params(FomWorkspace *work, const FomParams *params) {
 fom_int fom_solve(FomWorkspace *work) {
     fom_float *x = work->state;
     fom_float *xn = work->new_state;
-    fom_float *acc = work->acc;
     fom_float *t0 = work->t0;
     fom_float *t1 = work->t1;
     fom_float res = 0.0;
     const fom_int max_iter = work->settings.max_iter;
     fom_int it, i;
     fom_float pterm[FOM_STATE_DIM];
+    fom_float bias_t0[FOM_T0_DIM];
+    fom_float bias_t1[FOM_T1_DIM];
 
     /* su_p_p0 @ p0 is iteration-invariant: hoist it. */
     for (i = 0; i < FOM_STATE_DIM; ++i) pterm[i] = 0.0;
     fom_apply_su_p_p0(work->params.p0, pterm);
 
+    for (i = 0; i < FOM_T0_DIM; ++i) bias_t0[i] = FOM_MAT_t0_c[i];
+    for (i = 0; i < FOM_T1_DIM; ++i) bias_t1[i] = FOM_MAT_t1_c[i];
+
     for (it = 0; it < max_iter; ++it) {
         const fom_float xi = fom_sched_xi(it);
 
-        /* t0 = clip(t0_c + t0_state @ x, lo, hi) */
-        for (i = 0; i < FOM_T0_DIM; ++i) t0[i] = FOM_MAT_t0_c[i];
-        fom_apply_t0_state(x, t0);
-        for (i = 0; i < FOM_T0_DIM; ++i) {
-            fom_float v = t0[i];
-            const fom_float lo = FOM_MAT_t0_lo[i];
-            const fom_float hi = FOM_MAT_t0_hi[i];
-            v = v < lo ? lo : v;
-            v = v > hi ? hi : v;
-            t0[i] = v;
-        }
-
-        /* t1 = relu(t1_c + t1_state@x + xi*(d_xi@x) + t1_t_t0@t0 + xi*(d_xi@t0)) */
-        for (i = 0; i < FOM_T1_DIM; ++i) { t1[i] = FOM_MAT_t1_c[i]; acc[i] = 0.0; }
-        fom_apply_t1_state(x, t1);
-        fom_apply_t1_t_t0(t0, t1);
-        fom_apply_t1_state__d_xi(x, acc);
-        fom_apply_t1_t_t0__d_xi(t0, acc);
-        for (i = 0; i < FOM_T1_DIM; ++i) {
-            const fom_float v = t1[i] + xi * acc[i];
-            t1[i] = v > 0.0 ? v : 0.0;
-        }
-
-        /* State update */
-        for (i = 0; i < FOM_STATE_DIM; ++i) { xn[i] = pterm[i]; acc[i] = 0.0; }
-        fom_apply_su_state(x, xn);
-        fom_apply_su_t_t0(t0, xn);
-        fom_apply_su_t_t1(t1, xn);
-        fom_apply_su_state__d_xi(x, acc);
-        fom_apply_su_t_t0__d_xi(t0, acc);
-        for (i = 0; i < FOM_STATE_DIM; ++i) xn[i] += xi * acc[i];
+        /* t0, t1 and the state update in one fused pass. */
+        fom_iterate(x, xi, bias_t0, bias_t1, pterm, &FOM_ACT_t0, &FOM_ACT_t1, t0, t1, xn);
 
         if (it + 1 == max_iter) {
             res = 0.0;

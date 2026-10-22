@@ -48,27 +48,12 @@ fom_int fom_solve(FomWorkspace *work) {
     for (k = 0; k < max_iter; ++k) {
         fom_float *sw;
 
-        /* t0 = clip(t0_c + t0_state @ x, lo, hi) */
-        for (i = 0; i < FOM_T0_DIM; ++i) t0[i] = FOM_MAT_t0_c[i];
-        fom_apply_t0_state(x, t0);
-        for (i = 0; i < FOM_T0_DIM; ++i) {
-            fom_float v = t0[i];
-            v = v < FOM_MAT_t0_lo[i] ? FOM_MAT_t0_lo[i] : v;
-            v = v > FOM_MAT_t0_hi[i] ? FOM_MAT_t0_hi[i] : v;
-            t0[i] = v;
-        }
-
-        /* t1 = relu(t1_c + t1_state @ x + t1_t_t0 @ t0) */
-        for (i = 0; i < FOM_T1_DIM; ++i) t1[i] = FOM_MAT_t1_c[i];
-        fom_apply_t1_state(x, t1);
-        fom_apply_t1_t_t0(t0, t1);
-        for (i = 0; i < FOM_T1_DIM; ++i) t1[i] = t1[i] > 0 ? t1[i] : 0.0;
-
-        /* xn = su_state @ x + su_t_t0 @ t0 + su_t_t1 @ t1 + su_p_p0 @ p0 */
-        for (i = 0; i < FOM_STATE_DIM; ++i) xn[i] = pc[i];
-        fom_apply_su_state(x, xn);
-        fom_apply_su_t_t0(t0, xn);
-        fom_apply_su_t_t1(t1, xn);
+        fom_step_t0(x, FOM_MAT_t0_c, &FOM_ACT_t0, t0);
+        fom_step_t1(x, t0, FOM_MAT_t1_c, &FOM_ACT_t1, t1);
+        /* su selection rows: xn[0..48] = t0, xn[49..58] = t1 */
+        for (i = 0; i < FOM_T0_DIM; ++i) xn[i] = t0[i];
+        for (i = 0; i < FOM_T1_DIM; ++i) xn[FOM_T0_DIM + i] = t1[i];
+        fom_step_su__rest(x, t0, t1, pc, xn);
 
         if (use_tol || k == max_iter - 1) {
             res = 0.0;

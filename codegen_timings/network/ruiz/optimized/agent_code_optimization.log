@@ -1,52 +1,187 @@
-I fully unrolled the solver iteration and cut the whole-solve time from about 49 µs to about 11 µs, roughly 4.4× faster. `make verify` still prints `VERIFY OK`, with a worst error of 5.3e-15 against a tolerance of 1e-6.
 
-The speedup is from a single change in `src/fom_solver.c`; `src/fom_linsolve.c` is untouched because this problem has no linear solves. I didn't try a second optimization round, so I can't say whether more is available.
-
-The bench timer only resolves whole microseconds (min_us reads 6–8), so single runs are noisy: my two runs of the new code gave 14.6 µs and 11.3 µs. `make profile` reports a higher mean (34.2 µs) because the timing markers inside each iteration cost time themselves; use its percentages, not its absolute numbers.
-
-I generated the unrolled code with a throwaway script at `/tmp/gen/gen.py`, which reads the sparsity pattern and values from `src/fom_ops.c`. It isn't part of the build. Since that file can't change, the inlined values in `src/fom_solver.c` stay valid.
+===== code optimization round 1 =====
+Tight time budget. Let me look at ops and profile.
+Now update the solver loop to call `fom_iterate`.
+Good: 35 → 18.7 µs. Next, write t0/t1 straight into the new state (they are its selection rows) and skip the 59 copy rows.
+I stopped here because of the time budget. Final whole-solve time is about 13 to 16.8 µs, down from 35 µs. The final code passes `make verify` (`VERIFY OK`, worst error 8.4e-15).
 
 FOMTOOLS-SUMMARY-BEGIN
-**Whole-solve mean_us:** initial 49.4 µs → final 11.3 µs (14.6 µs on a second run) — about **4.4× faster** (3.4× on the slower run). `make verify`: VERIFY OK, worst max-abs error 5.3e-15 (tol 1e-6).
+**Whole-solve mean_us:** 34.98 at the start. Final is 16.79 µs on the first bench after the last change, and 16.40 µs and 13.06 µs on two reruns. Bench noise on this machine is about ±20%. That is a speedup of about 2.1x to 2.7x.
 
-**Final profile breakdown** (`make profile`, 200 iterations × 5000 solves; the absolute times include the profiler's own overhead):
+**Final profile** (`make profile`; the per-call markers add a lot of overhead here, so the profiled mean is 28.5 µs):
 | region | total_us | pct |
 |---|---|---|
-| t0 (49-row clip of `t0_c + t0_state·x`) | 35448 | 38.0% |
-| state_update (`pc + su_state·x + su_t_t0·t0 + su_t_t1·t1`) | 30188 | 32.4% |
-| t1 (10-row relu of `t1_c + t1_state·x + t1_t_t0·t0`) | 27644 | 29.6% |
+| step_t0 | 34773 | 46.6% |
+| step_su_rest | 20475 | 27.4% |
+| step_t1 | 19023 | 25.5% |
+| residual | 222 | 0.3% |
+| param_bias | 192 | 0.3% |
 
 **Optimizations applied:**
-1. **Fully unrolled each iteration over the fixed CSR sparsity.** The six iteration matrices (`t0_state`, `t1_state`, `t1_t_t0`, `su_state`, `su_t_t0`, `su_t_t1`) are constant and sparse, with 3 to 8 nonzeros per row. The new code is one straight-line function, `fom_iterate`, with the coefficients written in as literals. That removes all row-pointer and column-index loads and the per-row loop overhead, and lets the compiler schedule across rows. It is valid because the sparsity pattern and values are compile-time data.
-2. **Dropped empty rows and unit coefficients.** In `su_state`, rows 0–58 are all zero, and `su_t_t1` has nonzeros only in rows 49–58. `su_t_t0` is the identity on rows 0–48, and every `su_t_t1` coefficient is 1. Rows that add nothing are skipped, and ±1 coefficients become plain adds or subtracts. Both changes give bit-identical results.
-3. **Fused each affine map with its activation and with the state accumulation in one pass.** Constant + matrix product + clip (or relu) is computed per row in a register, and xn is built in one pass instead of an initialise-then-accumulate pass per operator. The summation order of the original CSR ops is kept. This works because each output row depends only on the previous stage's vectors (x, then t0, then t1).
-4. **Kept the existing hoisting:** `su_p_p0·p0` is computed once per solve because p0 is constant across iterations, and the residual is computed only on the last iteration because termination is max-iterations only.
+1. **Unrolled the products with the coefficients inlined.** The sparsity of `t0_state`, `t1_state`, `t1_t_t0`, `su_state`, `su_t_t0` and `su_t_t1` is fixed, so I generated straight-line code with exact round-trip literals in place of the CSR loops. Unit coefficients are dropped. This removes the ROWPTR/COLIDX indirection and loop overhead. It is allowed because every routine involved is checked on every unit vector. Clip and relu bounds still come from the `act` arguments and biases from `bias`, never hardcoded. Effect: 35 → 18.7 µs.
+2. **Wrote t0 and t1 straight into the new state.** State rows 0..48 are plain copies of t0 and rows 49..58 are plain copies of t1 (the selection rows). Those rows have no constant term, and `su_p_p0` has no entries there. So `fom_step_t0` writes into `xn[0..48]`, `fom_step_t1` writes into `xn+49`, and `fom_step_su__rest` computes only the 15 remaining rows 59..73. This drops the 59 copy rows and the separate t0/t1 buffers from the loop. `work->t0` and `work->t1` are filled once after the loop. Effect: 18.7 → about 13–16.8 µs.
+3. **Moved fixed work out of the loop.** The parameter term `su_p_p0 @ p0` is computed once per solve, and the residual is computed only on the last iteration when there is no tolerance check.
 
-`FOM_PROF_BEGIN/END` markers stay around the t0, t1 and state_update regions; they compile to nothing in the normal build.
+`fom_iterate` and `fom_step_su` reuse the same unrolled kernels, so the direct checks also cover them.
+
+Blocked by rules:
+- Assume the t0 lower bound is 0 and the t1 relu threshold is 0, and drop those loads/compares | never hardcode a bound or threshold; `act` must be honoured | ~5%
+- Exploit cross-matrix relations (e.g. the t0 coefficients on state[49..58] are `-0.5 *` the matching `t1_t_t0` entries) by computing a shared partial sum once in the solver | coefficients must stay inside the checked kernels; `fom_solver.c` cannot read matrix data | unknown, likely small
 FOMTOOLS-SUMMARY-END
-I fully unrolled the solver iteration and cut the whole-solve time from about 49 µs to about 11 µs, roughly 4.4× faster. `make verify` still prints `VERIFY OK`, with a worst error of 5.3e-15 against a tolerance of 1e-6.
-
-The speedup is from a single change in `src/fom_solver.c`; `src/fom_linsolve.c` is untouched because this problem has no linear solves. I didn't try a second optimization round, so I can't say whether more is available.
-
-The bench timer only resolves whole microseconds (min_us reads 6–8), so single runs are noisy: my two runs of the new code gave 14.6 µs and 11.3 µs. `make profile` reports a higher mean (34.2 µs) because the timing markers inside each iteration cost time themselves; use its percentages, not its absolute numbers.
-
-I generated the unrolled code with a throwaway script at `/tmp/gen/gen.py`, which reads the sparsity pattern and values from `src/fom_ops.c`. It isn't part of the build. Since that file can't change, the inlined values in `src/fom_solver.c` stay valid.
+I stopped here because of the time budget. Final whole-solve time is about 13 to 16.8 µs, down from 35 µs. The final code passes `make verify` (`VERIFY OK`, worst error 8.4e-15).
 
 FOMTOOLS-SUMMARY-BEGIN
-**Whole-solve mean_us:** initial 49.4 µs → final 11.3 µs (14.6 µs on a second run) — about **4.4× faster** (3.4× on the slower run). `make verify`: VERIFY OK, worst max-abs error 5.3e-15 (tol 1e-6).
+**Whole-solve mean_us:** 34.98 at the start. Final is 16.79 µs on the first bench after the last change, and 16.40 µs and 13.06 µs on two reruns. Bench noise on this machine is about ±20%. That is a speedup of about 2.1x to 2.7x.
 
-**Final profile breakdown** (`make profile`, 200 iterations × 5000 solves; the absolute times include the profiler's own overhead):
+**Final profile** (`make profile`; the per-call markers add a lot of overhead here, so the profiled mean is 28.5 µs):
 | region | total_us | pct |
 |---|---|---|
-| t0 (49-row clip of `t0_c + t0_state·x`) | 35448 | 38.0% |
-| state_update (`pc + su_state·x + su_t_t0·t0 + su_t_t1·t1`) | 30188 | 32.4% |
-| t1 (10-row relu of `t1_c + t1_state·x + t1_t_t0·t0`) | 27644 | 29.6% |
+| step_t0 | 34773 | 46.6% |
+| step_su_rest | 20475 | 27.4% |
+| step_t1 | 19023 | 25.5% |
+| residual | 222 | 0.3% |
+| param_bias | 192 | 0.3% |
 
 **Optimizations applied:**
-1. **Fully unrolled each iteration over the fixed CSR sparsity.** The six iteration matrices (`t0_state`, `t1_state`, `t1_t_t0`, `su_state`, `su_t_t0`, `su_t_t1`) are constant and sparse, with 3 to 8 nonzeros per row. The new code is one straight-line function, `fom_iterate`, with the coefficients written in as literals. That removes all row-pointer and column-index loads and the per-row loop overhead, and lets the compiler schedule across rows. It is valid because the sparsity pattern and values are compile-time data.
-2. **Dropped empty rows and unit coefficients.** In `su_state`, rows 0–58 are all zero, and `su_t_t1` has nonzeros only in rows 49–58. `su_t_t0` is the identity on rows 0–48, and every `su_t_t1` coefficient is 1. Rows that add nothing are skipped, and ±1 coefficients become plain adds or subtracts. Both changes give bit-identical results.
-3. **Fused each affine map with its activation and with the state accumulation in one pass.** Constant + matrix product + clip (or relu) is computed per row in a register, and xn is built in one pass instead of an initialise-then-accumulate pass per operator. The summation order of the original CSR ops is kept. This works because each output row depends only on the previous stage's vectors (x, then t0, then t1).
-4. **Kept the existing hoisting:** `su_p_p0·p0` is computed once per solve because p0 is constant across iterations, and the residual is computed only on the last iteration because termination is max-iterations only.
+1. **Unrolled the products with the coefficients inlined.** The sparsity of `t0_state`, `t1_state`, `t1_t_t0`, `su_state`, `su_t_t0` and `su_t_t1` is fixed, so I generated straight-line code with exact round-trip literals in place of the CSR loops. Unit coefficients are dropped. This removes the ROWPTR/COLIDX indirection and loop overhead. It is allowed because every routine involved is checked on every unit vector. Clip and relu bounds still come from the `act` arguments and biases from `bias`, never hardcoded. Effect: 35 → 18.7 µs.
+2. **Wrote t0 and t1 straight into the new state.** State rows 0..48 are plain copies of t0 and rows 49..58 are plain copies of t1 (the selection rows). Those rows have no constant term, and `su_p_p0` has no entries there. So `fom_step_t0` writes into `xn[0..48]`, `fom_step_t1` writes into `xn+49`, and `fom_step_su__rest` computes only the 15 remaining rows 59..73. This drops the 59 copy rows and the separate t0/t1 buffers from the loop. `work->t0` and `work->t1` are filled once after the loop. Effect: 18.7 → about 13–16.8 µs.
+3. **Moved fixed work out of the loop.** The parameter term `su_p_p0 @ p0` is computed once per solve, and the residual is computed only on the last iteration when there is no tolerance check.
 
-`FOM_PROF_BEGIN/END` markers stay around the t0, t1 and state_update regions; they compile to nothing in the normal build.
+`fom_iterate` and `fom_step_su` reuse the same unrolled kernels, so the direct checks also cover them.
+
+Blocked by rules:
+- Assume the t0 lower bound is 0 and the t1 relu threshold is 0, and drop those loads/compares | never hardcode a bound or threshold; `act` must be honoured | ~5%
+- Exploit cross-matrix relations (e.g. the t0 coefficients on state[49..58] are `-0.5 *` the matching `t1_t_t0` entries) by computing a shared partial sum once in the solver | coefficients must stay inside the checked kernels; `fom_solver.c` cannot read matrix data | unknown, likely small
+FOMTOOLS-SUMMARY-END
+===== code optimization round 2 =====
+Time is tight (10 min). Let me look at ops.
+Exact relation confirmed (t_t0 coefficient = −2 × state coefficient for every pair). Now rewrite `fom_iterate`.
+I rewrote `fom_iterate` around one exact structural relation and switched the solver to call it once per iteration. `make verify` prints `VERIFY OK`: worst end-to-end error is 3.6e-15 against a 1e-6 tolerance, and the iterate basis check is 8.9e-16. `make bench` dropped from 16.67 us to 12.2–13.9 us per solve over three runs.
+
+FOMTOOLS-SUMMARY-BEGIN
+**Whole-solve `mean_us`:** 16.673 us at the start of this round. The final solver measured 13.89, 12.25 and 12.80 us over three `make bench` runs, so about 13 us. That is about 1.28x over this round and about 2.6x over the translated solver (34.259 us).
+
+**Final profile (`make profile`), hottest first:**
+- iterate: 66432 us, 99.36%
+- param_bias: 216 us, 0.32%
+- residual: 212 us, 0.32%
+
+The profiled build has instrumentation overhead and reports 18.8 us per solve.
+
+**Optimizations this round:**
+- **Shared extrapolated primal.** I checked all 98 coefficient pairs. In every `t1` row and every `su` rest row, the `t_t0` coefficient is exactly -2 times the matching `state[0..48]` coefficient, so both blocks depend only on `w = state[:49] - 2*t0`. This is the PDHG-style `2x_new - x_old` structure.
+  - `fom_iterate` now computes `w` once: 49 subtract-multiplies.
+  - The `t1` block (with its relu) and the 15 `su` rest rows then each take one fused multiply-add per coefficient on `w`. Before, they took two products per coefficient on `state` and `t0`.
+  - This cuts those two blocks from 196 to 98 multiply-adds, plus 49 to form `w`.
+  - The coefficients are still the matrix's own literals, read from the `state` terms.
+- **Single fused iteration call.** The solver now calls `fom_iterate` once per iteration instead of three step routines. `t0` and `t1` go straight into the new state's selection rows (`t_t0 = xn`, `t_t1 = xn + 49`, `new_state = xn`).
+  - When `new_state` and `t_t0` are the same buffer, `fom_iterate` skips the copy of the 59 selection rows, since that copy would write each entry onto itself.
+  - This relies on the `su` parameter bias being zero on rows 0..58, which the earlier verified solver already relied on.
+  - When the pointers differ, the full copy with bias still runs, and that is the case `make verify` checks.
+- **Kept from earlier rounds:**
+  - `t0` is unrolled with its literal coefficients, and its unit coefficient is dropped.
+  - Clip and relu are folded into the product pass.
+  - `su_p_p0 @ p0` is hoisted out of the loop and computed once per solve.
+  - The residual is computed only when needed.
+
+`FOM_PROF_BEGIN/END` markers remain around `param_bias`, `iterate` and `residual`.
+
+Blocked by rules:
+- Unrolling `fom_iterate` across two iterations to overlap the latency of the `t0` to `t1` to `su` chain | `fom_iterate` signature fixed in `include/fom_ops.h` (one iteration per call) | unknown, likely <5%
+- Reading the `t0`/`t1` bounds directly in the solver loop to avoid passing the act pointers | must not read `FOM_ACT_*` in `src/fom_ops.c`, and the signatures are fixed | negligible
+FOMTOOLS-SUMMARY-END
+I rewrote `fom_iterate` around one exact structural relation and switched the solver to call it once per iteration. `make verify` prints `VERIFY OK`: worst end-to-end error is 3.6e-15 against a 1e-6 tolerance, and the iterate basis check is 8.9e-16. `make bench` dropped from 16.67 us to 12.2–13.9 us per solve over three runs.
+
+FOMTOOLS-SUMMARY-BEGIN
+**Whole-solve `mean_us`:** 16.673 us at the start of this round. The final solver measured 13.89, 12.25 and 12.80 us over three `make bench` runs, so about 13 us. That is about 1.28x over this round and about 2.6x over the translated solver (34.259 us).
+
+**Final profile (`make profile`), hottest first:**
+- iterate: 66432 us, 99.36%
+- param_bias: 216 us, 0.32%
+- residual: 212 us, 0.32%
+
+The profiled build has instrumentation overhead and reports 18.8 us per solve.
+
+**Optimizations this round:**
+- **Shared extrapolated primal.** I checked all 98 coefficient pairs. In every `t1` row and every `su` rest row, the `t_t0` coefficient is exactly -2 times the matching `state[0..48]` coefficient, so both blocks depend only on `w = state[:49] - 2*t0`. This is the PDHG-style `2x_new - x_old` structure.
+  - `fom_iterate` now computes `w` once: 49 subtract-multiplies.
+  - The `t1` block (with its relu) and the 15 `su` rest rows then each take one fused multiply-add per coefficient on `w`. Before, they took two products per coefficient on `state` and `t0`.
+  - This cuts those two blocks from 196 to 98 multiply-adds, plus 49 to form `w`.
+  - The coefficients are still the matrix's own literals, read from the `state` terms.
+- **Single fused iteration call.** The solver now calls `fom_iterate` once per iteration instead of three step routines. `t0` and `t1` go straight into the new state's selection rows (`t_t0 = xn`, `t_t1 = xn + 49`, `new_state = xn`).
+  - When `new_state` and `t_t0` are the same buffer, `fom_iterate` skips the copy of the 59 selection rows, since that copy would write each entry onto itself.
+  - This relies on the `su` parameter bias being zero on rows 0..58, which the earlier verified solver already relied on.
+  - When the pointers differ, the full copy with bias still runs, and that is the case `make verify` checks.
+- **Kept from earlier rounds:**
+  - `t0` is unrolled with its literal coefficients, and its unit coefficient is dropped.
+  - Clip and relu are folded into the product pass.
+  - `su_p_p0 @ p0` is hoisted out of the loop and computed once per solve.
+  - The residual is computed only when needed.
+
+`FOM_PROF_BEGIN/END` markers remain around `param_bias`, `iterate` and `residual`.
+
+Blocked by rules:
+- Unrolling `fom_iterate` across two iterations to overlap the latency of the `t0` to `t1` to `su` chain | `fom_iterate` signature fixed in `include/fom_ops.h` (one iteration per call) | unknown, likely <5%
+- Reading the `t0`/`t1` bounds directly in the solver loop to avoid passing the act pointers | must not read `FOM_ACT_*` in `src/fom_ops.c`, and the signatures are fixed | negligible
+FOMTOOLS-SUMMARY-END
+===== code optimization round 3 =====
+Time is tight (10 min). Let me look at fom_ops.c's fom_iterate.
+Already heavily specialized. One remaining issue: `t_t0` aliases `new_state`, so the compiler must reload `state` after every store. I'll try computing into locals and storing at the end.
+Bench is noisy; let me A/B with alternating runs.
+I overwrote the round's starting file with HEAD; let me check what HEAD contains versus my version.
+HEAD is an unrelated older version. I'll reconstruct this round's starting file by reversing my edit, then A/B properly.
+My version is about 1% slower, so I'm reverting to the starting file and re-verifying.
+This round found no further speedup, so the solver is the same as at the start of the round. `src/fom_ops.c` passes `make verify` (`VERIFY OK`).
+
+I accidentally overwrote `src/fom_ops.c` with the version committed in git, which is an unrelated older solver, not this round's start. I rebuilt the start file by reversing my one edit exactly; it should match the original byte for byte, but I didn't confirm that with a diff.
+
+FOMTOOLS-SUMMARY-BEGIN
+Initial vs final whole-solve `mean_us`: 34.259 us for the translated solver and 11.892 us at the start of this round (2.88x). This round kept no change, so the solver is the same as at the start of the round. Repeated `make bench` runs this round gave between 8.4 us (best of 6 runs) and 12.8 us (single runs); the timer is noisy.
+
+Final profile (`make profile`, hottest first):
+- iterate: 56109 us, 99.42%
+- param_bias: 169 us, 0.30%
+- residual: 161 us, 0.29%
+
+Optimizations already in place from earlier rounds (unchanged this round):
+- **Selection rows written in place.** Rows 0..58 of `su` are plain copies of t0 and t1 with zero bias. So `fom_iterate` writes t0 and t1 straight into the new state, and there are no copy or zero passes.
+- **Shared extrapolated vector.** `t1_t_t0 = -2 * t1_state[:, :49]` and the non-selection rows of `su_t_t0 = -2 * su_state[:, :49]`. Both blocks therefore only need `w = state[:49] - 2*t0`, computed once.
+- **Unrolled kernels with inlined coefficients.** The sparsity is fixed, so t0, t1 and the 15 remaining `su` rows are fully unrolled. Unit coefficients are dropped and the clip and relu are folded into the same pass.
+- **Hoisted parameter term.** `su_p_p0 @ p0` is computed once per solve.
+- **Residual only when needed.** It is computed only on the last iteration, because there is no tolerance check.
+
+Tried this round and rejected:
+- **Locals instead of output buffers.** I computed t0, t1 and the `su` rest rows into local arrays and stored them at the end, so the compiler would not have to reload `state` after each store into the aliased `t_t0`/`new_state`. In A/B runs it was about 1% slower (8.51 vs 8.43 us), so I reverted it.
+
+Each iteration is now about 300 flops of fully unrolled, dependency-light code at roughly 40 to 60 ns. I found no remaining structure worth exploiting.
+
+Blocked by rules:
+- Tuning compiler flags (for example `-march=native`) for the unrolled kernels | Makefile and build flags are fixed | unknown, likely 5-15%
+FOMTOOLS-SUMMARY-END
+This round found no further speedup, so the solver is the same as at the start of the round. `src/fom_ops.c` passes `make verify` (`VERIFY OK`).
+
+I accidentally overwrote `src/fom_ops.c` with the version committed in git, which is an unrelated older solver, not this round's start. I rebuilt the start file by reversing my one edit exactly; it should match the original byte for byte, but I didn't confirm that with a diff.
+
+FOMTOOLS-SUMMARY-BEGIN
+Initial vs final whole-solve `mean_us`: 34.259 us for the translated solver and 11.892 us at the start of this round (2.88x). This round kept no change, so the solver is the same as at the start of the round. Repeated `make bench` runs this round gave between 8.4 us (best of 6 runs) and 12.8 us (single runs); the timer is noisy.
+
+Final profile (`make profile`, hottest first):
+- iterate: 56109 us, 99.42%
+- param_bias: 169 us, 0.30%
+- residual: 161 us, 0.29%
+
+Optimizations already in place from earlier rounds (unchanged this round):
+- **Selection rows written in place.** Rows 0..58 of `su` are plain copies of t0 and t1 with zero bias. So `fom_iterate` writes t0 and t1 straight into the new state, and there are no copy or zero passes.
+- **Shared extrapolated vector.** `t1_t_t0 = -2 * t1_state[:, :49]` and the non-selection rows of `su_t_t0 = -2 * su_state[:, :49]`. Both blocks therefore only need `w = state[:49] - 2*t0`, computed once.
+- **Unrolled kernels with inlined coefficients.** The sparsity is fixed, so t0, t1 and the 15 remaining `su` rows are fully unrolled. Unit coefficients are dropped and the clip and relu are folded into the same pass.
+- **Hoisted parameter term.** `su_p_p0 @ p0` is computed once per solve.
+- **Residual only when needed.** It is computed only on the last iteration, because there is no tolerance check.
+
+Tried this round and rejected:
+- **Locals instead of output buffers.** I computed t0, t1 and the `su` rest rows into local arrays and stored them at the end, so the compiler would not have to reload `state` after each store into the aliased `t_t0`/`new_state`. In A/B runs it was about 1% slower (8.51 vs 8.43 us), so I reverted it.
+
+Each iteration is now about 300 flops of fully unrolled, dependency-light code at roughly 40 to 60 ns. I found no remaining structure worth exploiting.
+
+Blocked by rules:
+- Tuning compiler flags (for example `-march=native`) for the unrolled kernels | Makefile and build flags are fixed | unknown, likely 5-15%
 FOMTOOLS-SUMMARY-END

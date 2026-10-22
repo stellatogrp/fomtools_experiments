@@ -120,6 +120,41 @@ static inline fom_float fom_sched_tth(fom_int it) {
     return FOM_SCHED_tth[(it < FOM_SCHED_TTH_LEN) ? it : (FOM_SCHED_TTH_LEN - 1)];
 }
 
+#define FOM_MAT_t0_state_ROWS 48
+#define FOM_MAT_t0_state_COLS 160
+#define FOM_MAT_t0_state_NNZ 48
+extern const fom_int FOM_MAT_t0_state_ROWPTR[];
+extern const fom_int FOM_MAT_t0_state_COLIDX[];
+extern const fom_float FOM_MAT_t0_state_VALS[];
+
+#define FOM_MAT_t0_p_p1_ROWS 48
+#define FOM_MAT_t0_p_p1_COLS 48
+#define FOM_MAT_t0_p_p1_NNZ 0
+extern const fom_int FOM_MAT_t0_p_p1_ROWPTR[];
+extern const fom_int FOM_MAT_t0_p_p1_COLIDX[];
+extern const fom_float FOM_MAT_t0_p_p1_VALS[];
+
+#define FOM_MAT_t1_state_ROWS 16
+#define FOM_MAT_t1_state_COLS 160
+#define FOM_MAT_t1_state_NNZ 16
+extern const fom_int FOM_MAT_t1_state_ROWPTR[];
+extern const fom_int FOM_MAT_t1_state_COLIDX[];
+extern const fom_float FOM_MAT_t1_state_VALS[];
+
+#define FOM_MAT_t1_p_p0_ROWS 16
+#define FOM_MAT_t1_p_p0_COLS 16
+#define FOM_MAT_t1_p_p0_NNZ 0
+extern const fom_int FOM_MAT_t1_p_p0_ROWPTR[];
+extern const fom_int FOM_MAT_t1_p_p0_COLIDX[];
+extern const fom_float FOM_MAT_t1_p_p0_VALS[];
+
+#define FOM_MAT_t1_t_t0_ROWS 16
+#define FOM_MAT_t1_t_t0_COLS 48
+#define FOM_MAT_t1_t_t0_NNZ 0
+extern const fom_int FOM_MAT_t1_t_t0_ROWPTR[];
+extern const fom_int FOM_MAT_t1_t_t0_COLIDX[];
+extern const fom_float FOM_MAT_t1_t_t0_VALS[];
+
 #define FOM_MAT_t1_lo_ROWS 16
 #define FOM_MAT_t1_lo_COLS 1
 extern const fom_float FOM_MAT_t1_lo[];
@@ -127,6 +162,189 @@ extern const fom_float FOM_MAT_t1_lo[];
 #define FOM_MAT_t1_hi_ROWS 16
 #define FOM_MAT_t1_hi_COLS 1
 extern const fom_float FOM_MAT_t1_hi[];
+
+#define FOM_MAT_su_state_ROWS 160
+#define FOM_MAT_su_state_COLS 160
+#define FOM_MAT_su_state_NNZ 16
+extern const fom_int FOM_MAT_su_state_ROWPTR[];
+extern const fom_int FOM_MAT_su_state_COLIDX[];
+extern const fom_float FOM_MAT_su_state_VALS[];
+
+#define FOM_MAT_su_t_t0_ROWS 160
+#define FOM_MAT_su_t_t0_COLS 48
+#define FOM_MAT_su_t_t0_NNZ 0
+extern const fom_int FOM_MAT_su_t_t0_ROWPTR[];
+extern const fom_int FOM_MAT_su_t_t0_COLIDX[];
+extern const fom_float FOM_MAT_su_t_t0_VALS[];
+
+#define FOM_MAT_su_t_t1_ROWS 160
+#define FOM_MAT_su_t_t1_COLS 16
+#define FOM_MAT_su_t_t1_NNZ 0
+extern const fom_int FOM_MAT_su_t_t1_ROWPTR[];
+extern const fom_int FOM_MAT_su_t_t1_COLIDX[];
+extern const fom_float FOM_MAT_su_t_t1_VALS[];
+
+#define FOM_MAT_t0_state__d_taux_ROWS 48
+#define FOM_MAT_t0_state__d_taux_COLS 160
+#define FOM_MAT_t0_state__d_taux_NNZ 112
+extern const fom_int FOM_MAT_t0_state__d_taux_ROWPTR[];
+extern const fom_int FOM_MAT_t0_state__d_taux_COLIDX[];
+extern const fom_float FOM_MAT_t0_state__d_taux_VALS[];
+
+#define FOM_MAT_t0_state__d_tth_ROWS 48
+#define FOM_MAT_t0_state__d_tth_COLS 160
+#define FOM_MAT_t0_state__d_tth_NNZ 112
+extern const fom_int FOM_MAT_t0_state__d_tth_ROWPTR[];
+extern const fom_int FOM_MAT_t0_state__d_tth_COLIDX[];
+extern const fom_float FOM_MAT_t0_state__d_tth_VALS[];
+
+#define FOM_MAT_t0_p_p1__d_tau_ROWS 48
+#define FOM_MAT_t0_p_p1__d_tau_COLS 48
+#define FOM_MAT_t0_p_p1__d_tau_NNZ 48
+extern const fom_int FOM_MAT_t0_p_p1__d_tau_ROWPTR[];
+extern const fom_int FOM_MAT_t0_p_p1__d_tau_COLIDX[];
+extern const fom_float FOM_MAT_t0_p_p1__d_tau_VALS[];
+
+#define FOM_MAT_t1_state__d_eta_ROWS 16
+#define FOM_MAT_t1_state__d_eta_COLS 160
+#define FOM_MAT_t1_state__d_eta_NNZ 256
+extern const fom_int FOM_MAT_t1_state__d_eta_ROWPTR[];
+extern const fom_int FOM_MAT_t1_state__d_eta_COLIDX[];
+extern const fom_float FOM_MAT_t1_state__d_eta_VALS[];
+
+#define FOM_MAT_t1_p_p0__d_eta_ROWS 16
+#define FOM_MAT_t1_p_p0__d_eta_COLS 16
+#define FOM_MAT_t1_p_p0__d_eta_NNZ 16
+extern const fom_int FOM_MAT_t1_p_p0__d_eta_ROWPTR[];
+extern const fom_int FOM_MAT_t1_p_p0__d_eta_COLIDX[];
+extern const fom_float FOM_MAT_t1_p_p0__d_eta_VALS[];
+
+#define FOM_MAT_t1_t_t0__d_eta_ROWS 16
+#define FOM_MAT_t1_t_t0__d_eta_COLS 48
+#define FOM_MAT_t1_t_t0__d_eta_NNZ 112
+extern const fom_int FOM_MAT_t1_t_t0__d_eta_ROWPTR[];
+extern const fom_int FOM_MAT_t1_t_t0__d_eta_COLIDX[];
+extern const fom_float FOM_MAT_t1_t_t0__d_eta_VALS[];
+
+#define FOM_MAT_su_state__d_d1_ROWS 160
+#define FOM_MAT_su_state__d_d1_COLS 160
+#define FOM_MAT_su_state__d_d1_NNZ 64
+extern const fom_int FOM_MAT_su_state__d_d1_ROWPTR[];
+extern const fom_int FOM_MAT_su_state__d_d1_COLIDX[];
+extern const fom_float FOM_MAT_su_state__d_d1_VALS[];
+
+#define FOM_MAT_su_state__d_g2_ROWS 160
+#define FOM_MAT_su_state__d_g2_COLS 160
+#define FOM_MAT_su_state__d_g2_NNZ 64
+extern const fom_int FOM_MAT_su_state__d_g2_ROWPTR[];
+extern const fom_int FOM_MAT_su_state__d_g2_COLIDX[];
+extern const fom_float FOM_MAT_su_state__d_g2_VALS[];
+
+#define FOM_MAT_su_state__d_m1_ROWS 160
+#define FOM_MAT_su_state__d_m1_COLS 160
+#define FOM_MAT_su_state__d_m1_NNZ 16
+extern const fom_int FOM_MAT_su_state__d_m1_ROWPTR[];
+extern const fom_int FOM_MAT_su_state__d_m1_COLIDX[];
+extern const fom_float FOM_MAT_su_state__d_m1_VALS[];
+
+#define FOM_MAT_su_t_t0__d_d2_ROWS 160
+#define FOM_MAT_su_t_t0__d_d2_COLS 48
+#define FOM_MAT_su_t_t0__d_d2_NNZ 48
+extern const fom_int FOM_MAT_su_t_t0__d_d2_ROWPTR[];
+extern const fom_int FOM_MAT_su_t_t0__d_d2_COLIDX[];
+extern const fom_float FOM_MAT_su_t_t0__d_d2_VALS[];
+
+#define FOM_MAT_su_t_t0__d_g1_ROWS 160
+#define FOM_MAT_su_t_t0__d_g1_COLS 48
+#define FOM_MAT_su_t_t0__d_g1_NNZ 48
+extern const fom_int FOM_MAT_su_t_t0__d_g1_ROWPTR[];
+extern const fom_int FOM_MAT_su_t_t0__d_g1_COLIDX[];
+extern const fom_float FOM_MAT_su_t_t0__d_g1_VALS[];
+
+#define FOM_MAT_su_t_t1__d_d2_ROWS 160
+#define FOM_MAT_su_t_t1__d_d2_COLS 16
+#define FOM_MAT_su_t_t1__d_d2_NNZ 16
+extern const fom_int FOM_MAT_su_t_t1__d_d2_ROWPTR[];
+extern const fom_int FOM_MAT_su_t_t1__d_d2_COLIDX[];
+extern const fom_float FOM_MAT_su_t_t1__d_d2_VALS[];
+
+#define FOM_MAT_su_t_t1__d_g1_ROWS 160
+#define FOM_MAT_su_t_t1__d_g1_COLS 16
+#define FOM_MAT_su_t_t1__d_g1_NNZ 16
+extern const fom_int FOM_MAT_su_t_t1__d_g1_ROWPTR[];
+extern const fom_int FOM_MAT_su_t_t1__d_g1_COLIDX[];
+extern const fom_float FOM_MAT_su_t_t1__d_g1_VALS[];
+
+#define FOM_MAT_su_t_t1__d_m2_ROWS 160
+#define FOM_MAT_su_t_t1__d_m2_COLS 16
+#define FOM_MAT_su_t_t1__d_m2_NNZ 16
+extern const fom_int FOM_MAT_su_t_t1__d_m2_ROWPTR[];
+extern const fom_int FOM_MAT_su_t_t1__d_m2_COLIDX[];
+extern const fom_float FOM_MAT_su_t_t1__d_m2_VALS[];
+
+/* 0/1 selection matrices: (M @ x)[i] = x[FOM_SEL_<name>_SRC[i]], or 0
+   where the index is -1. A solver may apply these itself (see SPEC.md). */
+#define FOM_SEL_t0_state_ROWS 48
+extern const fom_int FOM_SEL_t0_state_SRC[];
+
+#define FOM_SEL_t0_p_p1_ROWS 48
+extern const fom_int FOM_SEL_t0_p_p1_SRC[];
+
+#define FOM_SEL_t1_state_ROWS 16
+extern const fom_int FOM_SEL_t1_state_SRC[];
+
+#define FOM_SEL_t1_p_p0_ROWS 16
+extern const fom_int FOM_SEL_t1_p_p0_SRC[];
+
+#define FOM_SEL_t1_t_t0_ROWS 16
+extern const fom_int FOM_SEL_t1_t_t0_SRC[];
+
+#define FOM_SEL_su_state_ROWS 160
+extern const fom_int FOM_SEL_su_state_SRC[];
+
+#define FOM_SEL_su_state__d_d1_ROWS 160
+extern const fom_int FOM_SEL_su_state__d_d1_SRC[];
+
+#define FOM_SEL_su_state__d_g2_ROWS 160
+extern const fom_int FOM_SEL_su_state__d_g2_SRC[];
+
+#define FOM_SEL_su_state__d_m1_ROWS 160
+extern const fom_int FOM_SEL_su_state__d_m1_SRC[];
+
+#define FOM_SEL_su_t_t0_ROWS 160
+extern const fom_int FOM_SEL_su_t_t0_SRC[];
+
+#define FOM_SEL_su_t_t0__d_d2_ROWS 160
+extern const fom_int FOM_SEL_su_t_t0__d_d2_SRC[];
+
+#define FOM_SEL_su_t_t0__d_g1_ROWS 160
+extern const fom_int FOM_SEL_su_t_t0__d_g1_SRC[];
+
+#define FOM_SEL_su_t_t1_ROWS 160
+extern const fom_int FOM_SEL_su_t_t1_SRC[];
+
+#define FOM_SEL_su_t_t1__d_d2_ROWS 160
+extern const fom_int FOM_SEL_su_t_t1__d_d2_SRC[];
+
+#define FOM_SEL_su_t_t1__d_g1_ROWS 160
+extern const fom_int FOM_SEL_su_t_t1__d_g1_SRC[];
+
+#define FOM_SEL_su_t_t1__d_m2_ROWS 160
+extern const fom_int FOM_SEL_su_t_t1__d_m2_SRC[];
+
+/* Selection rows: row FOM_SELROWS_<b>_ROW[k] of block <b> is exactly
+   source FOM_SELROWS_<b>_SRC[k] (0-based, in the order of the block's
+   fom_fused/fom_step arguments) at index FOM_SELROWS_<b>_COL[k]. A solver
+   may write these rows itself (see SPEC.md and the __rest routines). */
+/* su: rows 128..143 copy state[0..15] */
+#define FOM_SELROWS_su_N 16
+extern const fom_int FOM_SELROWS_su_ROW[];
+extern const fom_int FOM_SELROWS_su_SRC[];
+extern const fom_int FOM_SELROWS_su_COL[];
+
+/* su: the rows a __rest routine computes (all but the selection rows). */
+#define FOM_REST_su_N 144
+extern const fom_int FOM_REST_su_ROWS[];
 
 
 #ifdef __cplusplus

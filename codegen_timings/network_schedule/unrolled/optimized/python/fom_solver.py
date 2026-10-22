@@ -231,6 +231,14 @@ class Solver:
         self._lib.fom_set_default_settings(ctypes.byref(self._settings))
         self._lib.fom_setup(ctypes.byref(self._work), ctypes.byref(self._settings))
 
+    def update_settings(self, **settings):
+        """Change runtime settings (``max_iter``, ``tol``, ``check_termination``)."""
+        for name, value in settings.items():
+            if name not in ("max_iter", "tol", "check_termination"):
+                raise ValueError(f"unknown setting {name!r}")
+            setattr(self._settings, name, value)
+        self._lib.fom_setup(ctypes.byref(self._work), ctypes.byref(self._settings))
+
     def solve(self, **params):
         """Solve for the given parameters. Returns a result dict."""
         p = FomParams()

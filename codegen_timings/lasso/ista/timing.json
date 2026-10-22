@@ -1,16 +1,69 @@
 {
   "experiment": "lasso",
   "variant": "ista",
+  "rep": 1,
   "iterations": 200,
   "verified_run": "lasso/lasso_verify/results/run_022",
-  "numpy_us": 882.8750001157459,
-  "translated_us": 90.1054,
-  "optimized_us": 23.6648,
-  "speedup_translation": 9.798247387123812,
-  "speedup_optimization": 3.8075707379736996,
-  "speedup_total": 37.307520034639886,
+  "numpy_us": 843.3125913143158,
+  "translated_us": 90.6814,
+  "optimized_us": 26.2612,
+  "speedup_translation": 9.299730609742635,
+  "speedup_optimization": 3.4530562198223995,
+  "speedup_total": 32.11249262464457,
   "optimization_kept": true,
   "optimization_notes": "",
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 86.8474,
+      "us_after": 26.1882,
+      "gain": 0.6984572940583138,
+      "agent_wall_s": 70.81358924997039,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": false,
+      "correct": true,
+      "kept": false,
+      "us_before": null,
+      "us_after": null,
+      "gain": null,
+      "agent_wall_s": 61.704650999978185,
+      "truncated": false,
+      "stop_reason": "the round left the sources unchanged"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Compiling with -O3 / -ffast-math / -march=native so the original row dot products vectorize",
+      "rule": "Makefile and build flags are fixed",
+      "expected_gain": "unknown, likely similar to the transpose gain"
+    },
+    {
+      "round": 1,
+      "idea": "Storing the transposed matrix as `static const` data generated ahead of time, instead of a lazily built mutable copy (removes the first-call branch and the thread-safety caveat)",
+      "rule": "`src/fom_data.c` is fixed; inlined literals are allowed in `fom_step_t0`, but there was no time to generate 2500 literals in this session",
+      "expected_gain": "<1%"
+    },
+    {
+      "round": 2,
+      "idea": "Compile with `-O3 -march=native` (or `-mcpu=apple-m4`) in the bench build, which may enable wider unrolling and better instruction scheduling",
+      "rule": "Makefile and build flags are fixed",
+      "expected_gain": "unknown, probably under 10%"
+    },
+    {
+      "round": 2,
+      "idea": "Store the matrix in single precision to halve memory traffic and double the SIMD width",
+      "rule": "numeric data in `src/fom_data.c` is fixed, and accuracy must match the double reference",
+      "expected_gain": "up to about 1.5\u20132x, but not valid against the verification tolerance"
+    }
+  ],
   "max_abs_dev": {
     "translated": {
       "verified_set": 2.042810365310288e-14
@@ -21,36 +74,36 @@
   },
   "timing_rounds": {
     "numpy": [
-      816.0000002135348,
-      882.8750001157459,
-      879.0209999460785,
-      887.7910004230216,
-      880.7499998511048,
-      889.8124992811063,
-      898.3745001387433
+      889.0622993931174,
+      869.2285045981407,
+      843.3125913143158,
+      852.5215089321136,
+      821.3125402107835,
+      830.9584809467196,
+      835.041981190443
     ],
     "translated": [
-      89.6238,
-      90.2988,
-      90.5696,
-      90.7296,
-      88.4784,
-      90.0216,
-      90.1054
+      89.9226,
+      90.9928,
+      90.6814,
+      95.369,
+      90.8092,
+      89.4968,
+      88.8528
     ],
     "optimized": [
-      21.5496,
-      22.9208,
-      23.3016,
-      23.6648,
-      23.7836,
-      23.7514,
-      23.7782
+      25.836,
+      25.1134,
+      25.5342,
+      26.8494,
+      27.1814,
+      26.391,
+      26.2612
     ]
   },
   "agent_wall_s": {
-    "translation": 16.44144606590271,
-    "code_optimization": 123.36390686035156
+    "translation": 28.230293035507202,
+    "code_optimization": 134.59116005897522
   },
   "agent_budgets_s": {
     "translation": 600,
@@ -58,7 +111,7 @@
   },
   "check": {
     "numpy_vs_verify_recurrence": 0.0,
-    "oracle_vs_numpy_max_rel": 8.911895647005794e-15,
+    "oracle_vs_numpy_max_rel": 1.0035918521402922e-14,
     "state_dim": 50,
     "params": {
       "p0": 25
@@ -72,15 +125,17 @@
     "method": "ista"
   },
   "machine": {
-    "cpu": "Apple M5",
-    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
-    "compiler": "Apple clang version 17.0.0 (clang-1700.6.3.2)",
+    "cpu": "Apple M4 Pro",
+    "os": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
     "python": "3.13.11",
     "numpy": "2.5.3",
-    "fomtools_commit": "e645386",
-    "fomtools_branch": "vr/cvxpygen_features",
-    "fomtools_path": "/Users/vranjan/Research/2026/fomtools/fomtools"
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "fomtools_commit": "25b3f73",
+    "fomtools_dirty": false,
+    "fomtools_branch": "",
+    "fomtools_path": "/Users/bs37/Documents/projects/fomtools/fomtools"
   },
-  "started_utc": "2026-10-15T16:44:58+00:00",
-  "finished_utc": "2026-10-15T16:47:26+00:00"
+  "started_utc": "2026-10-22T18:12:18+00:00",
+  "finished_utc": "2026-10-22T18:15:10+00:00"
 }

@@ -1,56 +1,157 @@
 {
   "experiment": "rapdhg",
   "variant": "R12",
+  "rep": 1,
   "iterations": 200,
   "verified_run": "control/rapdhg/verify/results/run_001",
-  "numpy_us": 1962.1464889496565,
-  "translated_us": 210.2772,
-  "optimized_us": 24.0014,
-  "speedup_translation": 9.331237475816001,
-  "speedup_optimization": 8.7610389393952,
-  "speedup_total": 81.75133487836779,
+  "numpy_us": 2273.604623042047,
+  "translated_us": 125.6596,
+  "optimized_us": 15.5742,
+  "speedup_translation": 18.093361932093107,
+  "speedup_optimization": 8.06844653336929,
+  "speedup_total": 145.9853233579925,
   "optimization_kept": true,
   "optimization_notes": "",
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 127.1352,
+      "us_after": 29.4904,
+      "gain": 0.7680390639256477,
+      "agent_wall_s": 104.74277795804664,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 30.7576,
+      "us_after": 15.6394,
+      "gain": 0.49152729731838635,
+      "agent_wall_s": 96.5888427500613,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 17.7202,
+      "us_after": 17.227,
+      "gain": 0.02783264297242684,
+      "agent_wall_s": 41.66440737480298,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 4,
+      "changed": false,
+      "correct": true,
+      "kept": false,
+      "us_before": null,
+      "us_after": null,
+      "gain": null,
+      "agent_wall_s": 170.12101199990138,
+      "truncated": false,
+      "stop_reason": "the round left the sources unchanged"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Fold `tau*q0` and `eta*q1` into `fom_iterate` to remove the separate `bias` pass (about 12% of profiled time)",
+      "rule": "the fixed `fom_iterate` signature takes only a precomputed bias, and `src/fom_ops.c` may not read the schedule",
+      "expected_gain": "~5\u201310%"
+    },
+    {
+      "round": 1,
+      "idea": "Unroll `t1_t_t0__d_eta` and `t0_state__d_taux` with inlined literal coefficients, exploiting their repeated \u00b10.0726/0.2177/... banded pattern (they look like transposes of each other, a PDHG K / K\u1d40 pair)",
+      "rule": "allowed in `fom_iterate`, but not done for lack of time within the 10-minute budget, not because a rule forbids it",
+      "expected_gain": "unknown, likely ~10\u201320%"
+    },
+    {
+      "round": 2,
+      "idea": "Add the `tau*q0` / `eta*q1` parameter terms to the bias inside `fom_iterate`, reading the hoisted terms and the schedule directly, which removes the separate bias pass",
+      "rule": "`fom_iterate` signature is fixed and `src/fom_ops.c` may not read the schedule",
+      "expected_gain": "~5%"
+    },
+    {
+      "round": 2,
+      "idea": "Compile with `-ffast-math` / `-march=native` so the dense dot-product reductions vectorize",
+      "rule": "Makefile and build flags are fixed",
+      "expected_gain": "unknown, likely <5%"
+    },
+    {
+      "round": 3,
+      "idea": "Fold the `tau*q0` and `eta*q1` bias scaling into `fom_iterate` and remove the separate bias pass",
+      "rule": "fixed `fom_iterate` signature in `include/fom_ops.h` (headers not editable)",
+      "expected_gain": "~10-20% (the bias region's share)"
+    },
+    {
+      "round": 3,
+      "idea": "Stop reading the all-zero state-update bias (`ZERO_SU`) inside `fom_iterate`",
+      "rule": "verify checks `fom_iterate` with random biases, so the routine must honour `bias_su`",
+      "expected_gain": "~1-3%"
+    },
+    {
+      "round": 4,
+      "idea": "Pass `q0`, `q1` and `tau`/`eta` into `fom_iterate` so the per-iteration `bias = tau*q` scaling folds into the product pass (removes the separate 64-element bias loop)",
+      "rule": "fixed `fom_iterate` signature in `include/fom_ops.h` (headers are fixed)",
+      "expected_gain": "about 2-5%"
+    },
+    {
+      "round": 4,
+      "idea": "Precompute every scheduled bias `tau(it)*q0`, `eta(it)*q1` for all 200 iterations in `fom_update_params`",
+      "rule": "workspace layout in `include/fom_workspace.h` is fixed and has no scratch space for it",
+      "expected_gain": "about 2-5%"
+    }
+  ],
   "max_abs_dev": {
     "translated": {
-      "verified_set": 8.881784197001252e-15
+      "verified_set": 1.6486811915683575e-14
     },
     "optimized": {
-      "verified_set": 8.43769498715119e-15
+      "verified_set": 1.9345636204093353e-14
     }
   },
   "timing_rounds": {
     "numpy": [
-      1944.791991263628,
-      1997.1459987573326,
-      1961.333502549678,
-      1974.6869802474976,
-      1996.0829813499004,
-      1962.1464889496565,
-      1949.229510501027
+      2245.750045403838,
+      2281.6669661551714,
+      2273.604623042047,
+      2259.2080058529973,
+      2309.062983840704,
+      2265.4584608972073,
+      2281.729015521705
     ],
     "translated": [
-      210.2744,
-      211.6538,
-      211.7302,
-      208.6128,
-      212.7184,
-      210.2772,
-      206.3214
+      126.182,
+      124.7304,
+      123.4506,
+      125.557,
+      125.6596,
+      126.5856,
+      126.4794
     ],
     "optimized": [
-      24.1488,
-      24.401,
-      21.9938,
-      24.2138,
-      24.0014,
-      23.7304,
-      23.9024
+      16.0158,
+      15.3206,
+      16.0984,
+      15.5742,
+      15.0108,
+      15.9212,
+      15.4782
     ]
   },
   "agent_wall_s": {
-    "translation": 47.0701220035553,
-    "code_optimization": 350.03927779197693
+    "translation": 49.32549285888672,
+    "code_optimization": 422.06039786338806
   },
   "agent_budgets_s": {
     "translation": 600,
@@ -59,7 +160,7 @@
   "check": {
     "tables_vs_rapdhg_schedule_tables": 0.0,
     "numpy_x_vs_verify_recurrence": 3.3306690738754696e-15,
-    "oracle_vs_numpy_max_rel": 1.7616467821051353e-13,
+    "oracle_vs_numpy_max_rel": 2.4370648353260406e-13,
     "state_dim": 160,
     "params": {
       "p0": 16,
@@ -80,15 +181,17 @@
     "state_dim": 160
   },
   "machine": {
-    "cpu": "Apple M5",
-    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
-    "compiler": "Apple clang version 17.0.0 (clang-1700.6.3.2)",
+    "cpu": "Apple M4 Pro",
+    "os": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
     "python": "3.13.11",
     "numpy": "2.5.3",
-    "fomtools_commit": "96eafd2",
-    "fomtools_branch": "vr/codegen_rename",
-    "fomtools_path": "/Users/vranjan/Research/2026/fomtools/fomtools"
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "fomtools_commit": "25b3f73",
+    "fomtools_dirty": false,
+    "fomtools_branch": "",
+    "fomtools_path": "/Users/bs37/Documents/projects/fomtools/fomtools"
   },
-  "started_utc": "2026-10-12T16:31:04+00:00",
-  "finished_utc": "2026-10-12T16:37:55+00:00"
+  "started_utc": "2026-10-22T19:40:54+00:00",
+  "finished_utc": "2026-10-22T19:48:57+00:00"
 }

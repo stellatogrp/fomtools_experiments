@@ -133,107 +133,123 @@
     ],
     "const": null
   },
+  "objective": null,
   "matrices": {
     "t0_state": {
       "shape": [
         49,
         74
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "t0_c": {
       "shape": [
         49
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "dense"
     },
     "t0_lo": {
       "shape": [
         49
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "dense"
     },
     "t0_hi": {
       "shape": [
         49
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "dense"
     },
     "t1_state": {
       "shape": [
         10,
         74
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "t1_t_t0": {
       "shape": [
         10,
         49
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "t1_c": {
       "shape": [
         10
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "dense"
     },
     "su_state": {
       "shape": [
         74,
         74
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "su_t_t0": {
       "shape": [
         74,
         49
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "su_t_t1": {
       "shape": [
         74,
         10
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "su_p_p0": {
       "shape": [
         74,
         15
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "t1_state__d_xi": {
       "shape": [
         10,
         74
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "t1_t_t0__d_xi": {
       "shape": [
         10,
         49
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "su_state__d_xi": {
       "shape": [
         74,
         74
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "su_t_t0__d_xi": {
       "shape": [
         74,
         49
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     }
   },
   "schedules": {

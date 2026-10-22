@@ -52,4 +52,22 @@ do not write your own dense matrix-vector loops):
 
 Residual = `max_abs(new_state - state)`.
 
+## Selection matrices
+
+These products are copies: each matrix has at most one nonzero per row, and
+every nonzero is exactly 1, so `(M @ x)[i] = x[src[i]]`. On the CPU targets
+`fom_data.h` carries each map as `FOM_SEL_<name>_SRC` (-1 for an empty row).
+
+- `su_state`: shift: out[i] += x[i + 50] for rows 0..49, 50 empty rows (left unchanged)
+- `su_t_t0`: shift: out[i] += x[i - 50] for rows 50..99, 50 empty rows (left unchanged)
+
+## Selection rows
+
+Rows of an output block that are a plain copy: exactly one unscaled product
+has exactly one entry there, equal to 1, and the others none. On the CPU
+targets `fom_data.h` lists them as `FOM_SELROWS_<block>_ROW/SRC/COL`, and a
+`fom_fused_<block>__rest` / `fom_step_<block>__rest` computes the other rows.
+
+- `su` (100 of 100 rows): rows 0..49 copy state[50..99]; rows 50..99 copy t_t0[0..49]
+
 All matrices/consts are provided numerically in `data.npz` / `fom_data.c`.

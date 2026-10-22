@@ -1,21 +1,27 @@
-Reading the operator structure; next I'll write the solver.
-I wrote `src/fom_solver.c` and `make verify` passes: it prints `VERIFY OK` and exits 0. The worst error across the 8 samples is 1.6e-12, against a tolerance of 1e-6. `make bench` gives about 180 µs per solve (200 iterations), measured once.
+Verify passes. Now I'm comparing speed against the previous version of the solver.
+I rewrote `src/fom_solver.c` and `make verify` now prints `VERIFY OK`. The worst error across the 8 samples is 3.8e-12, against a tolerance of 1e-6. All of the operator checks report zero error.
 
-- **Constraints:** The code uses no dynamic memory, no variable-length arrays and no `/` division. All numbers come from `fom_data.c`. Every matrix product goes through the provided `fom_apply_*` helpers, and the only buffers used are the ones already in the workspace. The spec has no solve steps, so the linear-solve routines aren't called.
-- **Speed:**
-  - For `t0`, the three schedule-scaled terms go into separate parts of the `acc` buffer, so `t0` is finished in a single pass.
-  - In the state update, the terms that multiply `t0`/`t1` scale those short inputs (length 48 and 16) instead of scaling the 160-long result.
-  - A schedule-scaled term is skipped in an iteration where its coefficient is exactly zero. This happens a lot, because `g2` is zero in most iterations. It gives the same result unless the state contains NaN or infinity.
-- **Restart:** `fom_setup` and `fom_update_params` both reset the state to `FOM_STATE_INIT`. Because the spec has no tolerance, the solver always runs `max_iter` iterations, and the residual is reported but never ends the loop early.
+**Changes:**
+- **Parameter terms computed once.** The four products involving `p0` and `p1` are now computed in `fom_setup` and `fom_update_params` and stored in `work->acc`. Inside the loop, only their scaling by `tau(it)` and `eta(it)` happens each iteration.
+- **Generated routines for each step.** The loop calls `fom_step_t0` (relu), `fom_step_t1` (clip) and `fom_step_su__rest` instead of zeroing buffers and accumulating with separate `fom_apply_*` calls.
+- **Copied rows written directly.** Rows 128..143 of the state update are plain copies of `state[0..15]`, so the solver writes them itself using the index lists in `fom_data.h`.
+- **No copy-back each iteration.** The solver swaps the `state` and `new_state` pointers instead of copying 160 values per iteration. It copies once at the end only if the result ended up in `new_state`.
 
-Your editor shows "file not found" errors on `fom_solver.c`. That's only because the editor isn't given the `include/` directory; the real build compiles without errors.
-I wrote `src/fom_solver.c` and `make verify` passes: it prints `VERIFY OK` and exits 0. The worst error across the 8 samples is 1.6e-12, against a tolerance of 1e-6. `make bench` gives about 180 µs per solve (200 iterations), measured once.
+It still has no dynamic memory, no `/` operator and no hardcoded numbers. Each solve starts from `FOM_STATE_INIT`.
 
-- **Constraints:** The code uses no dynamic memory, no variable-length arrays and no `/` division. All numbers come from `fom_data.c`. Every matrix product goes through the provided `fom_apply_*` helpers, and the only buffers used are the ones already in the workspace. The spec has no solve steps, so the linear-solve routines aren't called.
-- **Speed:**
-  - For `t0`, the three schedule-scaled terms go into separate parts of the `acc` buffer, so `t0` is finished in a single pass.
-  - In the state update, the terms that multiply `t0`/`t1` scale those short inputs (length 48 and 16) instead of scaling the 160-long result.
-  - A schedule-scaled term is skipped in an iteration where its coefficient is exactly zero. This happens a lot, because `g2` is zero in most iterations. It gives the same result unless the state contains NaN or infinity.
-- **Restart:** `fom_setup` and `fom_update_params` both reset the state to `FOM_STATE_INIT`. Because the spec has no tolerance, the solver always runs `max_iter` iterations, and the residual is reported but never ends the loop early.
+**Speed (`make bench`, 5000 solves):** mean time is about 138 µs per solve, down from about 191 µs for the previous version at HEAD. That's roughly 28% faster.
 
-Your editor shows "file not found" errors on `fom_solver.c`. That's only because the editor isn't given the `include/` directory; the real build compiles without errors.
+Several claude.ai connectors (Asana, Atlassian, Box, Canva, Figma, HubSpot, Intercom, Linear, Notion, monday.com) need authorization in your claude.ai connector settings before they can be used. None of them were needed here.
+I rewrote `src/fom_solver.c` and `make verify` now prints `VERIFY OK`. The worst error across the 8 samples is 3.8e-12, against a tolerance of 1e-6. All of the operator checks report zero error.
+
+**Changes:**
+- **Parameter terms computed once.** The four products involving `p0` and `p1` are now computed in `fom_setup` and `fom_update_params` and stored in `work->acc`. Inside the loop, only their scaling by `tau(it)` and `eta(it)` happens each iteration.
+- **Generated routines for each step.** The loop calls `fom_step_t0` (relu), `fom_step_t1` (clip) and `fom_step_su__rest` instead of zeroing buffers and accumulating with separate `fom_apply_*` calls.
+- **Copied rows written directly.** Rows 128..143 of the state update are plain copies of `state[0..15]`, so the solver writes them itself using the index lists in `fom_data.h`.
+- **No copy-back each iteration.** The solver swaps the `state` and `new_state` pointers instead of copying 160 values per iteration. It copies once at the end only if the result ended up in `new_state`.
+
+It still has no dynamic memory, no `/` operator and no hardcoded numbers. Each solve starts from `FOM_STATE_INIT`.
+
+**Speed (`make bench`, 5000 solves):** mean time is about 138 µs per solve, down from about 191 µs for the previous version at HEAD. That's roughly 28% faster.
+
+Several claude.ai connectors (Asana, Atlassian, Box, Canva, Figma, HubSpot, Intercom, Linear, Notion, monday.com) need authorization in your claude.ai connector settings before they can be used. None of them were needed here.

@@ -204,172 +204,197 @@
     ],
     "const": null
   },
+  "objective": null,
   "matrices": {
     "t0_state": {
       "shape": [
         48,
         160
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "t0_p_p1": {
       "shape": [
         48,
         48
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "t1_state": {
       "shape": [
         16,
         160
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "t1_p_p0": {
       "shape": [
         16,
         16
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "t1_t_t0": {
       "shape": [
         16,
         48
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "t1_lo": {
       "shape": [
         16
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "dense"
     },
     "t1_hi": {
       "shape": [
         16
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "dense"
     },
     "su_state": {
       "shape": [
         160,
         160
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "su_t_t0": {
       "shape": [
         160,
         48
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "su_t_t1": {
       "shape": [
         160,
         16
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "t0_state__d_taux": {
       "shape": [
         48,
         160
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "t0_state__d_tth": {
       "shape": [
         48,
         160
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "t0_p_p1__d_tau": {
       "shape": [
         48,
         48
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "t1_state__d_eta": {
       "shape": [
         16,
         160
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "t1_p_p0__d_eta": {
       "shape": [
         16,
         16
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "t1_t_t0__d_eta": {
       "shape": [
         16,
         48
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "su_state__d_d1": {
       "shape": [
         160,
         160
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "su_state__d_g2": {
       "shape": [
         160,
         160
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "su_state__d_m1": {
       "shape": [
         160,
         160
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "su_t_t0__d_d2": {
       "shape": [
         160,
         48
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "su_t_t0__d_g1": {
       "shape": [
         160,
         48
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "su_t_t1__d_d2": {
       "shape": [
         160,
         16
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "su_t_t1__d_g1": {
       "shape": [
         160,
         16
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "su_t_t1__d_m2": {
       "shape": [
         160,
         16
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     }
   },
   "schedules": {

@@ -1,5 +1,5 @@
 {
-  "oracle_vs_numpy_max_rel": 1.6213700957649793e-15,
+  "oracle_vs_numpy_max_rel": 1.5055579460674808e-15,
   "unrolled": false,
   "body_steps": 2,
   "coefficient_blocks": 15,

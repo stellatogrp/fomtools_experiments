@@ -29,13 +29,10 @@ void fom_update_params(FomWorkspace *work, const FomParams *params) {
 fom_int fom_solve(FomWorkspace *work) {
     fom_float *x = work->state;
     fom_float *xn = work->new_state;
-    fom_float *t0 = work->t0;
-    fom_float *dg = work->acc;                    /* D_gamma @ state (50) */
     fom_float *cp = work->acc + FOM_T0_DIM;       /* t0_p_p0 @ p0, constant (50) */
     const fom_int max_iter = work->settings.max_iter;
     const fom_int use_tol = work->settings.check_termination && work->settings.tol > 0;
     const fom_float tol = work->settings.tol;
-    const fom_float lam = FOM_T0_LAMBDA;
     fom_float res = 0.0;
     fom_int status = FOM_MAX_ITER_REACHED;
     fom_int it, i;
@@ -46,24 +43,13 @@ fom_int fom_solve(FomWorkspace *work) {
 
     for (it = 0; it < max_iter; ++it) {
         const fom_float gamma = fom_sched_gamma(it);
+        fom_float *t0 = xn + FOM_T0_DIM;          /* su: new_state[50..99] = t0 */
 
-        /* t0 = soft_threshold(A x + gamma * (D x) + P p0) */
-        memcpy(t0, cp, FOM_T0_DIM * sizeof(fom_float));
-        fom_apply_t0_state(x, t0);
-        if (gamma != 0.0) {
-            memset(dg, 0, FOM_T0_DIM * sizeof(fom_float));
-            fom_apply_t0_state__d_gamma(x, dg);
-            for (i = 0; i < FOM_T0_DIM; ++i) t0[i] += gamma * dg[i];
-        }
-        for (i = 0; i < FOM_T0_DIM; ++i) {
-            const fom_float v = t0[i];
-            t0[i] = (v > lam) ? (v - lam) : ((v < -lam) ? (v + lam) : 0.0);
-        }
+        /* t0 = soft_threshold(P p0 + A x + gamma * (D x)), fused */
+        fom_step_t0(x, gamma, cp, &FOM_ACT_t0, t0);
 
-        /* state <- su_state @ state + su_t_t0 @ t0 */
-        memset(xn, 0, FOM_STATE_DIM * sizeof(fom_float));
-        fom_apply_su_state(x, xn);
-        fom_apply_su_t_t0(t0, xn);
+        /* su: new_state[0..49] = state[50..99] (selection copy) */
+        memcpy(xn, x + FOM_T0_DIM, FOM_T0_DIM * sizeof(fom_float));
 
         if (use_tol || it == max_iter - 1) {
             res = 0.0;
@@ -84,6 +70,7 @@ fom_int fom_solve(FomWorkspace *work) {
     }
 
     if (x != work->state) memcpy(work->state, x, sizeof(work->state));
+    memcpy(work->t0, work->state + FOM_T0_DIM, sizeof(work->t0));
     memcpy(work->solution.x, work->state, sizeof(work->solution.x));
     work->solution.iter = it;
     work->solution.residual = res;

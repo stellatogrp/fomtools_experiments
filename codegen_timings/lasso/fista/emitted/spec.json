@@ -80,41 +80,47 @@
     ],
     "const": null
   },
+  "objective": null,
   "matrices": {
     "t0_state": {
       "shape": [
         50,
         100
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "t0_p_p0": {
       "shape": [
         50,
         25
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "su_state": {
       "shape": [
         100,
         100
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "su_t_t0": {
       "shape": [
         100,
         50
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     },
     "t0_state__d_gamma": {
       "shape": [
         50,
         100
       ],
-      "sparse": false
+      "sparse": false,
+      "storage": "csr"
     }
   },
   "schedules": {

@@ -30,7 +30,6 @@ void fom_update_params(FomWorkspace *work, const FomParams *params) {
 }
 
 fom_int fom_solve(FomWorkspace *work) {
-    const fom_float lam = FOM_T0_LAMBDA;
     const fom_int max_iter = work->settings.max_iter;
     const fom_float tol = work->settings.tol;
     const fom_int check = work->settings.check_termination;
@@ -38,7 +37,6 @@ fom_int fom_solve(FomWorkspace *work) {
     fom_float *state = work->state;
     fom_float *ns = work->new_state;
     fom_float *acc = work->acc;
-    fom_float *t0 = work->t0;
     fom_float res = 0.0;
     fom_int status = FOM_MAX_ITER_REACHED;
     fom_int k, i, ctr = 0;
@@ -48,17 +46,8 @@ fom_int fom_solve(FomWorkspace *work) {
     fom_apply_t0_p_p0(work->params.p0, acc);
 
     for (k = 0; k < max_iter; ++k) {
-        /* t0 = soft_threshold(t0_state @ state + acc, lam) */
-        for (i = 0; i < FOM_T0_DIM; ++i) t0[i] = acc[i];
-        fom_apply_t0_state(state, t0);
-        for (i = 0; i < FOM_T0_DIM; ++i) {
-            fom_float v = t0[i];
-            t0[i] = v > lam ? v - lam : (v < -lam ? v + lam : 0.0);
-        }
-
-        /* state <- su_t_t0 @ t0 */
-        for (i = 0; i < FOM_STATE_DIM; ++i) ns[i] = 0.0;
-        fom_apply_su_t_t0(t0, ns);
+        /* su_t_t0 is the identity: new_state = soft_threshold(t0_state @ state + acc). */
+        fom_step_t0(state, acc, &FOM_ACT_t0, ns);
 
         if (use_tol || k == max_iter - 1) {
             res = 0.0;

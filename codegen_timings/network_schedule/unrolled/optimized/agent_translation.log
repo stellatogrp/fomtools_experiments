@@ -1,18 +1,23 @@
-I've written `src/fom_solver.c`, and `make verify` prints `VERIFY OK` (exit 0). The worst error over 8 samples was 2.3e-15, against a tolerance of 1e-6.
+The existing solver already verifies. I'll regenerate it to use the fused kernels, hoist the repeated parameter product, and replace the final selection with copies.
+I rewrote `src/fom_solver.c` and it passes verification: `make verify` prints `VERIFY OK` and exits 0. The worst error over 8 samples is 8.9e-16, against a tolerance of 1e-6.
 
-- **Unrolled:** `fom_solve` runs all 149 steps (`t0` through `t148`) once, in the order SPEC.md gives, then applies the final state update. There is no loop over iterations, and it never reads `max_iter`. It returns `FOM_MAX_ITER_REACHED` with `iter = 1` and the residual `max|new_state − state|`.
-- **Each step:** it starts from the step's constant vector (or zero), adds every `fom_apply_<matrix>` term, then applies the activation (clip, relu or identity) in place in the workspace buffer. All numbers come from the `FOM_MAT_*` symbols in `fom_data.c`.
-- **No linear solves:** this spec has no solve steps, so nothing calls `fom_lin_solve_*`.
-- **Embedded constraints:** there is no dynamic memory and no variable-length arrays, and the file contains no `/` at all. Both `fom_setup` and `fom_update_params` reset the state to `FOM_STATE_INIT`.
-- **How the file was made:** the 149 steps are mechanical, so I generated the C from SPEC.md with a throwaway script, `/tmp/fomgen/gen.py`, instead of writing it by hand. Rerun it if the spec changes: `python3 /tmp/fomgen/gen.py SPEC.md > src/fom_solver.c`.
+The worktree already had a solver that verified. I regenerated it from SPEC.md with a short script (`/tmp/fomgen/gen.py`), keeping the setup and helper code as it was. It's about 11% faster on `make bench`: mean 101.3 µs per solve, down from 113.3 µs.
 
-I didn't run the benchmark or try further speed-ups after verification passed.
-I've written `src/fom_solver.c`, and `make verify` prints `VERIFY OK` (exit 0). The worst error over 8 samples was 2.3e-15, against a tolerance of 1e-6.
+What changed in `fom_solve`:
+- **Same structure:** it still runs steps t0 to t148 once each, in spec order, with no loop and no read of `max_iter`. It reports `FOM_MAX_ITER_REACHED` with `iter = 1`.
+- **Fused kernels:** each step now makes one `fom_fused_<step>` call instead of three or four separate `fom_apply_*` calls. The parameter terms stay as separate `fom_apply_*_p_p0` calls. Step t0 has no fused kernel, so it still uses `fom_apply_t0_state`.
+- **Parameter product computed once:** `t7_p_p0 @ p0` is the same for every 30-dimensional step from t7 onward. It is now computed once per solve into the workspace's `acc` buffer and copied into each step.
+- **Final state as copies:** SPEC says the final update is a pure selection. So it is now three `memcpy`s (t146 to rows 0..599, t147 to 600..619, t148 to 620..649) instead of three products.
 
-- **Unrolled:** `fom_solve` runs all 149 steps (`t0` through `t148`) once, in the order SPEC.md gives, then applies the final state update. There is no loop over iterations, and it never reads `max_iter`. It returns `FOM_MAX_ITER_REACHED` with `iter = 1` and the residual `max|new_state − state|`.
-- **Each step:** it starts from the step's constant vector (or zero), adds every `fom_apply_<matrix>` term, then applies the activation (clip, relu or identity) in place in the workspace buffer. All numbers come from the `FOM_MAT_*` symbols in `fom_data.c`.
-- **No linear solves:** this spec has no solve steps, so nothing calls `fom_lin_solve_*`.
-- **Embedded constraints:** there is no dynamic memory and no variable-length arrays, and the file contains no `/` at all. Both `fom_setup` and `fom_update_params` reset the state to `FOM_STATE_INIT`.
-- **How the file was made:** the 149 steps are mechanical, so I generated the C from SPEC.md with a throwaway script, `/tmp/fomgen/gen.py`, instead of writing it by hand. Rerun it if the spec changes: `python3 /tmp/fomgen/gen.py SPEC.md > src/fom_solver.c`.
+It reads no matrix data directly and has no division, `malloc` or variable-length arrays. The state is still reset from `FOM_STATE_INIT` in both `fom_setup` and `fom_update_params`.
+I rewrote `src/fom_solver.c` and it passes verification: `make verify` prints `VERIFY OK` and exits 0. The worst error over 8 samples is 8.9e-16, against a tolerance of 1e-6.
 
-I didn't run the benchmark or try further speed-ups after verification passed.
+The worktree already had a solver that verified. I regenerated it from SPEC.md with a short script (`/tmp/fomgen/gen.py`), keeping the setup and helper code as it was. It's about 11% faster on `make bench`: mean 101.3 µs per solve, down from 113.3 µs.
+
+What changed in `fom_solve`:
+- **Same structure:** it still runs steps t0 to t148 once each, in spec order, with no loop and no read of `max_iter`. It reports `FOM_MAX_ITER_REACHED` with `iter = 1`.
+- **Fused kernels:** each step now makes one `fom_fused_<step>` call instead of three or four separate `fom_apply_*` calls. The parameter terms stay as separate `fom_apply_*_p_p0` calls. Step t0 has no fused kernel, so it still uses `fom_apply_t0_state`.
+- **Parameter product computed once:** `t7_p_p0 @ p0` is the same for every 30-dimensional step from t7 onward. It is now computed once per solve into the workspace's `acc` buffer and copied into each step.
+- **Final state as copies:** SPEC says the final update is a pure selection. So it is now three `memcpy`s (t146 to rows 0..599, t147 to 600..619, t148 to 620..649) instead of three products.
+
+It reads no matrix data directly and has no division, `malloc` or variable-length arrays. The state is still reset from `FOM_STATE_INIT` in both `fom_setup` and `fom_update_params`.

@@ -1,63 +1,134 @@
 {
   "experiment": "network",
   "variant": "ruiz",
+  "rep": 1,
   "iterations": 200,
   "verified_run": "network/results/run_005",
-  "numpy_us": 1264.1664998227498,
-  "translated_us": 47.4002,
-  "optimized_us": 10.0002,
-  "speedup_translation": 26.67006678922768,
-  "speedup_optimization": 4.7399252014959705,
-  "speedup_total": 126.41412169984099,
+  "numpy_us": 1463.061897084117,
+  "translated_us": 36.8808,
+  "optimized_us": 10.482,
+  "speedup_translation": 39.67001521344756,
+  "speedup_optimization": 3.518488838008014,
+  "speedup_total": 139.57850573212335,
   "optimization_kept": true,
   "optimization_notes": "",
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 34.2588,
+      "us_after": 16.6734,
+      "gain": 0.5133104487022312,
+      "agent_wall_s": 90.89176025008783,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 15.178,
+      "us_after": 11.8924,
+      "gain": 0.21647120832784295,
+      "agent_wall_s": 78.62302145780995,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": false,
+      "correct": true,
+      "kept": false,
+      "us_before": null,
+      "us_after": null,
+      "gain": null,
+      "agent_wall_s": 59.86103591695428,
+      "truncated": false,
+      "stop_reason": "the round left the sources unchanged"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Assume the t0 lower bound is 0 and the t1 relu threshold is 0, and drop those loads/compares",
+      "rule": "never hardcode a bound or threshold; `act` must be honoured",
+      "expected_gain": "~5%"
+    },
+    {
+      "round": 1,
+      "idea": "Exploit cross-matrix relations (e.g. the t0 coefficients on state[49..58] are `-0.5 *` the matching `t1_t_t0` entries) by computing a shared partial sum once in the solver",
+      "rule": "coefficients must stay inside the checked kernels; `fom_solver.c` cannot read matrix data",
+      "expected_gain": "unknown, likely small"
+    },
+    {
+      "round": 2,
+      "idea": "Unrolling `fom_iterate` across two iterations to overlap the latency of the `t0` to `t1` to `su` chain",
+      "rule": "`fom_iterate` signature fixed in `include/fom_ops.h` (one iteration per call)",
+      "expected_gain": "unknown, likely <5%"
+    },
+    {
+      "round": 2,
+      "idea": "Reading the `t0`/`t1` bounds directly in the solver loop to avoid passing the act pointers",
+      "rule": "must not read `FOM_ACT_*` in `src/fom_ops.c`, and the signatures are fixed",
+      "expected_gain": "negligible"
+    },
+    {
+      "round": 3,
+      "idea": "Tuning compiler flags (for example `-march=native`) for the unrolled kernels",
+      "rule": "Makefile and build flags are fixed",
+      "expected_gain": "unknown, likely 5-15%"
+    }
+  ],
   "max_abs_dev": {
     "translated": {
       "verified_set": 1.1102230246251565e-14
     },
     "optimized": {
-      "verified_set": 1.1102230246251565e-14
+      "verified_set": 1.2434497875801753e-14
     }
   },
   "timing_rounds": {
     "numpy": [
-      1297.7079986740137,
-      1258.0210004671244,
-      1288.47900123219,
-      1264.1664998227498,
-      1348.7915002770023,
-      1228.7499994272366,
-      1217.9165005363757
+      1487.8750080242753,
+      1463.061897084117,
+      1436.7919648066163,
+      1462.7290656790137,
+      1473.542070016265,
+      1512.270886451006,
+      1452.250056900084
     ],
     "translated": [
-      47.5684,
-      47.1128,
-      44.3584,
-      46.4608,
-      47.4002,
-      48.8918,
-      48.518
+      36.8808,
+      35.3226,
+      36.9844,
+      36.6184,
+      36.539,
+      37.3572,
+      37.851
     ],
     "optimized": [
-      11.4194,
-      10.7502,
-      9.2616,
-      8.0968,
-      7.4588,
-      10.0002,
-      10.0928
+      10.8694,
+      10.6256,
+      10.385,
+      10.3954,
+      10.514,
+      10.482,
+      10.4362
     ]
   },
   "agent_wall_s": {
-    "translation": 20.555186986923218,
-    "code_optimization": 56.949291944503784
+    "translation": 25.136250019073486,
+    "code_optimization": 233.94914889335632
   },
   "agent_budgets_s": {
     "translation": 600,
     "code_optimization": 600
   },
   "check": {
-    "oracle_vs_numpy_max_rel": 2.1219948701465896e-15,
+    "oracle_vs_numpy_max_rel": 1.9850919752984223e-15,
     "state_dim": 74,
     "params": {
       "p0": 15
@@ -73,15 +144,17 @@
     "state_dim": 74
   },
   "machine": {
-    "cpu": "Apple M5",
-    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
-    "compiler": "Apple clang version 17.0.0 (clang-1700.6.3.2)",
+    "cpu": "Apple M4 Pro",
+    "os": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
     "python": "3.13.11",
     "numpy": "2.5.3",
-    "fomtools_commit": "56b7e81",
-    "fomtools_branch": "vr/cvxpygen_features",
-    "fomtools_path": "/Users/vranjan/Research/2026/fomtools/fomtools"
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "fomtools_commit": "25b3f73",
+    "fomtools_dirty": false,
+    "fomtools_branch": "",
+    "fomtools_path": "/Users/bs37/Documents/projects/fomtools/fomtools"
   },
-  "started_utc": "2026-10-15T23:30:05+00:00",
-  "finished_utc": "2026-10-15T23:31:30+00:00"
+  "started_utc": "2026-10-22T18:53:18+00:00",
+  "finished_utc": "2026-10-22T18:57:45+00:00"
 }
