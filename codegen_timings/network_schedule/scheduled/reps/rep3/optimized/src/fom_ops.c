@@ -167,16 +167,43 @@ void fom_step_t1(const fom_float *state, const fom_float *t_t0, fom_float sc_xi,
         const fom_int r0 = FOM_MAT_t1_t_t0_ROWPTR[i];
         const fom_int m = FOM_MAT_t1_t_t0_ROWPTR[i + 1] - r0;
         fom_float s = 0.0, sd = 0.0, u = 0.0, ud = 0.0, v;
-        for (k = 0; k < n; ++k) {
-            fom_float xv = state[FOM_MAT_t1_state__d_xi_COLIDX[q0 + k]];
-            s += FOM_MAT_t1_state_VALS[p0 + k] * xv;
-            sd += FOM_MAT_t1_state__d_xi_VALS[q0 + k] * xv;
+        if (n > 0 && FOM_MAT_t1_state__d_xi_COLIDX[q0 + n - 1] - FOM_MAT_t1_state__d_xi_COLIDX[q0] == n - 1) {
+            /* Sorted unique columns spanning n slots: a contiguous block. */
+            const fom_float *restrict xb = state + FOM_MAT_t1_state__d_xi_COLIDX[q0];
+            const fom_float *restrict va = FOM_MAT_t1_state_VALS + p0;
+            const fom_float *restrict vd = FOM_MAT_t1_state__d_xi_VALS + q0;
+            fom_float s1 = 0.0, sd1 = 0.0;
+            for (k = 0; k + 1 < n; k += 2) {
+                s += va[k] * xb[k]; sd += vd[k] * xb[k];
+                s1 += va[k + 1] * xb[k + 1]; sd1 += vd[k + 1] * xb[k + 1];
+            }
+            if (k < n) { s += va[k] * xb[k]; sd += vd[k] * xb[k]; }
+            s += s1; sd += sd1;
+        } else {
+            for (k = 0; k < n; ++k) {
+                fom_float xv = state[FOM_MAT_t1_state__d_xi_COLIDX[q0 + k]];
+                s += FOM_MAT_t1_state_VALS[p0 + k] * xv;
+                sd += FOM_MAT_t1_state__d_xi_VALS[q0 + k] * xv;
+            }
         }
         for (p = p0 + n; p < FOM_MAT_t1_state_ROWPTR[i + 1]; ++p) s += FOM_MAT_t1_state_VALS[p] * state[FOM_MAT_t1_state_COLIDX[p]];
-        for (k = 0; k < m; ++k) {
-            fom_float tv = t_t0[FOM_MAT_t1_t_t0_COLIDX[r0 + k]];
-            u += FOM_MAT_t1_t_t0_VALS[r0 + k] * tv;
-            ud += FOM_MAT_t1_t_t0__d_xi_VALS[FOM_MAT_t1_t_t0__d_xi_ROWPTR[i] + k] * tv;
+        if (m > 0 && FOM_MAT_t1_t_t0_COLIDX[r0 + m - 1] - FOM_MAT_t1_t_t0_COLIDX[r0] == m - 1) {
+            const fom_float *restrict tb = t_t0 + FOM_MAT_t1_t_t0_COLIDX[r0];
+            const fom_float *restrict va = FOM_MAT_t1_t_t0_VALS + r0;
+            const fom_float *restrict vd = FOM_MAT_t1_t_t0__d_xi_VALS + FOM_MAT_t1_t_t0__d_xi_ROWPTR[i];
+            fom_float u1 = 0.0, ud1 = 0.0;
+            for (k = 0; k + 1 < m; k += 2) {
+                u += va[k] * tb[k]; ud += vd[k] * tb[k];
+                u1 += va[k + 1] * tb[k + 1]; ud1 += vd[k + 1] * tb[k + 1];
+            }
+            if (k < m) { u += va[k] * tb[k]; ud += vd[k] * tb[k]; }
+            u += u1; ud += ud1;
+        } else {
+            for (k = 0; k < m; ++k) {
+                fom_float tv = t_t0[FOM_MAT_t1_t_t0_COLIDX[r0 + k]];
+                u += FOM_MAT_t1_t_t0_VALS[r0 + k] * tv;
+                ud += FOM_MAT_t1_t_t0__d_xi_VALS[FOM_MAT_t1_t_t0__d_xi_ROWPTR[i] + k] * tv;
+            }
         }
         v = bias[i] + s + sc_xi * sd + u + sc_xi * ud;
         if (v < act->lo[i]) v = act->lo[i];
