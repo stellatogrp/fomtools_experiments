@@ -1,24 +1,32 @@
-"""Write the paper's §6.2–6.5 figure CSVs from the cluster runs, and print the facts the notes quote.
+"""Write the paper's verification figure CSVs from the cluster runs, and print the facts the text quotes.
 
-    uv run python plots/export_paper_data.py
-    uv run python plots/export_paper_data.py --only network   # rewrite one experiment's CSV
+    uv run python plots/export_paper_data.py                 # dry run: what would change
+    uv run python plots/export_paper_data.py --write         # write into the paper's data/
+    uv run python plots/export_paper_data.py --write --only network
 
-Uses the runs and K cut-offs of ``make_plots.RUNS`` and keeps the column names
-the tikz code in ``fomtools_paper/main.tex`` reads, so the figures pick up the
-new data without edits to their ``\\addplot`` lines.
+The paper's data folder is ``--paper-data``, else ``$FOMTOOLS_PAPER_DATA``, else
+``~/Library/CloudStorage/Dropbox/work/research/papers/2026/fomtools/data``.
+Without ``--write`` nothing is written. Uses the runs and K cut-offs of
+``make_plots.RUNS`` (latest run per experiment, or ``FOMEXP_RUNS``) and keeps the
+column names the tikz code in the paper's ``main.tex`` reads, so the figures pick
+up the new data without edits to their ``\\addplot`` lines.
 """
 
 from __future__ import annotations
 
 import argparse
 import csv
+import io
+import os
 from pathlib import Path
 
 import numpy as np
 from make_plots import REPO, RUNS, load, read
 
-PAPER_DATA = REPO.parent / "fomtools_paper" / "data"
+DEFAULT_PAPER_DATA = Path("~/Library/CloudStorage/Dropbox/work/research/papers/2026/fomtools/data")
 GAP_OK = 0.0501
+PAPER_DATA = DEFAULT_PAPER_DATA.expanduser()
+WRITE = False
 
 
 def fmt(x: float) -> str:
@@ -31,11 +39,25 @@ ONLY: set[str] = set()
 def write(name: str, fields: list[str], rows: list[dict], experiment: str) -> None:
     if ONLY and experiment not in ONLY:
         return
-    with open(PAPER_DATA / name, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fields)
-        writer.writeheader()
-        writer.writerows(rows)
-    print(f"wrote {PAPER_DATA / name} ({len(rows)} rows)")
+    buffer = io.StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=fields, lineterminator="\n")
+    writer.writeheader()
+    writer.writerows(rows)
+    new = buffer.getvalue()
+    path = PAPER_DATA / name
+    old = path.read_text() if path.exists() else None
+    if old == new:
+        print(f"unchanged {path}")
+        return
+    if not WRITE:
+        changed = "new file" if old is None else (
+            f"{sum(a != b for a, b in zip(old.splitlines(), new.splitlines()))} of "
+            f"{len(new.splitlines())} lines differ"
+        )
+        print(f"would write {path} ({len(rows)} rows; {changed})")
+        return
+    path.write_text(new)
+    print(f"wrote {path} ({len(rows)} rows)")
 
 
 def problem_info(run: Path, variant: str) -> dict:
@@ -49,9 +71,21 @@ def prob95(name: str, variant: str, k_max: int) -> list[float]:
 
 
 def main() -> None:
+    global PAPER_DATA, WRITE
     parser = argparse.ArgumentParser()
     parser.add_argument("--only", nargs="*", default=[], choices=list(RUNS))
-    ONLY.update(parser.parse_args().only)
+    parser.add_argument("--paper-data", type=Path, default=None)
+    parser.add_argument("--write", action="store_true", help="write the CSVs (default: dry run)")
+    args = parser.parse_args()
+    ONLY.update(args.only)
+    WRITE = args.write
+    PAPER_DATA = (
+        args.paper_data or Path(os.environ.get("FOMTOOLS_PAPER_DATA", str(DEFAULT_PAPER_DATA)))
+    ).expanduser()
+    if not PAPER_DATA.is_dir():
+        raise SystemExit(f"no paper data folder at {PAPER_DATA}; pass --paper-data")
+    for name, (run, _, _) in RUNS.items():
+        print(f"{name}: {run}")
     data = {}
     for name, (run, k_max, variants) in RUNS.items():
         data[name] = {v: load(REPO / run, v, k_max) for v in variants}

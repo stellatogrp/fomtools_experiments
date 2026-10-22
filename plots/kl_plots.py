@@ -16,8 +16,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
-from matplotlib.ticker import FuncFormatter  # noqa: E402
 from make_plots import COLORS, GAP_OK, GRID, INK, MUTED, OUT, REPO, RUNS, label_positions, load  # noqa: E402
+from matplotlib.ticker import FuncFormatter  # noqa: E402
 
 DRAFT = OUT / "draft_klplots"
 
