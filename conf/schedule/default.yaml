@@ -1,6 +1,6 @@
 # The K loop: run K = 1, 2, ... until the next K at the full time limit would not
 # fit in the budget, or until k_max.
-k_max: 200
+k_max: ${experiment.k_max}   # each experiment's plotted horizon
 budget_hours: 20.0
 # Reserved per K for model building, OBBT and tightening, which run outside
 # Gurobi's TimeLimit (on top of 1.5x the previous K's measured overhead).
