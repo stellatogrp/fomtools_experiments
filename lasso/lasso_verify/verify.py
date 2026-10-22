@@ -24,8 +24,8 @@ import csv
 import time
 from pathlib import Path
 
+import fomtools as ft
 import numpy as np
-from fomtools.linearexpression import stack
 from fomtools.verifier import Verifier
 
 import clarabel_dual
@@ -46,7 +46,8 @@ def make_verifier(backend: str) -> Verifier:
                 method="mip",
                 solver="gurobi",
                 obbt_solver="gurobi",
-                params={"OutputFlag": 0, "MIPGap": 0.05},
+                tighten_residuals=False,  # as fomexp.kloop: our objectives are matrix-weighted
+                params={"MIPGap": 0.05},
             )
         case "miqp":
             # Exact 2-norm worst case: maximizing a convex quadratic is nonconvex.
@@ -54,7 +55,8 @@ def make_verifier(backend: str) -> Verifier:
                 method="mip",
                 solver="gurobi",
                 obbt_solver="gurobi",
-                params={"OutputFlag": 0, "MIPGap": 1e-4, "NonConvex": 2},
+                tighten_residuals=False,  # as fomexp.kloop: our objectives are matrix-weighted
+                params={"MIPGap": 1e-4, "NonConvex": 2},
             )
         case "sdp":
             # All cuts on fomtools' chordal cut set (RLT only on cone-mates), then
@@ -64,7 +66,6 @@ def make_verifier(backend: str) -> Verifier:
                 method="sdp",
                 solver="clarabel",
                 obbt_solver="gurobi",
-                obbt_params={"OutputFlag": 0},
                 rlt_cuts=True,
                 triangle_cuts=True,
                 relu_envelope_cuts=True,
@@ -90,27 +91,28 @@ def run(
     unsquare = np.sqrt if ord == 2 else (lambda v: v)
     vp = make_verifier(backend)
     if backend == "simulator":
-        x = vp.add_param(problem.p, samples=samples)
-        u0 = vp.add_iterate(problem.n, init=problem.s0)
+        x = vp.parameter(problem.p, samples=samples)
+        u0 = vp.iterate(problem.n, init=problem.s0)
     else:
-        x = vp.add_param(problem.p, lb=problem.x_lb, ub=problem.x_ub)
+        x = vp.parameter(problem.p, lb=problem.x_lb, ub=problem.x_ub)
         if backend in ("mip", "miqp") and samples is not None:
             # The worst sample at each K is given to Gurobi as a MIP start.
             vp.set_start_samples({x: samples})
-        u0 = vp.add_iterate(problem.n, lb=problem.s0, ub=problem.s0)
+        u0 = vp.iterate(problem.n, lb=problem.s0, ub=problem.s0)
 
     u = vp.iterate_trajectory(K + 1)
     u[0] = u0
     w = u[0]
     rows = []
     for k in range(1, K + 1):
-        u[k] = vp.step.soft_threshold(w - eta * D.T @ (D @ w - x), lambd=problem.lambd * eta)
+        u[k] = vp.soft_threshold(w - eta * D.T @ (D @ w - x), lambd=problem.lambd * eta)
         if method == "ista":
             ds = u[k] - u[k - 1]
         else:
             # s^k = (u^k, u^{k-1}), with u^{-1} = u^0.
-            ds = stack([u[k] - u[k - 1], u[k - 1] - u[max(k - 2, 0)]])
-        vp.set_objective_norm([residual_map(problem, method, k) @ ds], ord=ord)
+            ds = ft.stack([u[k] - u[k - 1], u[k - 1] - u[max(k - 2, 0)]])
+        r = residual_map(problem, method, k) @ ds
+        vp.maximize(ft.sum_squares(r) if ord == 2 else ft.norm(r, ord))
         w = u[k] + gammas[k - 1] * (u[k] - u[k - 1])
         if backend == "simulator":
             continue

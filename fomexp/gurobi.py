@@ -63,12 +63,10 @@ STATUS_NAMES = {
 def construction_params(solver_cfg) -> dict:
     """Parameters fixed for the whole run, given to ``Verifier(params=...)``.
 
-    ``OutputFlag`` stays 0 here: fomtools forwards only the verbosity key to the
-    OBBT solver, and the OBBT LPs would otherwise flood the job log. The main
-    solve turns logging on per K, into its own file (``solve_params``).
+    No ``OutputFlag``: fomtools solvers, and the OBBT LPs, are silent by default.
+    The main solve turns logging on per K, into its own file (``solve_params``).
     """
     params = {
-        "OutputFlag": 0,
         "MIPGap": float(solver_cfg.mip_gap),
         "MIPFocus": int(solver_cfg.mip_focus),
         "Threads": int(solver_cfg.threads),
@@ -80,7 +78,6 @@ def construction_params(solver_cfg) -> dict:
 
 def obbt_params(solver_cfg) -> dict:
     return {
-        "OutputFlag": 0,
         "Threads": int(solver_cfg.threads),
         **dict(solver_cfg.get("obbt_params") or {}),
     }

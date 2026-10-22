@@ -12,6 +12,7 @@ import csv
 import time
 from pathlib import Path
 
+import fomtools as ft
 import numpy as np
 from fomtools.verifier import Verifier
 
@@ -33,37 +34,39 @@ def run(
             method="mip",
             solver="gurobi",
             obbt_solver="gurobi",
-            params={"OutputFlag": 0, "MIPGap": MIP_GAP},
+            tighten_residuals=False,  # as fomexp.kloop: our objectives are matrix-weighted
+            params={"MIPGap": MIP_GAP},
         )
-        x = vp.add_param(problem.nd, lb=problem.x_lb, ub=problem.x_ub)
+        x = vp.parameter(problem.nd, lb=problem.x_lb, ub=problem.x_ub)
         if samples is not None:
             # The worst sample at each K is given to Gurobi as a MIP start.
             vp.set_start_samples({x: samples})
-        init = [vp.add_iterate(len(a), lb=a, ub=a) for a in (v.z0, v.v0, v.w0)]
+        init = [vp.iterate(len(a), lb=a, ub=a) for a in (v.z0, v.v0, v.w0)]
     else:
         vp = Verifier(method="simulator", obbt_solver=None)
-        x = vp.add_param(problem.nd, samples=samples)
-        init = [vp.add_iterate(len(a), init=a) for a in (v.z0, v.v0, v.w0)]
+        x = vp.parameter(problem.nd, samples=samples)
+        init = [vp.iterate(len(a), init=a) for a in (v.z0, v.v0, v.w0)]
     z, y, w = (vp.iterate_trajectory(K + 1) for _ in range(3))
     z[0], y[0], w[0] = init
     E_d = np.diag(v.e_d)
 
     rows = []
     for k in range(1, K + 1):
-        z[k] = vp.step.satlin(
+        z[k] = vp.satlin(
             z[k - 1] - v.eta * (v.mu + v.A_s.T @ y[k - 1] - v.A_d.T @ w[k - 1]),
             l=np.zeros(ne),
             u=v.c,
         )
         z_bar = 2 * (z[k] + v.xi(k - 1) * (z[k] - z[k - 1])) - z[k - 1]
-        y[k] = vp.step.relu(y[k - 1] + v.eta * (v.A_s @ z_bar - v.b_s))
+        y[k] = vp.relu(y[k - 1] + v.eta * (v.A_s @ z_bar - v.b_s))
         w[k] = w[k - 1] + v.eta * (E_d @ x - v.A_d @ z_bar)
         # H(k) unscales the residual, so every variant measures the original LP's KKT residual.
         H = v.H(k)
         H_z, H_v, H_w = H[:, :ne], H[:, ne : ne + ns], H[:, ne + ns :]
-        vp.set_objective_norm(
-            [H_z @ (z[k] - z[k - 1]) + H_v @ (y[k] - y[k - 1]) + H_w @ (w[k] - w[k - 1])],
-            ord=np.inf,
+        vp.maximize(
+            ft.norm(
+                H_z @ (z[k] - z[k - 1]) + H_v @ (y[k] - y[k - 1]) + H_w @ (w[k] - w[k - 1]), np.inf
+            )
         )
         if backend != "mip":
             continue

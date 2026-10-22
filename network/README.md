@@ -54,6 +54,10 @@ writes from this run.
 
 ## Reproduce
 
-The command is in the root README (Network optimization). It runs
-`python -m fomexp.run experiment=network` with the overrides in
-`results/run_005/overrides.txt`.
+The defaults in `conf/experiment/network.yaml` are the paper's instance and horizon
+($K \le 39$; the archived run is `results/run_005`), so no overrides are needed:
+
+```sh
+uv run python -m fomexp.run experiment=network      # the four variants into a new results/run_NNN
+uv run python -m fomexp.collect network run_NNN     # summary.csv, wide.csv, summary.json
+```

@@ -165,6 +165,11 @@ def run_mip(cfg, spec: VariantSpec, out: Path, job_start: float, manifest: dict)
         obbt_solver=solver_cfg.obbt_solver,
         params=gurobi.construction_params(solver_cfg),
         obbt_params=gurobi.obbt_params(solver_cfg),
+        # fomtools chains certified bounds only for objectives written as
+        # ft.norm(a - b, inf); every objective here is matrix-weighted or
+        # multi-block, so it would never fire. Off explicitly, so a later
+        # objective rewrite cannot change the results silently.
+        tighten_residuals=False,
     )
     param, step = spec.setup(vp, "mip", None, k_max + 1)
     if schedule.sample_start and spec.start_samples is not None:
@@ -258,7 +263,7 @@ def run_mip(cfg, spec: VariantSpec, out: Path, job_start: float, manifest: dict)
         overhead = row["t_outside_gurobi"] + t_build
 
         if canon._solved_copy.has_solution():
-            x = np.asarray(canon.get_solution_value(param), dtype=float).reshape(-1)
+            x = np.asarray(param.value, dtype=float).reshape(-1)
             worst.append(
                 dict(
                     K=k, incumbent=row["incumbent"], **{f"x_{i}": float(v) for i, v in enumerate(x)}

@@ -7,8 +7,8 @@ default config the instance is the paper's (``problem.make_problem()``).
 
 from __future__ import annotations
 
+import fomtools as ft
 import numpy as np
-from fomtools.linearexpression import stack
 
 from fomexp.kloop import VariantSpec
 from problem import LassoProblem, make_D, momentum, residual_map, residuals
@@ -55,24 +55,24 @@ def build(cfg, variant: str) -> VariantSpec:
 
     def setup(vp, mode, samples, length):
         if mode == "simulator":
-            x = vp.add_param(problem.p, samples=samples)
-            u0 = vp.add_iterate(problem.n, init=problem.s0)
+            x = vp.parameter(problem.p, samples=samples)
+            u0 = vp.iterate(problem.n, init=problem.s0)
         else:
-            x = vp.add_param(problem.p, lb=problem.x_lb, ub=problem.x_ub)
-            u0 = vp.add_iterate(problem.n, lb=problem.s0, ub=problem.s0)
+            x = vp.parameter(problem.p, lb=problem.x_lb, ub=problem.x_ub)
+            u0 = vp.iterate(problem.n, lb=problem.s0, ub=problem.s0)
         u = vp.iterate_trajectory(length)
         u[0] = u0
         state = {"w": u[0]}
 
         def step(k: int) -> None:
             w = state["w"]
-            u[k] = vp.step.soft_threshold(w - eta * D.T @ (D @ w - x), lambd=problem.lambd * eta)
+            u[k] = vp.soft_threshold(w - eta * D.T @ (D @ w - x), lambd=problem.lambd * eta)
             if variant == "ista":
                 ds = u[k] - u[k - 1]
             else:
                 # s^k = (u^k, u^{k-1}), with u^{-1} = u^0.
-                ds = stack([u[k] - u[k - 1], u[k - 1] - u[max(k - 2, 0)]])
-            vp.set_objective_norm([residual_map(problem, variant, k) @ ds], ord=np.inf)
+                ds = ft.stack([u[k] - u[k - 1], u[k - 1] - u[max(k - 2, 0)]])
+            vp.maximize(ft.norm([residual_map(problem, variant, k) @ ds], np.inf))
             state["w"] = u[k] + gammas[k - 1] * (u[k] - u[k - 1])
 
         return x, step

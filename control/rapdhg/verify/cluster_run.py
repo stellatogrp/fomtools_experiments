@@ -13,6 +13,7 @@ import dataclasses
 import sys
 from pathlib import Path
 
+import fomtools as ft
 import numpy as np
 from scipy.linalg import svdvals
 
@@ -86,13 +87,13 @@ def build(cfg, variant: str) -> VariantSpec:
 
     def setup(vp, mode, samples, length):
         if mode == "simulator":
-            p = vp.add_param(len(coords), samples=samples)
-            x0 = vp.add_iterate(n, init=np.zeros(n))
-            y0 = vp.add_iterate(m, init=np.zeros(m))
+            p = vp.parameter(len(coords), samples=samples)
+            x0 = vp.iterate(n, init=np.zeros(n))
+            y0 = vp.iterate(m, init=np.zeros(m))
         else:
-            p = vp.add_param(len(coords), lb=param_lb, ub=param_ub)
-            x0 = vp.add_iterate(n, lb=0.0, ub=0.0)
-            y0 = vp.add_iterate(m, lb=0.0, ub=0.0)
+            p = vp.parameter(len(coords), lb=param_lb, ub=param_ub)
+            x0 = vp.iterate(n, lb=0.0, ub=0.0)
+            y0 = vp.iterate(m, lb=0.0, ub=0.0)
         q = (d[:, None] * Qp) @ p
         h = e * h0 + (e[:, None] * Hp) @ p
         st = dict(x=x0, y=y0, x_prev=x0, xbar=x0, ybar=y0)
@@ -103,7 +104,7 @@ def build(cfg, variant: str) -> VariantSpec:
             binv, theta, eta, tau = rv.step_coefficients(scaled, k, method)
             eta, tau = step_scale * eta, step_scale * tau
             xmd = (1.0 - binv) * xbar + binv * x
-            y_new = vp.step.relu(y + tau * (G @ ((1.0 + theta) * x - theta * x_prev) - h))
+            y_new = vp.relu(y + tau * (G @ ((1.0 + theta) * x - theta * x_prev) - h))
             x_new = x - eta * (Q @ xmd + q + G.T @ y_new)
             xbar = (1.0 - binv) * xbar + binv * x_new
             ybar = (1.0 - binv) * ybar + binv * y_new
@@ -116,7 +117,7 @@ def build(cfg, variant: str) -> VariantSpec:
             else:
                 x_prev, x, y = x, x_new, y_new
             st.update(x=x, y=y, x_prev=x_prev, xbar=xbar, ybar=ybar)
-            vp.set_objective_norm([unscale_d @ r_d, unscale_p @ r_p], ord=np.inf)
+            vp.maximize(ft.norm([unscale_d @ r_d, unscale_p @ r_p], np.inf))
 
         return p, step
 

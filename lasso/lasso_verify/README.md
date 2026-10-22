@@ -87,11 +87,13 @@ percentile, which `plots/kl_bounds.py` computes from the simulator samples.
 
 ## Reproduce
 
-```sh
-# both methods, one after the other, into a new results/run_NNN
-uv run python -m fomexp.run experiment=lasso experiment.problem.m=25 experiment.problem.n=50 \
-    experiment.problem.lambd=0.001
+The defaults in `conf/experiment/lasso.yaml` are the paper's instance and horizon
+($K \le 20$), so no overrides are needed:
 
-# merge the per-variant CSVs
-uv run python -m fomexp.collect lasso run_NNN
+```sh
+uv run python -m fomexp.run experiment=lasso        # both methods into a new results/run_NNN
+uv run python -m fomexp.collect lasso run_NNN       # summary.csv, wide.csv, summary.json
 ```
+
+`summary.json` holds the numbers the paper quotes about the run (hours, largest
+model, statuses).
