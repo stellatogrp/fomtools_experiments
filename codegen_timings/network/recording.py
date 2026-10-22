@@ -36,15 +36,15 @@ def build(variant: str, cfg) -> VariantSetup:
     boxes = ParameterBoxes(boxes=[ParameterBox("p0", lb, ub, 0.5 * (lb + ub))], state=s0)
 
     def record(v, xi):
-        x = v.add_param(problem.nd, lb=lb, ub=ub)
-        z, y, w = (v.add_iterate(len(a), lb=a, ub=a) for a in (pv.z0, pv.v0, pv.w0))
+        x = v.parameter(problem.nd, lb=lb, ub=ub)
+        z, y, w = (v.iterate(len(a), lb=a, ub=a) for a in (pv.z0, pv.v0, pv.w0))
 
         def step(z, y, w):
-            z1 = v.step.satlin(
+            z1 = v.satlin(
                 z - pv.eta * (pv.mu + pv.A_s.T @ y - pv.A_d.T @ w), l=np.zeros(ne), u=pv.c
             )
             z_bar = (2.0 + 2.0 * xi) * z1 - (1.0 + 2.0 * xi) * z
-            y1 = v.step.relu(y + pv.eta * (pv.A_s @ z_bar - pv.b_s))
+            y1 = v.relu(y + pv.eta * (pv.A_s @ z_bar - pv.b_s))
             w1 = w + pv.eta * (E_d @ x - pv.A_d @ z_bar)
             return z1, y1, w1
 

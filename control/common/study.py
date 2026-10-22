@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -182,9 +183,7 @@ def describe_ir(ir) -> str:
     applied = {
         t.matrix for op in [s.linear_op for s in ir.body] + [ir.state_update] for t in op.terms
     }
-    matrix_nnz = sum(
-        int(np.count_nonzero(np.abs(ir.matrices[n].array) > 1e-12)) for n in sorted(applied)
-    )
+    matrix_nnz = sum(ir.matrices[n].nnz(1e-12) for n in sorted(applied))  # dense or sparse
     factor_nnz = sum(f.nnz for f in ir.factorizations.values())
     methods = ", ".join(f"{n}: {f.method}" for n, f in ir.factorizations.items()) or "none"
     lines = [
@@ -290,11 +289,17 @@ def check_equivalence(study: Study, solver: CSolver, label: str, verbose: bool =
 # -- the three entry points -----------------------------------------------------
 
 
-def generate(study: Study, force: bool = False, max_iters: int | None = None) -> None:
-    """Emit both C solvers and check them against the NumPy controller."""
+def generate(study: Study, force: bool = False, max_iters: int | None = None) -> dict:
+    """Emit both C solvers and check them against the NumPy controller.
+
+    Returns what was measured: the agent time of each phase, the code optimization
+    rounds and what the agent says the rules blocked, the benchmark of each solver,
+    and each solver's cost per iteration and agreement with NumPy.
+    """
     config = codegen_driver.config_for(
         max_iters or codegen_driver.DEFAULT_MAX_ITERS, study.tol_verify
     )
+    t0 = time.time()
     ir, emitted = codegen_driver.translate(
         study.recording,
         study.boxes,
@@ -303,11 +308,14 @@ def generate(study: Study, force: bool = False, max_iters: int | None = None) ->
         config=config,
         force=force,
     )
+    t_translate = time.time() - t0
     study.ir = ir
     print()
     print(describe_ir(ir))
 
+    t0 = time.time()
     result = codegen_driver.optimize(ir, emitted, study.codegen_dir, config=config, force=force)
+    t_optimize = time.time() - t0
     print()
     if result.kept:
         print(f"optimization kept: {result.path}")
@@ -323,17 +331,26 @@ def generate(study: Study, force: bool = False, max_iters: int | None = None) ->
 
     values = study.boxes.named_values()
     print("\nimplementation   cost and agreement with the NumPy controller")
-    worst = 0.0
+    worst, solvers = 0.0, {}
     for label, directory in (("emitted C", emitted), ("optimized C", result.path)):
         solver = CSolver(directory)
         err = check_equivalence(study, solver, label, verbose=False)
         worst = max(worst, err)
-        print(
-            f"  {label:<12s} {solver.us_per_iteration(values):8.2f} us/iteration   agrees to {err:.3e}"
-        )
+        us = float(solver.us_per_iteration(values))
+        solvers[label] = dict(us_per_iteration=us, max_dev_vs_numpy=err)
+        print(f"  {label:<12s} {us:8.2f} us/iteration   agrees to {err:.3e}")
     if worst > TOL:
         raise SystemExit(f"FAILED: a generated solver disagrees with NumPy by {worst:.3e}")
     print(f"\nOK: both generated solvers agree with the NumPy controller to {worst:.3e}.")
+    return dict(
+        agent_wall_s=dict(translation=t_translate, code_optimization=t_optimize),
+        optimization_kept=result.kept,
+        optimization_notes=result.notes,
+        bench_us_per_solve=dict(emitted=result.emitted_us, optimized=result.optimized_us),
+        optimization_rounds=result.rounds,
+        rule_friction=result.rule_friction,
+        solvers=solvers,
+    )
 
 
 def calibrate(study: Study, force: bool = False, max_iters: int | None = None) -> None:
