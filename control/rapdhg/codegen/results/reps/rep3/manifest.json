@@ -1,0 +1,176 @@
+{
+  "rep": 3,
+  "generation": {
+    "agent_wall_s": {
+      "translation": 53.79521989822388,
+      "code_optimization": 3615.074079990387
+    },
+    "optimization_kept": true,
+    "optimization_notes": "",
+    "bench_us_per_solve": {
+      "emitted": 1122.035895,
+      "optimized": 40.0782
+    },
+    "optimization_rounds": [
+      {
+        "index": 1,
+        "changed": true,
+        "correct": true,
+        "kept": true,
+        "us_before": 1122.035895,
+        "us_after": 44.101,
+        "gain": 0.9606955533271954,
+        "agent_wall_s": 1161.8663508750033,
+        "truncated": false,
+        "stop_reason": null
+      },
+      {
+        "index": 2,
+        "changed": true,
+        "correct": true,
+        "kept": true,
+        "us_before": 43.6852,
+        "us_after": 40.0782,
+        "gain": 0.0825680093029218,
+        "agent_wall_s": 1867.3161112498492,
+        "truncated": false,
+        "stop_reason": null
+      },
+      {
+        "index": 3,
+        "changed": false,
+        "correct": true,
+        "kept": false,
+        "us_before": null,
+        "us_after": null,
+        "gain": null,
+        "agent_wall_s": 573.1516496248078,
+        "truncated": false,
+        "stop_reason": "the round left the sources unchanged"
+      }
+    ],
+    "rule_friction": [
+      {
+        "round": 1,
+        "idea": "Store s5 (and the state) in the P/M/K sum/difference basis, to drop the per-iteration basis transforms",
+        "rule": "state layout and headers are fixed, and verify compares states in the spec layout",
+        "expected_gain": "~5%"
+      },
+      {
+        "round": 1,
+        "idea": "Overlap the ring buffers so a state's s4 rows alias the previous state's s0 rows, removing the s4 copy",
+        "rule": "the fixed contiguous state layout of the step routines (the overlap also clobbers the t0 history)",
+        "expected_gain": "~3%"
+      },
+      {
+        "round": 1,
+        "idea": "Compute the C product before the t0 step in the solver's fast path (memory reports ~5% from this ordering)",
+        "rule": "`fom_step_t1` must contain the C product, and the solver may not compute products",
+        "expected_gain": "~3\u20135%"
+      },
+      {
+        "round": 1,
+        "idea": "Keep the 80 KB bias cache in the workspace instead of a file-static array",
+        "rule": "`fom_workspace.h` is fixed",
+        "expected_gain": "0 (embedded hygiene only)"
+      },
+      {
+        "round": 1,
+        "idea": "Precompute the derived P/M/K tables and taps in `fom_setup` instead of lazily inside the routines",
+        "rule": "the solver may not read `FOM_MAT_*` data and `fom_ops.c` has no setup hook",
+        "expected_gain": "negligible (one branch per call)"
+      },
+      {
+        "round": 2,
+        "idea": "Pass scaled bias terms (\u03c4\u00b7b0, \u03b7\u00b7b1) to the step routines instead of materialised bias vectors, so the 82 KB, 64-slot bias cache can go",
+        "rule": "the fixed `fom_step_*` signatures in `include/fom_ops.h`",
+        "expected_gain": "unknown (bias costs about 3%, plus L1 pressure)"
+      },
+      {
+        "round": 2,
+        "idea": "Let `fom_iterate` skip writing the s3 rows (or take a flag saying so), so the fused single-pass iteration can keep the deferred, grouped s3 fold. The fused path would save the recomputed differences and the T0 reloads, about 40 ops and 60 loads per iteration",
+        "rule": "`fom_iterate` must write the complete new state, and its signature is fixed",
+        "expected_gain": "about 3 to 5%"
+      },
+      {
+        "round": 2,
+        "idea": "Let `fom_step_t1` also return C\u00b7s5_next, so the next iteration's cprod is spread through the current iteration's tail",
+        "rule": "the fixed step signatures and outputs",
+        "expected_gain": "unknown"
+      },
+      {
+        "round": 3,
+        "idea": "Change the step/iterate interface so fom_iterate can skip the s3 rows (the fold keeps them) and the fused one-pass iteration can be used",
+        "rule": "the fixed signatures in include/ and the rule that fom_iterate must compute the whole new state",
+        "expected_gain": "about 0 us (ties the separate step calls; would only enable later fusion)"
+      },
+      {
+        "round": 3,
+        "idea": "Pass b0 and tau into the t0 step instead of a materialized bias vector, which removes the bias cache",
+        "rule": "the fixed fom_step_t0 signature (bias is a vector)",
+        "expected_gain": "about 1 us"
+      },
+      {
+        "round": 3,
+        "idea": "Run the C\u00b7s5 product in float32 or on the SME matrix unit",
+        "rule": "float64 data type and fixed build flags",
+        "expected_gain": "unknown"
+      }
+    ],
+    "solvers": {
+      "emitted C": {
+        "us_per_iteration": 2.2356827846831746,
+        "max_dev_vs_numpy": 1.2462253451417382e-14
+      },
+      "optimized C": {
+        "us_per_iteration": 0.08364557288587093,
+        "max_dev_vs_numpy": 1.484923295436147e-14
+      }
+    }
+  },
+  "figure": {
+    "reference": "figure8",
+    "budget_us": 40.0,
+    "arms": {
+      "NumPy": {
+        "iterations": 2,
+        "us_per_iteration": 13.643600790861196
+      },
+      "emitted C": {
+        "iterations": 17,
+        "us_per_iteration": 2.2564313699798992
+      },
+      "optimized C": {
+        "iterations": 501,
+        "us_per_iteration": 0.07983163803666164
+      }
+    }
+  },
+  "code": {
+    "fomtools_experiments": {
+      "commit": "b44849861f80d0fd72a45c11a8ea356595cc0d26",
+      "dirty": true
+    },
+    "fomtools": {
+      "commit": "25b3f73273d396e641ec29d0c72f636c7e173b88",
+      "dirty": false
+    }
+  },
+  "environment": {
+    "host": "stellato-mbp-office",
+    "platform": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "python": "3.13.11",
+    "cpu_count": 14,
+    "slurm": {},
+    "grb_license_file": "/Users/bs37/gurobi.lic",
+    "numpy_version": "2.5.3",
+    "scipy_version": "1.18.1",
+    "gurobipy_version": "13.0.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "hydra_version": "1.3.7",
+    "cvxpy_version": "1.9.3",
+    "clarabel_version": "0.11.1",
+    "gurobi_version": "13.0.3"
+  },
+  "recorded_utc": "2026-10-23T13:21:46+00:00"
+}
