@@ -1,0 +1,188 @@
+{
+  "rep": 2,
+  "generation": {
+    "agent_wall_s": {
+      "translation": 38.15142011642456,
+      "code_optimization": 3515.8196852207184
+    },
+    "optimization_kept": true,
+    "optimization_notes": "",
+    "bench_us_per_solve": {
+      "emitted": 1238.819195,
+      "optimized": 43.941
+    },
+    "optimization_rounds": [
+      {
+        "index": 1,
+        "changed": true,
+        "correct": true,
+        "kept": true,
+        "us_before": 1238.819195,
+        "us_after": 58.8152,
+        "gain": 0.952523176717487,
+        "agent_wall_s": 836.6694257920608,
+        "truncated": false,
+        "stop_reason": null
+      },
+      {
+        "index": 2,
+        "changed": true,
+        "correct": true,
+        "kept": true,
+        "us_before": 60.5168,
+        "us_after": 56.6268,
+        "gain": 0.0642796710995955,
+        "agent_wall_s": 1042.037818417186,
+        "truncated": false,
+        "stop_reason": null
+      },
+      {
+        "index": 3,
+        "changed": true,
+        "correct": true,
+        "kept": true,
+        "us_before": 56.1652,
+        "us_after": 44.3234,
+        "gain": 0.2108387400027063,
+        "agent_wall_s": 766.689243374858,
+        "truncated": false,
+        "stop_reason": null
+      },
+      {
+        "index": 4,
+        "changed": true,
+        "correct": true,
+        "kept": true,
+        "us_before": 44.816,
+        "us_after": 43.941,
+        "gain": 0.019524277043912887,
+        "agent_wall_s": 853.5466442501638,
+        "truncated": true,
+        "stop_reason": "the round gained less than agent_optimize_min_gain"
+      }
+    ],
+    "rule_friction": [
+      {
+        "round": 1,
+        "idea": "Cache the 64 bias vectors per solve and reuse them (tau and eta repeat every 64 iterations), removing 160 stores and FMAs per iteration",
+        "rule": "headers are fixed: `FomWorkspace` cannot get an 80 KB cache field, and a static global would make the solver non-reentrant",
+        "expected_gain": "~11% (measured 61.5 \u2192 54.5 us with a prototype)"
+      },
+      {
+        "round": 1,
+        "idea": "Fold the parameter term tau\u00b7(d_tau @ p1) into `fom_iterate` so the bias pass disappears",
+        "rule": "the `fom_iterate`/`fom_step` signatures in `include/fom_ops.h` are fixed (no tau argument)",
+        "expected_gain": "~10% (same store savings as above)"
+      },
+      {
+        "round": 1,
+        "idea": "Use schedule identities (tau = taux \u2212 tth, d1 + d2 = 1, m1 + m2 = 1) to cut multiplies in the su/t0 blends",
+        "rule": "`fom_ops.c` must be exact for any schedule values and must not read the schedule",
+        "expected_gain": "unknown, <3%"
+      },
+      {
+        "round": 1,
+        "idea": "none other",
+        "rule": "",
+        "expected_gain": ""
+      },
+      {
+        "round": 2,
+        "idea": "Cache the 64 distinct bias vectors (tau, eta and the bias repeat every 64 iterations), filled once per solve",
+        "rule": "workspace header is fixed, and `acc` (400 doubles) cannot hold 64\u00d7160; a file-static 80 KB buffer would break reentrancy and the embedded memory budget",
+        "expected_gain": "about 11% (the measured cost of the bias loop)"
+      },
+      {
+        "round": 2,
+        "idea": "Compute s2'/s5' as x2 + d2\u00b7(t1 \u2212 x2) and x2 + m2\u00b7(t1 \u2212 x2), sharing one subtraction (valid because d1 + d2 = 1 and m1 + m2 = 1 in the schedule)",
+        "rule": "`src/fom_ops.c` must be exact for any schedule values and cannot read the schedule",
+        "expected_gain": "about 1 to 2%"
+      },
+      {
+        "round": 2,
+        "idea": "Fold the bias into fom_iterate using tau = taux \u2212 tth so the bias buffer disappears",
+        "rule": "fom_ops.c cannot read the schedule and must apply any bias it is passed; the `fom_iterate` signature is fixed",
+        "expected_gain": "about 10%"
+      },
+      {
+        "round": 3,
+        "idea": "Put the bias cache and ring buffers in `FomWorkspace` instead of file-static scratch, so the solver stays reentrant",
+        "rule": "headers (`fom_workspace.h`) are fixed",
+        "expected_gain": "none (same speed, only reentrancy)"
+      },
+      {
+        "round": 3,
+        "idea": "Let a step routine also write the s5/s2 averages (or s3) while t1/t0 are still in registers, which would remove the separate 40-row s5/s2 pass (about 4.7 us when ablated)",
+        "rule": "step routines must write only `out`, and `fom_iterate` must write the full new state every call, so it cannot skip s3 inside a group",
+        "expected_gain": "~5\u201310%"
+      },
+      {
+        "round": 3,
+        "idea": "A grouped multi-iteration entry point in `fom_ops.c` (several iterations fused, s3 deferred, S product scheduled before t0)",
+        "rule": "only the listed prototypes may be public, and the headers are fixed",
+        "expected_gain": "unknown, likely 5\u201310%"
+      },
+      {
+        "round": 3,
+        "idea": "Avoid the s4 \u2190 s0 copy by overlapping consecutive state buffers (new state = old \u2212 320)",
+        "rule": "`fom_step_t0` must read s4 at state+320, and the overlap would overwrite t0 history that the deferred s3 fold needs",
+        "expected_gain": "~1.5%"
+      }
+    ],
+    "solvers": {
+      "emitted C": {
+        "us_per_iteration": 2.381956178901924,
+        "max_dev_vs_numpy": 1.2462253451417382e-14
+      },
+      "optimized C": {
+        "us_per_iteration": 0.09256945405569342,
+        "max_dev_vs_numpy": 1.484923295436147e-14
+      }
+    }
+  },
+  "figure": {
+    "reference": "figure8",
+    "budget_us": 40.0,
+    "arms": {
+      "NumPy": {
+        "iterations": 2,
+        "us_per_iteration": 13.991538123393964
+      },
+      "emitted C": {
+        "iterations": 16,
+        "us_per_iteration": 2.426018415592677
+      },
+      "optimized C": {
+        "iterations": 485,
+        "us_per_iteration": 0.08243348150114928
+      }
+    }
+  },
+  "code": {
+    "fomtools_experiments": {
+      "commit": "21e8013e392def02812703d8701e5f96e6a064db",
+      "dirty": true
+    },
+    "fomtools": {
+      "commit": "25b3f73273d396e641ec29d0c72f636c7e173b88",
+      "dirty": false
+    }
+  },
+  "environment": {
+    "host": "stellato-mbp-office",
+    "platform": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "python": "3.13.11",
+    "cpu_count": 14,
+    "slurm": {},
+    "grb_license_file": "/Users/bs37/gurobi.lic",
+    "numpy_version": "2.5.3",
+    "scipy_version": "1.18.1",
+    "gurobipy_version": "13.0.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "hydra_version": "1.3.7",
+    "cvxpy_version": "1.9.3",
+    "clarabel_version": "0.11.1",
+    "gurobi_version": "13.0.3"
+  },
+  "recorded_utc": "2026-10-23T02:27:51+00:00"
+}

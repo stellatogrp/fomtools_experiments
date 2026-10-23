@@ -1,0 +1,231 @@
+
+=== repetition 1 ===
+condensed program: 40 variables, 120 inequality rows (10 input moves over a 1.00 s horizon, 100 steps of 10 ms, held 10 at a time)
+iteration:         matrix free; one 40 x 40 product per step, no linear solve
+rAPDHG parameters: K = 64, w = 1.0, ||Q|| = 2.581e+04, ||G|| = 9.005
+state constraints: |tilt| <= 30 deg at the end of each block, 40 rows
+reusing the verified solver already in /Users/bs37/Documents/projects/fomtools_experiments-v004/control/rapdhg/codegen/out/codegen/emitted
+
+extracted iteration:  2 steps, state dimension 400
+parameters:           p0 (40), p1 (120)
+schedules:            10 tables of 512 (d1, d2, eta, g1, g2, m1, m2, tau, taux, tth)
+coefficient blocks:   24, 4240 applied entries
+factorization:        none, 0 stored entries
+work per iteration:   4240 multiply-adds
+reusing the optimized solver already in /Users/bs37/Documents/projects/fomtools_experiments-v004/control/rapdhg/codegen/out/codegen/optimized
+
+optimization kept: /Users/bs37/Documents/projects/fomtools_experiments-v004/control/rapdhg/codegen/out/codegen/optimized
+
+implementation   cost and agreement with the NumPy controller
+  emitted C        2.17 us/iteration   agrees to 1.246e-14
+  optimized C      0.11 us/iteration   agrees to 1.685e-14
+
+OK: both generated solvers agree with the NumPy controller to 1.685e-14.
+emitted C: tables extended to 65536; make verify passed
+  agrees with the NumPy controller to 1.246e-14
+optimized C: tables extended to 65536; make verify passed
+  agrees with the NumPy controller to 1.685e-14
+
+OK: both solvers verify at the extended table length.
+
+rapdhg_condensed: 40 variables
+
+implementation   us/iteration    spread   iterations in 10 ms
+  NumPy              14.10     9.5%           709
+  emitted C           2.21     0.7%          4516
+  optimized C         0.10     2.9%        102183
+
+cross-check: every implementation at 200 iterations
+  NumPy         max state difference from NumPy: 0.000e+00
+  emitted C     max state difference from NumPy: 3.575e-14
+  optimized C   max state difference from NumPy: 3.975e-14
+
+  NumPy           0.03 ms ->      1 iterations     1.118 m   max tilt 20.6 deg   over limit  0.0%
+  NumPy           0.04 ms ->      2 iterations     0.886 m   max tilt 16.1 deg   over limit  0.0%
+  NumPy           0.06 ms ->      4 iterations     0.503 m   max tilt 17.8 deg   over limit  0.0%
+  NumPy           0.16 ms ->     11 iterations     0.153 m   max tilt 26.2 deg   over limit  0.0%
+  NumPy           0.40 ms ->     28 iterations     0.039 m   max tilt 30.6 deg   over limit  0.7%
+  NumPy           1.00 ms ->     70 iterations     0.014 m   max tilt 31.1 deg   over limit  1.4%
+  NumPy           2.50 ms ->    177 iterations     0.004 m   max tilt 31.7 deg   over limit  2.0%
+  emitted C       0.03 ms ->     11 iterations     0.153 m   max tilt 26.2 deg   over limit  0.0%
+  emitted C       0.04 ms ->     18 iterations     0.047 m   max tilt 29.8 deg   over limit  0.0%
+  emitted C       0.06 ms ->     28 iterations     0.039 m   max tilt 30.6 deg   over limit  0.7%
+  emitted C       0.16 ms ->     72 iterations     0.014 m   max tilt 31.1 deg   over limit  1.4%
+  emitted C       0.40 ms ->    180 iterations     0.004 m   max tilt 31.7 deg   over limit  2.0%
+  emitted C       1.00 ms ->    451 iterations     0.004 m   max tilt 31.7 deg   over limit  2.0%
+  emitted C       2.50 ms ->   1129 iterations     0.004 m   max tilt 31.5 deg   over limit  1.7%
+  optimized C     0.03 ms ->    255 iterations     0.004 m   max tilt 31.7 deg   over limit  2.0%
+  optimized C     0.04 ms ->    408 iterations     0.004 m   max tilt 31.7 deg   over limit  2.0%
+  optimized C     0.06 ms ->    643 iterations     0.004 m   max tilt 31.6 deg   over limit  1.9%
+  optimized C     0.16 ms ->   1634 iterations     0.003 m   max tilt 31.3 deg   over limit  1.6%
+  optimized C     0.40 ms ->   4087 iterations     0.003 m   max tilt 31.1 deg   over limit  1.4%
+  optimized C     1.00 ms ->  10218 iterations     0.002 m   max tilt 30.9 deg   over limit  1.1%
+  optimized C     2.50 ms ->  25545 iterations     0.002 m   max tilt 30.7 deg   over limit  0.9%
+
+wrote /Users/bs37/Documents/projects/fomtools_experiments-v004/control/rapdhg/codegen/out/implementations.csv
+wrote /Users/bs37/Documents/projects/fomtools_experiments-v004/control/rapdhg/codegen/out/implementations_budget.pdf
+
+figures at a 0.04 ms budget
+wrote /Users/bs37/Documents/projects/fomtools_experiments-v004/control/rapdhg/codegen/out/implementations_flight.pdf
+wrote /Users/bs37/Documents/projects/fomtools_experiments-v004/control/rapdhg/codegen/out/implementations_error.pdf
+drawing on the 'figure8' reference (period 4 s) at a 40 us budget
+
+implementation   us/iteration  iterations   outcome                max tilt   over 30 deg
+  NumPy              13.911           2   0.886 m steady      16.1 deg    0.0%
+  emitted C           2.222          17   0.053 m steady      29.5 deg    0.0%
+  optimized C         0.099         405   0.004 m steady      31.7 deg    2.0%
+
+wrote /Users/bs37/Documents/projects/fomtools_experiments-v004/control/rapdhg/codegen/out/figures_figure8_flight.pdf
+wrote /Users/bs37/Documents/projects/fomtools_experiments-v004/control/rapdhg/codegen/out/figures_figure8_error.pdf
+recorded /Users/bs37/Documents/projects/fomtools_experiments-v004/control/rapdhg/codegen/results
+
+=== repetition 2 ===
+condensed program: 40 variables, 120 inequality rows (10 input moves over a 1.00 s horizon, 100 steps of 10 ms, held 10 at a time)
+iteration:         matrix free; one 40 x 40 product per step, no linear solve
+rAPDHG parameters: K = 64, w = 1.0, ||Q|| = 2.581e+04, ||G|| = 9.005
+state constraints: |tilt| <= 30 deg at the end of each block, 40 rows
+
+extracted iteration:  2 steps, state dimension 400
+parameters:           p0 (40), p1 (120)
+schedules:            10 tables of 512 (d1, d2, eta, g1, g2, m1, m2, tau, taux, tth)
+coefficient blocks:   24, 4240 applied entries
+factorization:        none, 0 stored entries
+work per iteration:   4240 multiply-adds
+wrote /Users/bs37/Documents/projects/fomtools_experiments-v004/control/rapdhg/codegen/out/reps/rep2/codegen/optimized/OPTIMIZATIONS.md
+
+optimization kept: /Users/bs37/Documents/projects/fomtools_experiments-v004/control/rapdhg/codegen/out/reps/rep2/codegen/optimized
+emitted benchmark 1238.8 us/solve, optimized 43.9 us/solve (28.19x)
+
+implementation   cost and agreement with the NumPy controller
+  emitted C        2.38 us/iteration   agrees to 1.246e-14
+  optimized C      0.09 us/iteration   agrees to 1.485e-14
+
+OK: both generated solvers agree with the NumPy controller to 1.485e-14.
+emitted C: tables extended to 65536; make verify passed
+  agrees with the NumPy controller to 1.246e-14
+optimized C: tables extended to 65536; make verify passed
+  agrees with the NumPy controller to 1.485e-14
+
+OK: both solvers verify at the extended table length.
+
+rapdhg_condensed: 40 variables
+
+implementation   us/iteration    spread   iterations in 10 ms
+  NumPy              13.80     3.8%           725
+  emitted C           2.42     1.3%          4136
+  optimized C         0.08     2.9%        118613
+
+cross-check: every implementation at 200 iterations
+  NumPy         max state difference from NumPy: 0.000e+00
+  emitted C     max state difference from NumPy: 3.575e-14
+  optimized C   max state difference from NumPy: 4.396e-14
+
+  NumPy           0.03 ms ->      1 iterations     1.118 m   max tilt 20.6 deg   over limit  0.0%
+  NumPy           0.04 ms ->      2 iterations     0.886 m   max tilt 16.1 deg   over limit  0.0%
+  NumPy           0.06 ms ->      4 iterations     0.503 m   max tilt 17.8 deg   over limit  0.0%
+  NumPy           0.16 ms ->     11 iterations     0.153 m   max tilt 26.2 deg   over limit  0.0%
+  NumPy           0.40 ms ->     28 iterations     0.039 m   max tilt 30.6 deg   over limit  0.7%
+  NumPy           1.00 ms ->     72 iterations     0.014 m   max tilt 31.1 deg   over limit  1.4%
+  NumPy           2.50 ms ->    181 iterations     0.004 m   max tilt 31.7 deg   over limit  2.0%
+  emitted C       0.03 ms ->     10 iterations     0.181 m   max tilt 25.3 deg   over limit  0.0%
+  emitted C       0.04 ms ->     16 iterations     0.062 m   max tilt 29.2 deg   over limit  0.0%
+  emitted C       0.06 ms ->     26 iterations     0.039 m   max tilt 30.6 deg   over limit  0.6%
+  emitted C       0.16 ms ->     66 iterations     0.014 m   max tilt 31.1 deg   over limit  1.4%
+  emitted C       0.40 ms ->    165 iterations     0.005 m   max tilt 31.6 deg   over limit  1.9%
+  emitted C       1.00 ms ->    413 iterations     0.004 m   max tilt 31.7 deg   over limit  2.0%
+  emitted C       2.50 ms ->   1034 iterations     0.004 m   max tilt 31.5 deg   over limit  1.7%
+  optimized C     0.03 ms ->    296 iterations     0.003 m   max tilt 31.7 deg   over limit  2.0%
+  optimized C     0.04 ms ->    474 iterations     0.004 m   max tilt 31.7 deg   over limit  1.9%
+  optimized C     0.06 ms ->    747 iterations     0.004 m   max tilt 31.6 deg   over limit  1.7%
+  optimized C     0.16 ms ->   1897 iterations     0.003 m   max tilt 31.3 deg   over limit  1.6%
+  optimized C     0.40 ms ->   4744 iterations     0.003 m   max tilt 31.0 deg   over limit  1.4%
+  optimized C     1.00 ms ->  11861 iterations     0.002 m   max tilt 30.9 deg   over limit  1.1%
+  optimized C     2.50 ms ->  29653 iterations     0.003 m   max tilt 30.7 deg   over limit  0.9%
+
+wrote /Users/bs37/Documents/projects/fomtools_experiments-v004/control/rapdhg/codegen/out/reps/rep2/implementations.csv
+wrote /Users/bs37/Documents/projects/fomtools_experiments-v004/control/rapdhg/codegen/out/reps/rep2/implementations_budget.pdf
+
+figures at a 0.04 ms budget
+wrote /Users/bs37/Documents/projects/fomtools_experiments-v004/control/rapdhg/codegen/out/reps/rep2/implementations_flight.pdf
+wrote /Users/bs37/Documents/projects/fomtools_experiments-v004/control/rapdhg/codegen/out/reps/rep2/implementations_error.pdf
+drawing on the 'figure8' reference (period 4 s) at a 40 us budget
+
+implementation   us/iteration  iterations   outcome                max tilt   over 30 deg
+  NumPy              13.992           2   0.886 m steady      16.1 deg    0.0%
+  emitted C           2.426          16   0.062 m steady      29.2 deg    0.0%
+  optimized C         0.082         485   0.004 m steady      31.7 deg    1.9%
+
+wrote /Users/bs37/Documents/projects/fomtools_experiments-v004/control/rapdhg/codegen/out/reps/rep2/figures_figure8_flight.pdf
+wrote /Users/bs37/Documents/projects/fomtools_experiments-v004/control/rapdhg/codegen/out/reps/rep2/figures_figure8_error.pdf
+recorded /Users/bs37/Documents/projects/fomtools_experiments-v004/control/rapdhg/codegen/results/reps/rep2
+
+=== repetition 3 ===
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/bs37/Documents/projects/fomtools_experiments-v004/control/rapdhg/codegen/run.py", line 101, in <module>
+    main()
+    ~~~~^^
+  File "/Users/bs37/Documents/projects/fomtools_experiments-v004/control/rapdhg/codegen/run.py", line 97, in main
+    run_rep(rep, args.force)
+    ~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/Users/bs37/Documents/projects/fomtools_experiments-v004/control/rapdhg/codegen/run.py", line 77, in run_rep
+    gen = generate.main(["--max-iters", str(GENERATION_ITERS), "--rep", str(rep), *flag])
+  File "/Users/bs37/Documents/projects/fomtools_experiments-v004/control/rapdhg/codegen/generate.py", line 39, in main
+    return pipeline.generate(s, force=args.force, max_iters=args.max_iters)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bs37/Documents/projects/fomtools_experiments-v004/control/common/study.py", line 303, in generate
+    ir, emitted = codegen_driver.translate(
+                  ~~~~~~~~~~~~~~~~~~~~~~~~^
+        study.recording,
+        ^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+        force=force,
+        ^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/bs37/Documents/projects/fomtools_experiments-v004/control/common/codegen_driver.py", line 181, in translate
+    raise RuntimeError(
+    ...<2 lines>...
+    )
+RuntimeError: the translation phase did not produce a verified solver in /Users/bs37/Documents/projects/fomtools_experiments-v004/control/rapdhg/codegen/out/reps/rep3/codegen/emitted.
+
+===== agent attempt 1 =====
+You've hit your session limit · resets 10:50pm (America/New_York)
+You've hit your session limit · resets 10:50pm (America/New_York)
+
+[fomtools: the Claude agent stopped early (ResultError: Claude Code returned an error result: You've hit your session limit · resets 10:50pm (America/New_York) (exit code: 1)); any output above is partial. Raise the driver's max_turns to give it more turns.]
+make: *** No rule to make target `src/fom_solver.c', needed by `verify'.  Stop.
+
+===== agent attempt 2 =====
+You've hit your session limit · resets 10:50pm (America/New_York)
+You've hit your session limit · resets 10:50pm (America/New_York)
+
+[fomtools: the Claude agent stopped early (ResultError: Claude Code returned an error result: You've hit your session limit · resets 10:50pm (America/New_York) (exit code: 1)); any output above is partial. Raise the driver's max_turns to give it more turns.]
+make: *** No rule to make target `src/fom_solver.c', needed by `verify'.  Stop.
+
+===== agent attempt 3 =====
+You've hit your session limit · resets 10:50pm (America/New_York)
+You've hit your session limit · resets 10:50pm (America/New_York)
+
+[fomtools: the Claude agent stopped early (ResultError: Claude Code returned an error result: You've hit your session limit · resets 10:50pm (America/New_York) (exit code: 1)); any output above is partial. Raise the driver's max_turns to give it more turns.]
+make: *** No rule to make target `src/fom_solver.c', needed by `verify'.  Stop.
+
+===== agent attempt 4 =====
+You've hit your session limit · resets 10:50pm (America/New_York)
+You've hit your session limit · resets 10:50pm (America/New_York)
+
+[fomtools: the Claude agent stopped early (ResultError: Claude Code returned an error result: You've hit your session limit · resets 10:50pm (America/New_York) (exit code: 1)); any output above is partial. Raise the driver's max_turns to give it more turns.]
+make: *** No rule to make target `src/fom_solver.c', needed by `verify'.  Stop.
+
+===== agent attempt 5 =====
+You've hit your session limit · resets 10:50pm (America/New_York)
+You've hit your session limit · resets 10:50pm (America/New_York)
+
+[fomtools: the Claude agent stopped early (ResultError: Claude Code returned an error result: You've hit your session limit · resets 10:50pm (America/New_York) (exit code: 1)); any output above is partial. Raise the driver's max_turns to give it more turns.]
+make: *** No rule to make target `src/fom_solver.c', needed by `verify'.  Stop.
+
+condensed program: 40 variables, 120 inequality rows (10 input moves over a 1.00 s horizon, 100 steps of 10 ms, held 10 at a time)
+iteration:         matrix free; one 40 x 40 product per step, no linear solve
+rAPDHG parameters: K = 64, w = 1.0, ||Q|| = 2.581e+04, ||G|| = 9.005
+state constraints: |tilt| <= 30 deg at the end of each block, 40 rows
