@@ -50,7 +50,7 @@ results file in the producing folder.
 
 - [x] 0. Stop all earlier numerics (local batches, della tmux, holders; Oct 22).
 - [x] 0b. Remove experiments not in the paper (`c41237e`).
-- [ ] 1. Migrate to the fomtools `25b3f73` API, one commit per folder: Verifier (`parameter`,
+- [x] 1. Migrate to the fomtools `25b3f73` API, one commit per folder: Verifier (`parameter`,
       `iterate`, `vp.relu/satlin/soft_threshold`, `maximize(ft.norm | ft.sum_squares)`,
       `.value`), sparse `MatrixData` (`.nnz()`, `.shape`), codegen through
       `run_code_optimization`, `--rep` repetitions, no generated `fom_data.c`/`test/` in git.
@@ -64,3 +64,12 @@ results file in the producing folder.
 
 - 2026-10-22: plan written; fomtools pinned to `25b3f73` (#154 merged); dropped experiments removed
   (`c41237e`). Migration split in three parallel forks: verification (A), CPU codegen (B), GPU (C).
+- 2026-10-22: migration done (forks A/B/C); verification smoke runs match the archived bounds; della
+  verification via `python -m fomexp.submit` (`6c775f7`); README "Reproducing the paper" (`41af186`).
+- 2026-10-22: C1, C2 done, 3 reps on `25b3f73` (`57dbe42`). Total vs NumPy 32-162x (paper 37-190x),
+  code optimization 3.4-12x; network and control much faster than the paper, R6 slower (15 vs 10 us).
+- 2026-10-23, decision (Bart): keep the new results; report medians and ranges of the 3 reps.
+- 2026-10-23: C4 reps 1-2 (`a821899`) after the stale-library fix (`21e8013`); optimized C buys
+  405 / 485 iterations at 40 us (paper 275). C3: 4 of 12 solvers; the rest retried after the
+  overnight session-limit failures.
+
