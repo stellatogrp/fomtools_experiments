@@ -73,3 +73,8 @@ results file in the producing folder.
   405 / 485 iterations at 40 us (paper 275). C3: 4 of 12 solvers; the rest retried after the
   overnight session-limit failures.
 
+- 2026-10-23: C4 done, 3 reps (`a3c5e19`): optimized C buys 485 iterations at 40 us (median;
+  paper 275), 0.082 us per iteration. C5 reps 1-2 timed: optimized vs OSQP 1.4 / 2.7 / 4.8 / 4.1x
+  for n = 200 / 500 / 1000 / 3000 (paper 1.9 / 1.6 / 2.5 / 3.4x), iterations identical to the
+  paper. Kept (Bart). The weekly Claude limit stopped the agents at 12:45 (reset 13:00); C5 rep 3
+  and the remaining 7 C3 solvers restarted.
