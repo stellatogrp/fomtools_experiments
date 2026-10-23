@@ -78,3 +78,7 @@ results file in the producing folder.
   for n = 200 / 500 / 1000 / 3000 (paper 1.9 / 1.6 / 2.5 / 3.4x), iterations identical to the
   paper. Kept (Bart). The weekly Claude limit stopped the agents at 12:45 (reset 13:00); C5 rep 3
   and the remaining 7 C3 solvers restarted.
+- 2026-10-23: V1-V3 submitted on della (16 cores, 32 GB, Gurobi 13.0 site license), budgets 10 / 3 /
+  7 h (they stop at the paper horizons): lasso run_023 (16094056), network run_006 (16094058),
+  control run_002 (16094060). The cpu partition is full (0 idle nodes, ~2450 pending); estimated
+  start Sun Oct 25. The committed results folders were copied to della first so run numbers continue.
