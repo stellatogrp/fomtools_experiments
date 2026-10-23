@@ -1,0 +1,94 @@
+{
+  "fom": {
+    "wall_s": 254.85718187503517,
+    "fom_options": {
+      "rho": 1.0
+    },
+    "termination": {
+      "kind": "objective",
+      "max_iters": 4000,
+      "tol": 0.0001,
+      "check_termination": 25
+    },
+    "auto_equilibrate": true,
+    "code_optimization": false,
+    "out_dir": "cpg_n3000_fom_rep2/c/solver_code",
+    "verified": true
+  },
+  "fom_opt": {
+    "wall_s": 1964.9031592090614,
+    "fom_options": {
+      "rho": 1.0
+    },
+    "termination": {
+      "kind": "objective",
+      "max_iters": 4000,
+      "tol": 0.0001,
+      "check_termination": 25
+    },
+    "auto_equilibrate": true,
+    "code_optimization": true,
+    "out_dir": "cpg_n3000_fom_opt_rep2/c/solver_code",
+    "verified": true,
+    "optimization_kept": true,
+    "optimize": {
+      "success": true,
+      "turns_used": 4,
+      "truncated": true
+    },
+    "rule_friction": [
+      {
+        "round": 1,
+        "idea": "Store the dense panel in float32 to halve memory traffic",
+        "rule": "must solve the same system by applying the given factorization (precision change)",
+        "expected_gain": "~1.3x on the panel passes"
+      },
+      {
+        "round": 1,
+        "idea": "Speed up the objective call, which is about 12% of the time",
+        "rule": "`fom_objective.c` is fixed and must be called as is",
+        "expected_gain": "unknown, up to ~10%"
+      },
+      {
+        "round": 1,
+        "idea": "Build a merged CSR over the three state-update matrices once at setup",
+        "rule": "`fom_solver.c`/setup may not read `FOM_MAT_*` data, and the precomputed data in `fom_data.c` is fixed",
+        "expected_gain": "small, ~3-5%"
+      },
+      {
+        "round": 2,
+        "idea": "Store the dense panel factor in float32 to halve the bandwidth-bound panel traffic",
+        "rule": "must apply the same factorization (exact factor data, float64)",
+        "expected_gain": "~10\u201315% of solve, unknown accuracy impact"
+      },
+      {
+        "round": 2,
+        "idea": "Rewrite `fom_objective` to fuse its dense 101x3000 `obj0` products with the iteration's existing passes",
+        "rule": "`fom_objective.c` is fixed / never compute the metric yourself",
+        "expected_gain": "up to ~10% (objective is 13%)"
+      },
+      {
+        "round": 2,
+        "idea": "Inline the selection-row copy (su rows 18302..30301 = t1[0..11999]) as a contiguous memcpy, or fuse t1's write straight into new_state",
+        "rule": "it would rely on hardcoded index ranges; the generic indexed copy was kept",
+        "expected_gain": "~1%"
+      }
+    ],
+    "timing": {
+      "python_us": 279629.2288694531,
+      "c_initial_us": 342181.666667,
+      "c_final_us": 54675.783784
+    }
+  },
+  "sizes": {
+    "n": 6100,
+    "n_eq": 101,
+    "n_ineq": 12000,
+    "nnz_P": 3100,
+    "nnz_A": 321100,
+    "param_dependent": [
+      "q",
+      "u_ineq"
+    ]
+  }
+}

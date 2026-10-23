@@ -1,0 +1,175 @@
+{
+  "osqp": {
+    "wall_s": 18.369573209201917
+  },
+  "fom": {
+    "wall_s": 74.68401237507351,
+    "fom_options": {
+      "rho": 1.0
+    },
+    "termination": {
+      "kind": "objective",
+      "max_iters": 4000,
+      "tol": 0.0001,
+      "check_termination": 25
+    },
+    "auto_equilibrate": true,
+    "code_optimization": false,
+    "out_dir": "cpg_n1000_fom/c/solver_code",
+    "verified": true
+  },
+  "fom_opt": {
+    "wall_s": 1887.6957153328694,
+    "fom_options": {
+      "rho": 1.0
+    },
+    "termination": {
+      "kind": "objective",
+      "max_iters": 4000,
+      "tol": 0.0001,
+      "check_termination": 25
+    },
+    "auto_equilibrate": true,
+    "code_optimization": true,
+    "out_dir": "cpg_n1000_fom_opt/c/solver_code",
+    "verified": true,
+    "optimization_kept": true,
+    "optimize": {
+      "success": true,
+      "turns_used": 5,
+      "truncated": false
+    },
+    "rule_friction": [
+      {
+        "round": 1,
+        "idea": "Compiling with fast-math or adding explicit SIMD intrinsics so the dense dot products vectorize, letting both passes share one 2.4 MB copy instead of two",
+        "rule": "Makefile/build flags are fixed; intrinsics are not portable to the embedded target",
+        "expected_gain": "~5-10% of the solve"
+      },
+      {
+        "round": 1,
+        "idea": "Storing the dense tail of L in float32 to halve memory traffic",
+        "rule": "must apply the same factorization; precision",
+        "expected_gain": "~25% of the solve"
+      },
+      {
+        "round": 1,
+        "idea": "Replacing the rank-101 dense tail block (3000x101) with a low-rank or condensed form, e.g. precomputing products with it",
+        "rule": "must apply the given factorization, no inverse or modified factors",
+        "expected_gain": "unknown, potentially large"
+      },
+      {
+        "round": 1,
+        "idea": "Merging the t0 right-hand side into the solve's initial permuted copy, which saves one pass",
+        "rule": "`fom_lin_solve_t0` signature is fixed, and `src/fom_linsolve.c` cannot call `fom_apply_*`",
+        "expected_gain": "~2%"
+      },
+      {
+        "round": 2,
+        "idea": "Storing the dense 101\u00d73000 tail of L in float32 (or another compressed form) to halve the bandwidth of the two dominant passes",
+        "rule": "must apply the same factorization exactly (the precision of the factorization data)",
+        "expected_gain": "unknown, possibly up to about 15% of the solve if the tolerance allowed it"
+      },
+      {
+        "round": 2,
+        "idea": "Splitting the two dense tail mat-vecs across cores",
+        "rule": "target constraints (single-threaded embedded C, no runtime/allocation)",
+        "expected_gain": "possibly about 20%"
+      },
+      {
+        "round": 2,
+        "idea": "Folding the factor permutation into the t0 right-hand-side assembly so the solve can skip its 6201-entry gather",
+        "rule": "the `fom_lin_solve_t0(b, x)` signature in `include/` is fixed, and the solver must build rhs through `fom_apply_*`",
+        "expected_gain": "about 1-2%"
+      },
+      {
+        "round": 2,
+        "idea": "Making the verification objective cheaper or calling it less often (about 8% of the time)",
+        "rule": "`fom_objective.c` is fixed and must be called at the specified iterations",
+        "expected_gain": "unknown"
+      },
+      {
+        "round": 3,
+        "idea": "Speed up or batch the verification objective (about 20% of the time)",
+        "rule": "`fom_objective.c` is fixed and must be called as is",
+        "expected_gain": "up to ~15%"
+      },
+      {
+        "round": 3,
+        "idea": "Store the dense tail factor in float32 to halve its bandwidth",
+        "rule": "it would no longer apply exactly the same factorization, and precision would change",
+        "expected_gain": "~10%, unknown accuracy cost"
+      },
+      {
+        "round": 3,
+        "idea": "Fold the t0 permutation into the producer of the rhs (`rhs_t0`) to skip the gather",
+        "rule": "`fom_lin_solve_t0` signature and the contract (solve `M x = b` on the natural ordering) are fixed",
+        "expected_gain": "~2%"
+      },
+      {
+        "round": 3,
+        "idea": "Fast-math reassociation to vectorize the tail dot products",
+        "rule": "Makefile and build flags are fixed",
+        "expected_gain": "unknown, ~3-5%"
+      },
+      {
+        "round": 4,
+        "idea": "Store the dense 1000x101 tail block of L (`TB`/`TBT`) in float32 to halve its memory traffic",
+        "rule": "must apply the same factorization, and verify compares the solve against the reference",
+        "expected_gain": "about 10% of the solve (unknown whether it stays inside tolerance)"
+      },
+      {
+        "round": 4,
+        "idea": "Skip the `rhs_t0` copy of the bias by writing `rhs = b0 + t0_state @ state` in one overwriting pass",
+        "rule": "`fom_apply_*` must accumulate into `out`, and `fom_solver.c` may not read matrix data",
+        "expected_gain": "about 0.5 us per iteration (~1%)"
+      },
+      {
+        "round": 4,
+        "idea": "Avoid or reuse work inside the objective (20% of the solve)",
+        "rule": "`fom_objective.c` is fixed and must be called as is",
+        "expected_gain": "unknown"
+      },
+      {
+        "round": 5,
+        "idea": "Fuse fom_step_t1 into the su rows 2201..6200 (both read state[2201+r], state[6302+r] and t0[2201+r], and t1[r] is consumed right away), saving one pass over 4000-row streams",
+        "rule": "the cross-block data rule: only fom_iterate may read the whole iteration's matrices, and include/fom_ops.h (fixed) does not declare it",
+        "expected_gain": "about 1-2% (step_t1 is 3.2% of the solve)"
+      },
+      {
+        "round": 5,
+        "idea": "Fuse the rhs_t0 product into the gather at the start of fom_lin_solve_t0, removing one 50 KB write+read and the memcpy of the bias",
+        "rule": "the kernel rule (fom_linsolve.c may not read FOM_MAT_t0_state) plus the fixed fom_lin_solve signature",
+        "expected_gain": "about 1-2%"
+      },
+      {
+        "round": 5,
+        "idea": "Store the dense tail TB/TBT in float32, halving the bandwidth of the two memory-bound tail passes",
+        "rule": "not a rule violation as such: it would no longer apply the same factorization (the reduced precision changes the factor values)",
+        "expected_gain": "about 10-12%"
+      },
+      {
+        "round": 5,
+        "idea": "Reduce the cost of the termination objective (20.8% of the time)",
+        "rule": "fom_objective.c is fixed and must be called unchanged at the gated iterations",
+        "expected_gain": "unknown, up to about 20%"
+      }
+    ],
+    "timing": {
+      "python_us": 166638.91717325896,
+      "c_initial_us": 58279.114286,
+      "c_final_us": 7162.282143
+    }
+  },
+  "sizes": {
+    "n": 2100,
+    "n_eq": 101,
+    "n_ineq": 4000,
+    "nnz_P": 1100,
+    "nnz_A": 107100,
+    "param_dependent": [
+      "q",
+      "u_ineq"
+    ]
+  }
+}

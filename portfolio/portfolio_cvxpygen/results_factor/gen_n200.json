@@ -1,0 +1,85 @@
+{
+  "osqp": {
+    "wall_s": 9.440425416920334
+  },
+  "fom": {
+    "wall_s": 42.131383541971445,
+    "fom_options": {
+      "rho": 1.0
+    },
+    "termination": {
+      "kind": "objective",
+      "max_iters": 4000,
+      "tol": 0.0001,
+      "check_termination": 25
+    },
+    "auto_equilibrate": true,
+    "code_optimization": false,
+    "out_dir": "cpg_n200_fom/c/solver_code",
+    "verified": true
+  },
+  "fom_opt": {
+    "wall_s": 426.7093509170227,
+    "fom_options": {
+      "rho": 1.0
+    },
+    "termination": {
+      "kind": "objective",
+      "max_iters": 4000,
+      "tol": 0.0001,
+      "check_termination": 25
+    },
+    "auto_equilibrate": true,
+    "code_optimization": true,
+    "out_dir": "cpg_n200_fom_opt/c/solver_code",
+    "verified": true,
+    "optimization_kept": false,
+    "optimize": {
+      "success": false,
+      "turns_used": 1,
+      "truncated": false
+    },
+    "rule_friction": [
+      {
+        "round": 1,
+        "idea": "Precomputing the p0 term of the t0 right-hand side once per solve in a persistent buffer",
+        "rule": "the workspace layout in `include/` is fixed and `acc` has only 101 spare entries; a static buffer would work around it",
+        "expected_gain": "about 0.3 us per iteration (~2%)"
+      },
+      {
+        "round": 1,
+        "idea": "Folding the dense panel by multiplying with a precomputed inverse block, or any similar low-rank shortcut",
+        "rule": "the \"never form or use a matrix inverse\" rule",
+        "expected_gain": "unknown, the panel looks full-rank"
+      },
+      {
+        "round": 1,
+        "idea": "Single-precision storage of the panel to halve cache traffic",
+        "rule": "changes the factorization values, so not the same factor",
+        "expected_gain": "possibly 20\u201330% of the solve time"
+      },
+      {
+        "round": 1,
+        "idea": "Cheaper or less frequent objective evaluation (~20% of the solve)",
+        "rule": "`fom_objective.c` is fixed and its call sites are prescribed",
+        "expected_gain": "up to ~20%"
+      }
+    ],
+    "timing": {
+      "python_us": 17418.520525097847,
+      "c_initial_us": 3397.295416,
+      "c_final_us": 3397.295416
+    }
+  },
+  "sizes": {
+    "n": 500,
+    "n_eq": 101,
+    "n_ineq": 800,
+    "nnz_P": 300,
+    "nnz_A": 21500,
+    "param_dependent": [
+      "q",
+      "u_ineq"
+    ]
+  }
+}

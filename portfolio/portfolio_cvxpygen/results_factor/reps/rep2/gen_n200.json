@@ -1,0 +1,148 @@
+{
+  "fom": {
+    "wall_s": 40.65060012508184,
+    "fom_options": {
+      "rho": 1.0
+    },
+    "termination": {
+      "kind": "objective",
+      "max_iters": 4000,
+      "tol": 0.0001,
+      "check_termination": 25
+    },
+    "auto_equilibrate": true,
+    "code_optimization": false,
+    "out_dir": "cpg_n200_fom_rep2/c/solver_code",
+    "verified": true
+  },
+  "fom_opt": {
+    "wall_s": 1416.353647083044,
+    "fom_options": {
+      "rho": 1.0
+    },
+    "termination": {
+      "kind": "objective",
+      "max_iters": 4000,
+      "tol": 0.0001,
+      "check_termination": 25
+    },
+    "auto_equilibrate": true,
+    "code_optimization": true,
+    "out_dir": "cpg_n200_fom_opt_rep2/c/solver_code",
+    "verified": true,
+    "optimization_kept": true,
+    "optimize": {
+      "success": true,
+      "turns_used": 5,
+      "truncated": false
+    },
+    "rule_friction": [
+      {
+        "round": 1,
+        "idea": "Fold the `t0_state @ state + bias` right-hand side into the solve's permutation gather (y[i] = rhs[perm[i]]), saving one 1401-element pass and the memcpy",
+        "rule": "linsolve must not read matrix data, and matrix products must stay in `fom_apply_*`",
+        "expected_gain": "~1\u20132%"
+      },
+      {
+        "round": 1,
+        "idea": "Apply the permutation to t0_state's rows in `fom_ops.c`, so the solve takes an already-permuted right-hand side and returns a permuted t0 (removes gather and scatter)",
+        "rule": "`fom_lin_solve_t0` must solve the same M x = b with the fixed signature, and verify checks it directly",
+        "expected_gain": "~1\u20132%"
+      },
+      {
+        "round": 1,
+        "idea": "Store the dense rectangle and triangle factor blocks in float32 to halve the L2 traffic of the bandwidth-bound rectangle passes",
+        "rule": "changes the factorization's numerics, so correctness against the reference is at risk",
+        "expected_gain": "unknown, up to ~10%"
+      },
+      {
+        "round": 2,
+        "idea": "Storing the dense 101\u00d7200 block and the trailing triangle in float32 to halve the bandwidth-bound traffic",
+        "rule": "changes the precomputed factorization's values (must apply the same factorization; risks accuracy)",
+        "expected_gain": "~10-15%"
+      },
+      {
+        "round": 2,
+        "idea": "Low-rank compression of the dense block",
+        "rule": "would replace the factorization with an approximation, not the same `M x = b` solve",
+        "expected_gain": "unknown"
+      },
+      {
+        "round": 2,
+        "idea": "Faster or less frequent objective evaluation (12.8%)",
+        "rule": "`fom_objective.c` is fixed and its call sites are verified behavior",
+        "expected_gain": "up to ~10%"
+      },
+      {
+        "round": 3,
+        "idea": "Merge the rhs_t0 product (`fom_apply_t0_state` plus bias) with the solve's permutation gather, writing the right-hand side straight in permuted order",
+        "rule": "the fixed `fom_lin_solve_t0(b, x)` signature and the kernel rule that keeps matrix products inside `fom_apply_*`",
+        "expected_gain": "about 2%"
+      },
+      {
+        "round": 3,
+        "idea": "Merge the solve's scatter `x = P y` into `fom_step_t1` / `fom_step_su__rest` so the iteration reads t0 in factor order",
+        "rule": "the fixed signatures, and t0 must be returned in natural order",
+        "expected_gain": "about 1%"
+      },
+      {
+        "round": 3,
+        "idea": "Store the dense 101\u00d7200 off-diagonal block of L in float32 to halve L2 traffic",
+        "rule": "the factorization must be applied as given, in the fixed `fom_float` (double) precision",
+        "expected_gain": "about 10\u201315%, if it stayed accurate"
+      },
+      {
+        "round": 3,
+        "idea": "Software prefetch or NEON intrinsics for the dense block GEMVs",
+        "rule": "the fixed build flags, and the code must stay portable embedded C",
+        "expected_gain": "unknown, probably small"
+      },
+      {
+        "round": 4,
+        "idea": "Store the dense 101\u00d7200 rect block (and the trailing triangle) of the LDL\u1d40 factor in float32, halving its 160 KB stream so it fits in L1",
+        "rule": "lin solve must apply the given factorization to solve the same system M x = b (a rounded factor is a different factorization), and the end-to-end stopping-iteration check could shift",
+        "expected_gain": "unknown, possibly 15-25% of the solve"
+      },
+      {
+        "round": 4,
+        "idea": "Write the rhs_t0 bias straight into the right-hand side instead of memcpy then accumulate (no `fom_step_t0` exists, and `fom_apply_*` must accumulate)",
+        "rule": "the fixed headers expose no step/overwrite routine for an affine-solve block",
+        "expected_gain": "~1-2%"
+      },
+      {
+        "round": 5,
+        "idea": "Store the 101x200 dense rectangle (and the trailing triangle) in float32 to halve the memory traffic of the bandwidth-bound passes",
+        "rule": "precision and the \"apply that factorization\" rule (it would change the factor's values)",
+        "expected_gain": "about 15\u201320% of the solve"
+      },
+      {
+        "round": 5,
+        "idea": "Make the objective check cheaper (it takes 17% of the time)",
+        "rule": "`fom_objective` is fixed and must not be reimplemented or inlined",
+        "expected_gain": "unknown, possibly 10%"
+      },
+      {
+        "round": 5,
+        "idea": "Read the rectangle from the problem data instead of a separate copy. Columns 1100..1299 appear to be one KKT data block times the constant 0.2427",
+        "rule": "the linear solve must apply its own factorization, and only the `fom_apply_*` routines may read matrix data",
+        "expected_gain": "none expected, since the traffic stays the same"
+      }
+    ],
+    "timing": {
+      "python_us": 17558.187479153275,
+      "c_initial_us": 3342.375626,
+      "c_final_us": 902.787455
+    }
+  },
+  "sizes": {
+    "n": 500,
+    "n_eq": 101,
+    "n_ineq": 800,
+    "nnz_P": 300,
+    "nnz_A": 21500,
+    "param_dependent": [
+      "q",
+      "u_ineq"
+    ]
+  }
+}

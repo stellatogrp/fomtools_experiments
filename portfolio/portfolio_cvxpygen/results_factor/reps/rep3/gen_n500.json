@@ -1,0 +1,106 @@
+{
+  "fom": {
+    "wall_s": 46.1928287090268,
+    "fom_options": {
+      "rho": 1.0
+    },
+    "termination": {
+      "kind": "objective",
+      "max_iters": 4000,
+      "tol": 0.0001,
+      "check_termination": 25
+    },
+    "auto_equilibrate": true,
+    "code_optimization": false,
+    "out_dir": "cpg_n500_fom_rep3/c/solver_code",
+    "verified": true
+  },
+  "fom_opt": {
+    "wall_s": 675.830109667033,
+    "fom_options": {
+      "rho": 1.0
+    },
+    "termination": {
+      "kind": "objective",
+      "max_iters": 4000,
+      "tol": 0.0001,
+      "check_termination": 25
+    },
+    "auto_equilibrate": true,
+    "code_optimization": true,
+    "out_dir": "cpg_n500_fom_opt_rep3/c/solver_code",
+    "verified": true,
+    "optimization_kept": true,
+    "optimize": {
+      "success": true,
+      "turns_used": 2,
+      "truncated": false
+    },
+    "rule_friction": [
+      {
+        "round": 1,
+        "idea": "Assemble the t0 right-hand side (`pt0 + t0_state @ state`) inside the solve's permuted gather, instead of a memcpy plus accumulate pass followed by a gather",
+        "rule": "`fom_lin_solve_<name>` signature fixed in `include/` and products must stay in `fom_apply_*` (no t0 step routine)",
+        "expected_gain": "about 1 \u00b5s/iter (about 3\u20134%)"
+      },
+      {
+        "round": 1,
+        "idea": "Compute the next iteration's t0 right-hand side inside the `su` step pass, which already touches the state",
+        "rule": "fused/step routines may read only their own members' data, and `fom_solver.c` may not read matrix data",
+        "expected_gain": "about 1 \u00b5s/iter"
+      },
+      {
+        "round": 1,
+        "idea": "Write `fom_step_su__rest` with literal coefficients (the constant -0.6, 1.6, \u00b11, 1000 bands), dropping the value loads",
+        "rule": "literal exception does not cover `fom_step_su__rest`",
+        "expected_gain": "small, about 0.3 \u00b5s/iter"
+      },
+      {
+        "round": 1,
+        "idea": "Store the dense 101\u00d7500 factor block in reduced precision, or exploit possible low-rank structure, to cut the memory traffic that now limits the solve",
+        "rule": "must apply the same factorization exactly (no reformulation)",
+        "expected_gain": "unknown, up to about 4 \u00b5s/iter"
+      },
+      {
+        "round": 1,
+        "idea": "Speed up or amortize the objective evaluation (26% of time)",
+        "rule": "`src/fom_objective.c` is fixed and its call sites are verified",
+        "expected_gain": "unknown"
+      },
+      {
+        "round": 2,
+        "idea": "Store the dense 101x500 factor block in float32 to halve the bandwidth of the bandwidth-bound sweeps",
+        "rule": "the factorization must be applied exactly as given (it is fixed numeric data, and verify checks fom_lin_solve_t0 against its reference solve)",
+        "expected_gain": "maybe 20-30% of t0_solve"
+      },
+      {
+        "round": 2,
+        "idea": "Collapse the two dense-block sweeps into one pass by precomputing B^T G B (G = the inverse of the 101x101 tail factor)",
+        "rule": "never form or use a matrix inverse, and each solve must apply the given factorization",
+        "expected_gain": "about 30% of t0_solve"
+      },
+      {
+        "round": 2,
+        "idea": "Make objective evaluation cheaper (26.5% of runtime)",
+        "rule": "src/fom_objective.c is fixed, and the metric must not be reimplemented or inlined",
+        "expected_gain": "unknown"
+      }
+    ],
+    "timing": {
+      "python_us": 38719.18702498078,
+      "c_initial_us": 7356.087912,
+      "c_final_us": 2692.934051
+    }
+  },
+  "sizes": {
+    "n": 1100,
+    "n_eq": 101,
+    "n_ineq": 2000,
+    "nnz_P": 600,
+    "nnz_A": 53600,
+    "param_dependent": [
+      "q",
+      "u_ineq"
+    ]
+  }
+}

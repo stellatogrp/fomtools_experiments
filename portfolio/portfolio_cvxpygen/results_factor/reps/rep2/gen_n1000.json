@@ -1,0 +1,106 @@
+{
+  "fom": {
+    "wall_s": 70.42550787492655,
+    "fom_options": {
+      "rho": 1.0
+    },
+    "termination": {
+      "kind": "objective",
+      "max_iters": 4000,
+      "tol": 0.0001,
+      "check_termination": 25
+    },
+    "auto_equilibrate": true,
+    "code_optimization": false,
+    "out_dir": "cpg_n1000_fom_rep2/c/solver_code",
+    "verified": true
+  },
+  "fom_opt": {
+    "wall_s": 713.533361250069,
+    "fom_options": {
+      "rho": 1.0
+    },
+    "termination": {
+      "kind": "objective",
+      "max_iters": 4000,
+      "tol": 0.0001,
+      "check_termination": 25
+    },
+    "auto_equilibrate": true,
+    "code_optimization": true,
+    "out_dir": "cpg_n1000_fom_opt_rep2/c/solver_code",
+    "verified": true,
+    "optimization_kept": true,
+    "optimize": {
+      "success": true,
+      "turns_used": 2,
+      "truncated": false
+    },
+    "rule_friction": [
+      {
+        "round": 1,
+        "idea": "Store the 3000\u00d7101 dense panel of L in single precision or another compressed form to halve the bandwidth of the two passes that dominate",
+        "rule": "the linsolve must apply the same factorization exactly (and the target is float64)",
+        "expected_gain": "~35\u201340% of solve time"
+      },
+      {
+        "round": 1,
+        "idea": "Use the low-rank factor-model structure behind the trailing block to apply the Schur-complement update without streaming the dense panel",
+        "rule": "must solve by applying the given factorization, not a reformulation of M",
+        "expected_gain": "unknown, possibly large"
+      },
+      {
+        "round": 1,
+        "idea": "Inline or skip parts of `fom_objective`, which is 8.9% even at one call per 25 iterations",
+        "rule": "`fom_objective.c` is fixed and must be called as-is",
+        "expected_gain": "up to ~9%"
+      },
+      {
+        "round": 1,
+        "idea": "Fold the constant `b0` copy and the permutation gather into `fom_apply_t0_state` so the result lands already permuted in the solve's work vector",
+        "rule": "`fom_apply_*` must accumulate into `out` in natural order, and the linsolve signature takes `b` unpermuted",
+        "expected_gain": "~2\u20133%"
+      },
+      {
+        "round": 1,
+        "idea": "Multithread the two panel passes across cores",
+        "rule": "embedded target constraints",
+        "expected_gain": "~1.5\u20132x on the panel passes"
+      },
+      {
+        "round": 2,
+        "idea": "Skip or batch the `fom_objective` work, which is 17% of the solve",
+        "rule": "`fom_objective.c` is fixed and its call sites are required",
+        "expected_gain": "up to about 15%"
+      },
+      {
+        "round": 2,
+        "idea": "Drop the explicit permutation gather and scatter in the t0 solve by permuting the `t0_state`/`t0_p_p0` products and the `t1`/`su` readers instead",
+        "rule": "headers and `fom_data.c` are fixed, and the `fom_lin_solve_t0` signature must keep the original ordering",
+        "expected_gain": "about 2\u20133%"
+      },
+      {
+        "round": 2,
+        "idea": "Store the panel in single precision to halve its bandwidth",
+        "rule": "the factor values must be the same (float64 accuracy)",
+        "expected_gain": "about 10\u201315%"
+      }
+    ],
+    "timing": {
+      "python_us": 162512.8329033032,
+      "c_initial_us": 57252.942857,
+      "c_final_us": 14553.115942
+    }
+  },
+  "sizes": {
+    "n": 2100,
+    "n_eq": 101,
+    "n_ineq": 4000,
+    "nnz_P": 1100,
+    "nnz_A": 107100,
+    "param_dependent": [
+      "q",
+      "u_ineq"
+    ]
+  }
+}
