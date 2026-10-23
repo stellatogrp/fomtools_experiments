@@ -82,3 +82,5 @@ results file in the producing folder.
   7 h (they stop at the paper horizons): lasso run_023 (16094056), network run_006 (16094058),
   control run_002 (16094060). The cpu partition is full (0 idle nodes, ~2450 pending); estimated
   start Sun Oct 25. The committed results folders were copied to della first so run numbers continue.
+- 2026-10-23: C5 done, 3 reps (`aa119d6`): optimized vs OSQP 3.3 / 2.5 / 6.2 / 5.8x for n = 200 / 500 /
+  1000 / 3000 (paper 1.9 / 1.6 / 2.5 / 3.4x), iterations identical. All Mac experiments done.
