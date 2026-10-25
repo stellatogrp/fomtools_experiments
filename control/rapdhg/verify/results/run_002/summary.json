@@ -1,18 +1,15 @@
 {
   "R12": {
     "k_max": 75,
-    "hours_total": 4.362818091577954,
-    "hours_mip": 4.361067513491839,
+    "hours_total": 5.077437863482369,
+    "hours_mip": 5.074395849977025,
     "max_num_vars": 4336,
     "max_num_bin_vars": 540,
     "statuses": {
-      "OPTIMAL": 74,
-      "TIME_LIMIT": 1
+      "OPTIMAL": 75
     },
-    "time_limited_K": [
-      73
-    ],
-    "max_gap": 0.35837275401804564
+    "time_limited_K": [],
+    "max_gap": 0.04979842379846626
   },
   "R6": {
     "k_max": 75,

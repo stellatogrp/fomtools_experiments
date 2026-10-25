@@ -1,21 +1,21 @@
 {
   "experiment": "lasso",
   "variant": "fista",
-  "started_utc": "2026-10-23T19:58:19+00:00",
-  "finished_utc": "2026-10-24T02:31:46+00:00",
+  "started_utc": "2026-10-25T04:14:48+00:00",
+  "finished_utc": "2026-10-25T11:22:15+00:00",
   "stop_reason": "k_max",
   "environment": {
-    "host": "della-h16n9",
+    "host": "della-h16n10",
     "platform": "Linux-5.14.0-687.58.1.el9_8.x86_64-x86_64-with-glibc2.34",
     "python": "3.13.12",
     "cpu_count": 192,
     "slurm": {
-      "SLURM_JOB_ID": "16094056",
-      "SLURM_ARRAY_JOB_ID": "16094056",
-      "SLURM_ARRAY_TASK_ID": "1",
+      "SLURM_JOB_ID": "16173877",
+      "SLURM_ARRAY_JOB_ID": "16173877",
+      "SLURM_ARRAY_TASK_ID": "0",
       "SLURM_JOB_NAME": "fom-lasso",
       "SLURM_JOB_PARTITION": "cpu",
-      "SLURM_JOB_NODELIST": "della-h16n9",
+      "SLURM_JOB_NODELIST": "della-h16n10",
       "SLURM_CPUS_PER_TASK": "16",
       "SLURM_CPUS_ON_NODE": "16",
       "SLURM_MEM_PER_NODE": "32768"
@@ -59,7 +59,8 @@
     },
     "solver": {
       "mip_gap": 0.05,
-      "time_limit": 3600,
+      "time_limit": 7200,
+      "retry_factor": 0,
       "mip_focus": 2,
       "threads": 16,
       "seed": 0,
@@ -73,7 +74,7 @@
     },
     "schedule": {
       "k_max": 20,
-      "budget_hours": 10,
+      "budget_hours": 12,
       "build_margin_min": 10,
       "sequential_warm_start": true,
       "sample_start": true,
@@ -101,11 +102,11 @@
       "mail_type": "FAIL,TIME_LIMIT"
     },
     "run_dir": "/scratch/gpfs/BSTELLATO/bs37/fomtools_v004/lasso/lasso_verify/results/run_023",
-    "variant": null,
-    "variant_index": 1,
+    "variant": "fista",
+    "variant_index": null,
     "label": ""
   },
   "k_in_progress": null,
   "last_k": 20,
-  "wall_hours": 6.55818708439668
+  "wall_hours": 7.124644476771355
 }

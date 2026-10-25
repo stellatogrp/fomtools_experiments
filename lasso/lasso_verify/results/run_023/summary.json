@@ -1,8 +1,8 @@
 {
   "fista": {
     "k_max": 20,
-    "hours_total": 6.558185743292173,
-    "hours_mip": 6.557221458490595,
+    "hours_total": 7.124642885194884,
+    "hours_mip": 7.123860514506636,
     "max_num_vars": 3276,
     "max_num_bin_vars": 2100,
     "statuses": {
@@ -12,7 +12,7 @@
     "time_limited_K": [
       17
     ],
-    "max_gap": 1164.270228314695
+    "max_gap": 1139.4584068257093
   },
   "ista": {
     "k_max": 20,

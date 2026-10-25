@@ -1,4 +1,6 @@
 - experiment=rapdhg
 - run_dir=/scratch/gpfs/BSTELLATO/bs37/fomtools_v004/control/rapdhg/verify/results/run_002
-- variant_index=0
-- schedule.budget_hours=7
+- variant=R12
+- schedule.budget_hours=9
+- solver.time_limit=7200
+- solver.retry_factor=0

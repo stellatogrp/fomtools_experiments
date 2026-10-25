@@ -28,7 +28,8 @@ experiment:
     step_scale: 1.0
 solver:
   mip_gap: 0.05
-  time_limit: 3600
+  time_limit: 7200
+  retry_factor: 0
   mip_focus: 2
   threads: ${cluster.cpus}
   seed: 0
@@ -41,7 +42,7 @@ solver:
   obbt_params: {}
 schedule:
   k_max: ${experiment.k_max}
-  budget_hours: 7
+  budget_hours: 9
   build_margin_min: 10
   sequential_warm_start: true
   sample_start: true
@@ -66,6 +67,6 @@ cluster:
   mail: null
   mail_type: FAIL,TIME_LIMIT
 run_dir: /scratch/gpfs/BSTELLATO/bs37/fomtools_v004/control/rapdhg/verify/results/run_002
-variant: null
-variant_index: 0
+variant: R12
+variant_index: null
 label: ''

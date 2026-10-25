@@ -1,21 +1,21 @@
 {
   "experiment": "rapdhg",
   "variant": "R12",
-  "started_utc": "2026-10-23T21:08:31+00:00",
-  "finished_utc": "2026-10-24T01:30:16+00:00",
+  "started_utc": "2026-10-25T04:15:20+00:00",
+  "finished_utc": "2026-10-25T09:19:56+00:00",
   "stop_reason": "k_max",
   "environment": {
-    "host": "della-h17n10",
+    "host": "della-h16n12",
     "platform": "Linux-5.14.0-687.58.1.el9_8.x86_64-x86_64-with-glibc2.34",
     "python": "3.13.12",
     "cpu_count": 192,
     "slurm": {
-      "SLURM_JOB_ID": "16094065",
-      "SLURM_ARRAY_JOB_ID": "16094060",
+      "SLURM_JOB_ID": "16173879",
+      "SLURM_ARRAY_JOB_ID": "16173879",
       "SLURM_ARRAY_TASK_ID": "0",
       "SLURM_JOB_NAME": "fom-rapdhg",
       "SLURM_JOB_PARTITION": "cpu",
-      "SLURM_JOB_NODELIST": "della-h17n10",
+      "SLURM_JOB_NODELIST": "della-h16n12",
       "SLURM_CPUS_PER_TASK": "16",
       "SLURM_CPUS_ON_NODE": "16",
       "SLURM_MEM_PER_NODE": "32768"
@@ -75,7 +75,8 @@
     },
     "solver": {
       "mip_gap": 0.05,
-      "time_limit": 3600,
+      "time_limit": 7200,
+      "retry_factor": 0,
       "mip_focus": 2,
       "threads": 16,
       "seed": 0,
@@ -89,7 +90,7 @@
     },
     "schedule": {
       "k_max": 75,
-      "budget_hours": 7,
+      "budget_hours": 9,
       "build_margin_min": 10,
       "sequential_warm_start": true,
       "sample_start": true,
@@ -117,11 +118,11 @@
       "mail_type": "FAIL,TIME_LIMIT"
     },
     "run_dir": "/scratch/gpfs/BSTELLATO/bs37/fomtools_v004/control/rapdhg/verify/results/run_002",
-    "variant": null,
-    "variant_index": 0,
+    "variant": "R12",
+    "variant_index": null,
     "label": ""
   },
   "k_in_progress": null,
   "last_k": 75,
-  "wall_hours": 4.3628201579385335
+  "wall_hours": 5.077440384427707
 }

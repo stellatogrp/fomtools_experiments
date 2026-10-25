@@ -115,12 +115,14 @@ hydra:
     task:
     - experiment=rapdhg
     - run_dir=/scratch/gpfs/BSTELLATO/bs37/fomtools_v004/control/rapdhg/verify/results/run_002
-    - variant_index=0
-    - schedule.budget_hours=7
+    - variant=R12
+    - schedule.budget_hours=9
+    - solver.time_limit=7200
+    - solver.retry_factor=0
   job:
     name: run
     chdir: false
-    override_dirname: experiment=rapdhg,run_dir=/scratch/gpfs/BSTELLATO/bs37/fomtools_v004/control/rapdhg/verify/results/run_002,schedule.budget_hours=7,variant_index=0
+    override_dirname: experiment=rapdhg,run_dir=/scratch/gpfs/BSTELLATO/bs37/fomtools_v004/control/rapdhg/verify/results/run_002,schedule.budget_hours=9,solver.retry_factor=0,solver.time_limit=7200,variant=R12
     id: ???
     num: ???
     config_name: config
