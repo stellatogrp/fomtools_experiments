@@ -95,3 +95,8 @@ results file in the producing folder.
   run at 1 h never hit it (identical under 2 h: same model, settings, 16 threads); lasso FISTA and
   control R12 rerun with time_limit=7200, no retry (jobs 16173877, 16173879). Defaults now 7200 s,
   retry off (`fomexp`'s retry stays available).
+- 2026-10-25: 2 h reruns done (`08fa6c6`): R12 K=73 solves (all 75 K within 5% of the paper). FISTA
+  K=17 still time-limited, bound 147.6 vs 0.135: on della one objective OBBT LP is not optimal and
+  fomtools then drops the whole objective tightening (M stays 147.5). The Mac solves every LP
+  (M = 0.138). Decision (Bart): fix it in fomtools (branch `bs/obbt-per-entry-fallback`), then
+  rerun K=17. Diagnostic job 16195668 (LP status and retries on della).
