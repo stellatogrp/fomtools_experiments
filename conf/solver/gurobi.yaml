@@ -1,6 +1,9 @@
 # The main MIP solve, at every K.
 mip_gap: 0.05            # relative gap: stop once the incumbent is within 5% of the bound
 time_limit: 3600         # seconds per K (Gurobi TimeLimit)
+# A K that stops on the time limit above mip_gap is re-solved once, warm-started from
+# its incumbent, with retry_factor x time_limit (0 turns the retry off).
+retry_factor: 2
 mip_focus: 2             # also fomtools' GurobiSolver default; recorded explicitly here
 threads: ${cluster.cpus}
 seed: 0

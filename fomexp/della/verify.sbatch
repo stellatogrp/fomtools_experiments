@@ -7,6 +7,6 @@
 set -euo pipefail
 cd "$SLURM_SUBMIT_DIR"
 export GRB_LICENSE_FILE
-mapfile -t overrides < "$RUN_DIR/overrides.txt"
-exec .venv/bin/python -m fomexp.run "experiment=$EXPERIMENT" "run_dir=$RUN_DIR" \
-  "variant_index=$SLURM_ARRAY_TASK_ID" "${overrides[@]}"
+mapfile -t overrides < "$RUN_DIR/${OVERRIDES_FILE:-overrides.txt}"
+if [[ -n "${VARIANT:-}" ]]; then select="variant=$VARIANT"; else select="variant_index=$SLURM_ARRAY_TASK_ID"; fi
+exec .venv/bin/python -m fomexp.run "experiment=$EXPERIMENT" "run_dir=$RUN_DIR" "$select" "${overrides[@]}"

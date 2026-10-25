@@ -243,6 +243,40 @@ def run_mip(cfg, spec: VariantSpec, out: Path, job_start: float, manifest: dict)
             error=error,
         )
         row.update(gurobi.solve_record(canon._solved_copy))
+        retry = float(solver_cfg.get("retry_factor") or 0)
+        if (
+            retry > 0
+            and row.get("status") == "TIME_LIMIT"
+            and not row["gap"] <= float(solver_cfg.mip_gap)  # NaN gap retries too
+            and time.time() - job_start + retry * time_limit + margin <= budget
+        ):
+            # One retry with a longer limit, warm-started from this solve's incumbent.
+            first = {
+                f"first_{key}": row.get(key)
+                for key in ("bound", "incumbent", "gap", "status", "gurobi_runtime")
+            }
+            print(
+                f"[{spec.variant}] K={k:3d}  time limit at gap {row['gap']:.3f}; "
+                f"retrying with {retry * time_limit:.0f} s",
+                flush=True,
+            )
+            retry_log = logs / f"K{k:03d}_retry.log" if solver_cfg.save_logs else None
+            start = time.perf_counter()
+            try:
+                value = float(
+                    vp.solve(
+                        **solve_kwargs,
+                        **gurobi.solve_params(solver_cfg, retry * time_limit, retry_log),
+                    )
+                )
+            except AttributeError as exc:
+                value, error = math.nan, f"{type(exc).__name__}: {exc}"
+            t_solve += time.perf_counter() - start
+            row.update(vp_return_value=value, error=error)
+            row.update(gurobi.solve_record(canon._solved_copy))
+            row.update(first, retried=True, retry_time_limit=retry * time_limit)
+            if retry_log is not None:
+                log_file = retry_log
         row.update(
             t_build=t_build,
             t_solve=t_solve,

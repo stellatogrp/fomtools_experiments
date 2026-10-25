@@ -2,6 +2,7 @@
 
     python -m fomexp.submit experiment=lasso              # sbatch --test-only, nothing created
     python -m fomexp.submit experiment=lasso --yes        # allocate run_NNN and submit
+    python -m fomexp.submit experiment=lasso variant=fista run_dir=<run> --yes   # rerun one variant there
 
 Run from the repository root on a della login node. Any Hydra override is passed
 on to every task (``experiment.problem.m=30``, ``solver.time_limit=600``); the
@@ -14,15 +15,17 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from pathlib import Path
 
 from fomexp.paths import REPO, next_run_dir, peek_next_run_dir, results_dir
 from fomexp.plan import slurm_time, write_run_manifest
+from fomexp.records import utc_now
 
 JOB = REPO / "fomexp" / "della" / "verify.sbatch"
 
 
-def sbatch_argv(cfg, run_dir, test_only: bool) -> list[str]:
-    n = len(cfg.experiment.variants)
+def sbatch_argv(cfg, run_dir, test_only: bool, overrides_file: str = "overrides.txt") -> list[str]:
+    n = 1 if cfg.variant else len(cfg.experiment.variants)
     throttle = f"%{cfg.cluster.max_parallel}" if cfg.cluster.max_parallel else ""
     argv = [
         "sbatch",
@@ -33,9 +36,10 @@ def sbatch_argv(cfg, run_dir, test_only: bool) -> list[str]:
         f"--mem={cfg.cluster.mem}",
         f"--time={slurm_time(cfg)}",
         f"--account={cfg.cluster.account}",
-        f"--output={run_dir}/slurm/%x-%a.out",
+        f"--output={run_dir}/slurm/%x-{cfg.variant or '%a'}-%j.out",
         "--export=ALL,"
-        f"EXPERIMENT={cfg.experiment.name},RUN_DIR={run_dir},"
+        f"EXPERIMENT={cfg.experiment.name},RUN_DIR={run_dir},VARIANT={cfg.variant or ''},"
+        f"OVERRIDES_FILE={overrides_file},"
         f"GRB_LICENSE_FILE={cfg.cluster.license_file}",
     ]
     if cfg.cluster.partition:
@@ -56,7 +60,9 @@ def main() -> None:
 
     # The test-only check comes first, against the folder a submission would get.
     check = subprocess.run(
-        sbatch_argv(cfg, peek_next_run_dir(results), test_only=True),
+        sbatch_argv(
+            cfg, Path(cfg.run_dir).resolve() if cfg.run_dir else peek_next_run_dir(results), True
+        ),
         cwd=REPO,
         capture_output=True,
         text=True,
@@ -65,14 +71,20 @@ def main() -> None:
     if check.returncode != 0 or not submit:
         sys.exit(check.returncode if check.returncode else (0 if not submit else 1))
 
-    run_dir = next_run_dir(results)
-    (run_dir / "slurm").mkdir()
-    write_run_manifest(run_dir, cfg, overrides)
-    (run_dir / "overrides.txt").write_text(
-        "".join(f"{o}\n" for o in overrides if not o.startswith("experiment="))
-    )
+    task_overrides = [
+        o for o in overrides if not o.startswith(("experiment=", "variant=", "run_dir="))
+    ]
+    if cfg.run_dir:  # rerun into an existing run folder; its manifest stays as it is
+        run_dir = Path(cfg.run_dir).resolve()
+        overrides_file = f"overrides_{cfg.variant or 'all'}_{utc_now().replace(':', '')}.txt"
+    else:
+        run_dir = next_run_dir(results)
+        (run_dir / "slurm").mkdir()
+        write_run_manifest(run_dir, cfg, overrides)
+        overrides_file = "overrides.txt"
+    (run_dir / overrides_file).write_text("".join(f"{o}\n" for o in task_overrides))
     job = subprocess.run(
-        sbatch_argv(cfg, run_dir, test_only=False),
+        sbatch_argv(cfg, run_dir, test_only=False, overrides_file=overrides_file),
         cwd=REPO,
         capture_output=True,
         text=True,
