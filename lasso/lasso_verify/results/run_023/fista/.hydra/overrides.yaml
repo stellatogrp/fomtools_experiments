@@ -1,0 +1,4 @@
+- experiment=lasso
+- run_dir=/scratch/gpfs/BSTELLATO/bs37/fomtools_v004/lasso/lasso_verify/results/run_023
+- variant_index=1
+- schedule.budget_hours=10

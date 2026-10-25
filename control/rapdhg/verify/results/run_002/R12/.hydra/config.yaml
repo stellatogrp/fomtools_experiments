@@ -1,0 +1,71 @@
+experiment:
+  name: rapdhg
+  dir: control/rapdhg/verify
+  variants:
+  - R12
+  - R6
+  k_max: 75
+  methods:
+    R12:
+      method: rapdhg
+      restart: 12
+    R6:
+      method: rapdhg
+      restart: 6
+  problem:
+    dt: 0.1
+    horizon: 5
+    block: 1
+    primal_weight: 1.0
+    param_coords:
+    - 0
+    - 1
+    - 5
+    tilt_range_deg: 20.0
+    altitude_range: 0.5
+    ruiz: false
+    ruiz_iters: 30
+    step_scale: 1.0
+solver:
+  mip_gap: 0.05
+  time_limit: 3600
+  mip_focus: 2
+  threads: ${cluster.cpus}
+  seed: 0
+  obbt_solver: gurobi
+  tighten_objective_bounds: null
+  convex_hull_cuts: false
+  cut_rounds: 1
+  save_logs: true
+  extra_params: {}
+  obbt_params: {}
+schedule:
+  k_max: ${experiment.k_max}
+  budget_hours: 7
+  build_margin_min: 10
+  sequential_warm_start: true
+  sample_start: true
+  n_start_samples: 10000
+  start_samples_seed: 0
+  run_mip: true
+simulator:
+  enabled: true
+  n_samples: 1000
+  seed: 0
+  k_max: ${schedule.k_max}
+  cross_check: true
+cluster:
+  cpus: 16
+  mem: 32G
+  time: null
+  slack_min: 30
+  partition: null
+  account: bstellato
+  license_file: /usr/licensed/gurobi/license/gurobi.lic
+  max_parallel: null
+  mail: null
+  mail_type: FAIL,TIME_LIMIT
+run_dir: /scratch/gpfs/BSTELLATO/bs37/fomtools_v004/control/rapdhg/verify/results/run_002
+variant: null
+variant_index: 0
+label: ''

@@ -1,0 +1,4 @@
+- experiment=network
+- run_dir=/scratch/gpfs/BSTELLATO/bs37/fomtools_v004/network/results/run_006
+- variant_index=1
+- schedule.budget_hours=3

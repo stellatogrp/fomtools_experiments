@@ -1,0 +1,21 @@
+{
+  "experiment": "lasso",
+  "run_id": "run_023",
+  "created_utc": "2026-10-23T19:41:08+00:00",
+  "label": "",
+  "overrides": [
+    "experiment=lasso",
+    "schedule.budget_hours=10"
+  ],
+  "variants": [
+    "ista",
+    "fista"
+  ],
+  "code": {
+    "fomtools_experiments": {},
+    "fomtools": {
+      "commit": "25b3f73273d396e641ec29d0c72f636c7e173b88",
+      "dirty": false
+    }
+  }
+}
