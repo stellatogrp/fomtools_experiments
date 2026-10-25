@@ -35,4 +35,6 @@ export FOMTOOLS_CUDA_RUN=1
 export FOMTOOLS_CODEGEN_AGENT=1
 # Logs are files: flush every line so progress shows while an agent runs.
 export PYTHONUNBUFFERED=1
+# Caches on scratch, not in the 50 GiB home (CuPy's kernel cache filled it once).
+export CUPY_CACHE_DIR="$PROJECT_DIR/.cache/cupy" UV_CACHE_DIR="$PROJECT_DIR/.cache/uv"
 export ANTHROPIC_MODEL="${ANTHROPIC_MODEL:-claude-opus-5-5}"

@@ -34,4 +34,4 @@ codegen_timings/**/test/
 codegen_timings/**/build/
 # CVXPYgen solvers and bench builds (results_factor/ stays tracked)
 portfolio/portfolio_cvxpygen/out_factor/
-*draft*
+*draft*.cache/
