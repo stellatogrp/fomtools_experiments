@@ -106,3 +106,6 @@ results file in the producing folder.
   non-optimal OBBT LP from scratch (dual simplex), then keep the input bound of that entry only.
   Lasso FISTA rerun in run_023 on `541a88d` (job 16203297); the other variants are unaffected (the
   fix only changes the path of a failed LP).
+- 2026-10-25: lasso FISTA rerun on fomtools `541a88d` (PR #159) done (job 16203297, 5.6 h): K=17 hits the
+  failing OBBT LP again, which is now solved from scratch; bound 0.13496 (paper 0.13495). All 20 K reach
+  the 5% gap within 2 h; max deviation from the paper 0.6%. Every verification variant now within 5%.

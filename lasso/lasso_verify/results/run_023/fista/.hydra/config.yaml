@@ -16,8 +16,8 @@ experiment:
     signal_scale: 1.0
 solver:
   mip_gap: 0.05
-  time_limit: 7200
-  retry_factor: 0
+  time_limit: 3600
+  retry_factor: 2
   mip_focus: 2
   threads: ${cluster.cpus}
   seed: 0
