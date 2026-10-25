@@ -91,3 +91,7 @@ results file in the producing folder.
 - 2026-10-24: V1-V3 done (`625d7ee`); lasso FISTA K=17 and control R12 K=73 hit the 1 h limit;
   both variants rerun with the new one-time 2x retry (jobs 16171588, 16171590). Home quota on della
   filled (uv cache); pruned 6.3 GiB, caches moved to scratch.
+- 2026-10-25, decision (Bart): the paper states a 2 h time limit per K for every run. The six variants
+  run at 1 h never hit it (identical under 2 h: same model, settings, 16 threads); lasso FISTA and
+  control R12 rerun with time_limit=7200, no retry (jobs 16173877, 16173879). Defaults now 7200 s,
+  retry off (`fomexp`'s retry stays available).
