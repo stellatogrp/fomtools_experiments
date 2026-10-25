@@ -1,0 +1,183 @@
+{
+  "algorithm": "ista",
+  "backend": "cuda",
+  "rep": 1,
+  "size": {
+    "m": 10000,
+    "n": 40000,
+    "nnz_per_row": 260
+  },
+  "D_nnz": 2599983,
+  "step_size": 0.014703924227805058,
+  "iterations": 200,
+  "tol_verify": 1e-05,
+  "translated_us": 19006.228915,
+  "optimized_us": 9125.578509,
+  "optimization_kept": true,
+  "agent_wall_s": {
+    "translation": 327.53729915618896,
+    "code_optimization": 16202.985263586044
+  },
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 19006.228915,
+      "us_after": 11589.662399,
+      "gain": 0.39021767806588575,
+      "agent_wall_s": 4711.482051597999,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 11638.040645,
+      "us_after": 11356.601418,
+      "gain": 0.02418269840988332,
+      "agent_wall_s": 4743.308360234998,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 11499.425368,
+      "us_after": 9125.578509,
+      "gain": 0.20643178098323212,
+      "agent_wall_s": 4433.890153385997,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 4,
+      "changed": false,
+      "correct": true,
+      "kept": false,
+      "us_before": null,
+      "us_after": null,
+      "gain": null,
+      "agent_wall_s": 1541.3783012959975,
+      "truncated": true,
+      "stop_reason": "the round left the sources unchanged"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Capture the 200-iteration loop in a CUDA graph to cut launch and boundary overhead",
+      "rule": "fixed `fom_apply_*` signatures launch on the legacy default stream, which can't be stream-captured, and the Makefile/build flags (e.g. `--default-stream per-thread`) are fixed",
+      "expected_gain": "about 1\u20133%"
+    },
+    {
+      "round": 1,
+      "idea": "Fuse the soft-threshold/residual update into the t1_t_t0 matvec epilogue (saves one kernel and a 320 KB round trip per iteration)",
+      "rule": "activations must stay in `src/fom_solver.cu`, and `fom_ops.cu` routines may only accumulate `out += M x` (no `fom_fused_*` routine is configured)",
+      "expected_gain": "about 5%"
+    },
+    {
+      "round": 1,
+      "idea": "Share one copy of A between t0_state and t1_t_t0, which appears to be a scaled A\u1d40, roughly halving the matrix bytes",
+      "rule": "each `fom_apply_<name>` may read only its own matrix's data",
+      "expected_gain": "potentially 30\u201340%"
+    },
+    {
+      "round": 1,
+      "idea": "Run the iteration's three kernels as one persistent cooperative kernel with grid syncs",
+      "rule": "matrix products must go through separate `fom_apply_*` entry points called from the solver",
+      "expected_gain": "unknown, probably about 5%"
+    },
+    {
+      "round": 2,
+      "idea": "Capture the 200 iterations (or batches of them) in a CUDA graph to remove per-launch overhead and inter-kernel gaps",
+      "rule": "the fixed `fom_apply_*` signatures take no stream and launch on the legacy default stream, which cannot be captured; the solver also cannot reach non-static helpers in `fom_ops.cu`",
+      "expected_gain": "about 2\u20135%"
+    },
+    {
+      "round": 2,
+      "idea": "Fuse the soft-threshold/residual update into the epilogue of the t1_t_t0 matvec kernel, and the t0 re-arm into the t0_state kernel",
+      "rule": "`fom_apply_<name>` must compute only out += M x, and the solver may not contain matvec loops or read matrix data",
+      "expected_gain": "about 5\u20138% (saves one launch and an extra pass over 1.3 MB per iteration)"
+    },
+    {
+      "round": 2,
+      "idea": "One persistent cooperative kernel per iteration (both matvecs plus the update, with grid barriers)",
+      "rule": "matvec loops may not live in `src/fom_solver.cu`, and each `fom_apply_*` may read only its own matrix's data",
+      "expected_gain": "unknown, possibly 10%+"
+    },
+    {
+      "round": 2,
+      "idea": "Run t1_t_t0 as a transpose product of t0_state's data (t1_t_t0 has the structure of a scaled A^T), so only one 26 MB matrix stream is needed and both fit in L2",
+      "rule": "each `fom_apply_<name>` and its helpers may read only their own matrix's data",
+      "expected_gain": "about 30\u201340% (the measured L2 thrash penalty)"
+    },
+    {
+      "round": 2,
+      "idea": "Store matrix values in fp32 to halve the dominant 8-byte value stream",
+      "rule": "the direct ops check requires 1e-10 relative accuracy against the matrix",
+      "expected_gain": "about 30%"
+    },
+    {
+      "round": 3,
+      "idea": "Store A once and use it for both products: `t1_t_t0` equals \u22120.0147 \u00b7 `t0_state`\u1d40 exactly (same sparsity, one constant ratio), and the per-iteration traffic would drop from 52 MB to 26 MB, which fits in L2",
+      "rule": "kernel rule: each `fom_apply_<name>` and its helpers read only their own matrix's data",
+      "expected_gain": "~35\u201345% of solve time (the products are bandwidth-bound and roughly half their bytes would go away)"
+    },
+    {
+      "round": 3,
+      "idea": "Capture the 200-iteration loop in a CUDA graph to remove launch gaps between the 3 kernels per iteration",
+      "rule": "fixed `fom_apply_*` signatures and build flags: kernels launch on the legacy default stream, which cannot be stream-captured",
+      "expected_gain": "~2\u20133% (about 1 us/iteration)"
+    },
+    {
+      "round": 3,
+      "idea": "Fuse the soft-threshold/state step into the matvec kernels (e.g. soft-threshold during t0's x fill, or in t1's epilogue)",
+      "rule": "kernel rule: `fom_apply_<name>` must compute exactly `out += M @ x`, and the solver must not contain matvec loops",
+      "expected_gain": "~4\u20136% (the t1_update kernel and one kernel boundary per iteration)"
+    }
+  ],
+  "fomtools": {
+    "version": "0.0.4.dev22+g25b3f7327",
+    "path": "/scratch/gpfs/BSTELLATO/bs37/fomtools"
+  },
+  "model": "claude-opus-5-5",
+  "agent_host": "della9.princeton.edu",
+  "build_host": "della-l01g15: GPU 0: NVIDIA A100 80GB PCIe (UUID: GPU-b41bead0-62ba-f338-c9cf-2388e48d1380)",
+  "alloc": "holders.sh",
+  "env": {
+    "OMPFLAGS": "-fopenmp",
+    "NVCCFLAGS": "-O3 -Iinclude -Itest -gencode arch=compute_80,code=sm_80",
+    "OMP_NUM_THREADS": "16"
+  },
+  "code": {
+    "fomtools_experiments": {},
+    "fomtools": {
+      "commit": "25b3f73273d396e641ec29d0c72f636c7e173b88",
+      "dirty": false
+    }
+  },
+  "environment": {
+    "host": "della9.princeton.edu",
+    "platform": "Linux-5.14.0-687.59.1.el9_8.x86_64-x86_64-with-glibc2.34",
+    "python": "3.13.12",
+    "cpu_count": 192,
+    "slurm": {},
+    "grb_license_file": "",
+    "numpy_version": "2.5.3",
+    "scipy_version": "1.18.1",
+    "gurobipy_version": "13.0.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "hydra_version": "1.3.7",
+    "cvxpy_version": "1.9.3",
+    "clarabel_version": "0.11.1",
+    "gurobi_version": "13.0.3"
+  },
+  "started_utc": "2026-10-22T22:00:59+00:00",
+  "finished_utc": "2026-10-23T02:36:30+00:00"
+}

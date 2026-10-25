@@ -1,0 +1,207 @@
+{
+  "algorithm": "fista",
+  "backend": "openmp",
+  "rep": 1,
+  "size": {
+    "m": 10000,
+    "n": 40000,
+    "nnz_per_row": 260
+  },
+  "D_nnz": 2599983,
+  "step_size": 0.014703924227805058,
+  "iterations": 200,
+  "tol_verify": 1e-05,
+  "translated_us": 205879.4685,
+  "optimized_us": 37743.064132,
+  "optimization_kept": true,
+  "agent_wall_s": {
+    "translation": 153.44129490852356,
+    "code_optimization": 14751.207632303238
+  },
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 205879.4685,
+      "us_after": 68238.5477,
+      "gain": 0.6685509818090482,
+      "agent_wall_s": 1869.0540829039965,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 74233.367593,
+      "us_after": 49911.764439,
+      "gain": 0.327637071341668,
+      "agent_wall_s": 2765.7094539139944,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 74520.245667,
+      "us_after": 45603.393932,
+      "gain": 0.3880402094246628,
+      "agent_wall_s": 4370.29603541299,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 4,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 46561.336068,
+      "us_after": 42345.128438,
+      "gain": 0.0905516891491791,
+      "agent_wall_s": 3925.6716738920077,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 5,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 43278.298681,
+      "us_after": 37743.064132,
+      "gain": 0.12789861703667374,
+      "agent_wall_s": 1480.898199646006,
+      "truncated": false,
+      "stop_reason": "the last of agent_optimize_rounds rounds"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Skip reading the all-zero `bias_t1`/`bias_su` vectors and specialise the t1 pass for a zero bias",
+      "rule": "`fom_iterate` and step routines must apply any bias they are passed, and the solver must pass real arrays",
+      "expected_gain": "~2%"
+    },
+    {
+      "round": 1,
+      "idea": "Fuse iteration k's t1 pass with iteration k+1's A\u00b7z (gather and scatter on the same row while it is in L1)",
+      "rule": "`fom_iterate` gets only the current schedule value, and `fom_ops.c` may not read the schedule or keep results across calls",
+      "expected_gain": "unknown (likely small, since scatter measured slower)"
+    },
+    {
+      "round": 1,
+      "idea": "Compile the kernels with `-march=native` (AVX2/FMA)",
+      "rule": "build flags are fixed",
+      "expected_gain": "~0% (measured in a side build)"
+    },
+    {
+      "round": 2,
+      "idea": "Keep A\u00b7s1 from the previous call, so the next t0 needs only A\u00b7t1 (or let the T pass also produce A\u00b7t1 for the next iteration), removing the dependency that forces two passes over A per iteration",
+      "rule": "fom_iterate must not keep state across calls, and the solver may not read matrix data or loop over products itself",
+      "expected_gain": "unknown, up to about 2x on the A work"
+    },
+    {
+      "round": 2,
+      "idea": "Store A's values as float32 to halve the bytes streamed",
+      "rule": "correctness: the values are not exactly representable in float32 (lossy)",
+      "expected_gain": "unknown"
+    },
+    {
+      "round": 2,
+      "idea": "Build with -march=native (AVX2/FMA everywhere)",
+      "rule": "Makefile and build flags are fixed",
+      "expected_gain": "about 1%, measured by forcing AVX2 on the gather"
+    },
+    {
+      "round": 3,
+      "idea": "Build the kernels with `-march=native` / `-mtune` for the node instead of function-level target attributes",
+      "rule": "Makefile and build flags are fixed",
+      "expected_gain": "small; the AVX2 kernels are already dispatched at run time"
+    },
+    {
+      "round": 3,
+      "idea": "Form the next iteration's extrapolation z_{k+1} inside the current iteration's t1/state-update pass, removing the z pass and one barrier per iteration",
+      "rule": "`fom_ops.c` must not read the schedule, and `fom_iterate` only receives the current gamma",
+      "expected_gain": "1-3%"
+    },
+    {
+      "round": 4,
+      "idea": "Reuse A s0 from the previous call: FISTA's s0 at k+1 is s1 at k, so A z = (1+g) A s1 \u2212 g A s0 needs only one fresh product, which could fuse with the T pass so A is read once per iteration",
+      "rule": "`fom_iterate` must be exact for arbitrary states and nothing but the entry points may be non-static, so no cached products across calls",
+      "expected_gain": "unknown, possibly large on Ice Lake where the passes are bound by streaming A"
+    },
+    {
+      "round": 4,
+      "idea": "Form next iteration's z inside the T pass epilogue, while s1 and t1 are in registers",
+      "rule": "`src/fom_ops.c` may not read the schedule, and `fom_iterate` only receives the current gamma",
+      "expected_gain": "~1%"
+    },
+    {
+      "round": 4,
+      "idea": "Store A's values as float32 to halve the stream",
+      "rule": "each kernel must apply exactly M, and A's values are full-precision doubles",
+      "expected_gain": "unknown"
+    },
+    {
+      "round": 4,
+      "idea": "Place threads per socket or CCD to cut cross-socket partial and t0 traffic",
+      "rule": "build flags and environment (thread binding) are fixed",
+      "expected_gain": "unknown"
+    },
+    {
+      "round": 5,
+      "idea": "Store A's values as float32 to halve the bytes per nonzero",
+      "rule": "`fom_apply`, `fom_iterate` and `fom_step` must apply M exactly, so values cannot be stored in lower precision",
+      "expected_gain": "unknown (probably small now that the passes are compute-bound)"
+    },
+    {
+      "round": 5,
+      "idea": "Raise the thread count or change OMP placement",
+      "rule": "the environment and build flags are fixed",
+      "expected_gain": "unknown"
+    }
+  ],
+  "fomtools": {
+    "version": "0.0.4.dev22+g25b3f7327",
+    "path": "/scratch/gpfs/BSTELLATO/bs37/fomtools"
+  },
+  "model": "claude-opus-5-5",
+  "agent_host": "della9.princeton.edu",
+  "build_host": "della-l03g5: GPU 0: NVIDIA A100 80GB PCIe (UUID: GPU-b20c7eb1-ba25-a61a-5d18-3f70580b6ba5)",
+  "alloc": "holders.sh",
+  "env": {
+    "OMPFLAGS": "-fopenmp",
+    "NVCCFLAGS": "-O3 -Iinclude -Itest -gencode arch=compute_80,code=sm_80",
+    "OMP_NUM_THREADS": "16"
+  },
+  "code": {
+    "fomtools_experiments": {},
+    "fomtools": {
+      "commit": "25b3f73273d396e641ec29d0c72f636c7e173b88",
+      "dirty": false
+    }
+  },
+  "environment": {
+    "host": "della9.princeton.edu",
+    "platform": "Linux-5.14.0-687.59.1.el9_8.x86_64-x86_64-with-glibc2.34",
+    "python": "3.13.12",
+    "cpu_count": 192,
+    "slurm": {},
+    "grb_license_file": "",
+    "numpy_version": "2.5.3",
+    "scipy_version": "1.18.1",
+    "gurobipy_version": "13.0.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "hydra_version": "1.3.7",
+    "cvxpy_version": "1.9.3",
+    "clarabel_version": "0.11.1",
+    "gurobi_version": "13.0.3"
+  },
+  "started_utc": "2026-10-23T17:31:40+00:00",
+  "finished_utc": "2026-10-23T21:40:05+00:00"
+}

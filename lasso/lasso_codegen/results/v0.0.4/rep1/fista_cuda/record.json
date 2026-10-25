@@ -1,0 +1,225 @@
+{
+  "algorithm": "fista",
+  "backend": "cuda",
+  "rep": 1,
+  "size": {
+    "m": 10000,
+    "n": 40000,
+    "nnz_per_row": 260
+  },
+  "D_nnz": 2599983,
+  "step_size": 0.014703924227805058,
+  "iterations": 200,
+  "tol_verify": 1e-05,
+  "translated_us": 38190.088321,
+  "optimized_us": 14803.774346,
+  "optimization_kept": true,
+  "agent_wall_s": {
+    "translation": 663.1226797103882,
+    "code_optimization": 22467.879679441452
+  },
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 38190.088321,
+      "us_after": 25110.146412,
+      "gain": 0.342495722949339,
+      "agent_wall_s": 5133.753245097003,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 24873.82137,
+      "us_after": 20279.384566,
+      "gain": 0.18470972898202495,
+      "agent_wall_s": 2944.659798930006,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 20656.094897,
+      "us_after": 19849.080168,
+      "gain": 0.039069085082350484,
+      "agent_wall_s": 4508.222992426003,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 4,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 19712.473206,
+      "us_after": 15719.756031,
+      "gain": 0.20254775406795286,
+      "agent_wall_s": 3150.7957321340073,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 5,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 15911.318802,
+      "us_after": 14803.774346,
+      "gain": 0.06960733235140666,
+      "agent_wall_s": 4126.101139916005,
+      "truncated": false,
+      "stop_reason": "the last of agent_optimize_rounds rounds"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Fuse `t0_state` and `t0_state__d_gamma` into one pass: t0_state's pattern equals the right half of d_gamma's, so one gather of `(s0[c], s1[c])` would feed all three terms, with the gamma scaling folded in",
+      "rule": "each `fom_apply_<name>` may read only its own matrix's data, and no matvec loops may go in fom_solver.cu",
+      "expected_gain": "about 50 us/iter, ~35-40% of the solve"
+    },
+    {
+      "round": 1,
+      "idea": "Fold the t1 soft-threshold (and the t1_state / t1_state__d_gamma shift terms) into the epilogue of the `t1_t_t0` kernel",
+      "rule": "each apply must be a pure `out += M x` checked on its own, and solver code may not read matrix data",
+      "expected_gain": "about 5-10 us/iter, ~5%"
+    },
+    {
+      "round": 1,
+      "idea": "Have callers pass `x` already in interleaved `(s0, s1)` layout so the d_gamma apply skips its interleave pass",
+      "rule": "`fom_apply_<name>` signatures are fixed in include/, and the direct checks probe the standard layout",
+      "expected_gain": "about 4 us/iter, ~3%"
+    },
+    {
+      "round": 1,
+      "idea": "Run `t0_state` and `t0_state__d_gamma` on separate graph branches into separate accumulators",
+      "rule": "the apply kernels launch on the fixed per-thread default stream, so the solver cannot target them at other streams except through graph rewiring; a combine kernel would also be needed",
+      "expected_gain": "unknown, small because both are gather-bound"
+    },
+    {
+      "round": 2,
+      "idea": "Fuse t0_state and t0_state__d_gamma into one kernel that reads each gathered state entry once for both matrices (their column patterns overlap: A on s1 and [P, P+H])",
+      "rule": "kernel rule: each fom_apply_<name> and its helpers read only their own matrix's data",
+      "expected_gain": "~10-20% of the t0 phase (unknown exactly)"
+    },
+    {
+      "round": 2,
+      "idea": "Store d_gamma's right half as the negated left half and compute a\u00b7(x_L \u2212 x_R), which halves its 41.6 MB value stream (the halves agree only to about 3e-16, not bitwise)",
+      "rule": "must apply exactly M; it would also use matrix data in a way the rules don't intend",
+      "expected_gain": "~15-20 us/iteration"
+    },
+    {
+      "round": 2,
+      "idea": "Begin next iteration's t0 matvecs on their already-known left-half columns (new s0 = old s1) while t1_t_t0 still runs",
+      "rule": "apply routines must apply the whole matrix; no partial-apply entry points (only fom_apply_* may be non-static)",
+      "expected_gain": "unknown, maybe 5-10%"
+    },
+    {
+      "round": 2,
+      "idea": "Fold the t1 soft-threshold or the t0 join into the matvec kernels' epilogue",
+      "rule": "fom_apply_<name> must compute exactly out += M x",
+      "expected_gain": "~3-6 us/iteration"
+    },
+    {
+      "round": 3,
+      "idea": "Compute t0 as a single A\u00b7y per iteration with y = (1+\u03b3)x \u2212 \u03b3 x_prev, dropping the `t0_state__d_gamma` apply. That matrix equals [\u2212A, A] and `t0_state` equals [0, A], which would also allow reusing the previous iteration's A x.",
+      "rule": "fom_solver.cu must call fom_apply_<name> for each term and may not read or rely on other matrices' coefficients; each fom_apply reads only its own data",
+      "expected_gain": "~30\u201335% (one gather-bound matvec of ~35 us instead of the concurrent pair at ~64 us)"
+    },
+    {
+      "round": 3,
+      "idea": "Fuse the `t0_state` and `d_gamma` gathers into one kernel that shares the x tile staged in L1 for both matrices.",
+      "rule": "each fom_apply_<name> and its helpers may read only its own matrix's data",
+      "expected_gain": "~10\u201315%"
+    },
+    {
+      "round": 3,
+      "idea": "Pass the solver's precomputed g\u00b7(x_L \u2212 x_R) straight to the `d_gamma` kernel instead of rebuilding it inside the apply.",
+      "rule": "fom_apply_<name>(x, out) signature and the requirement that it apply exactly M to x (fixed header)",
+      "expected_gain": "~2\u20133%"
+    },
+    {
+      "round": 4,
+      "idea": "Compute A*y once per iteration, with y = s1 + g(s1 - s0), instead of streaming the three separate copies of A (t0_state = [0, A], d_gamma = [-A, A])",
+      "rule": "kernel rule: each fom_apply reads only its own matrix's data, and the solver may not combine matrices",
+      "expected_gain": "~25-30% (removes about 26 MB of the ~82 MB streamed per iteration)"
+    },
+    {
+      "round": 4,
+      "idea": "Apply d_gamma as left values times (x[:H] - x[H:]), treating right = -left, which is exact to 1.7e-15 relative but not bitwise",
+      "rule": "the kernel must apply exactly M",
+      "expected_gain": "~2.6 MB per iteration (the int8 offset array), unknown net gain"
+    },
+    {
+      "round": 4,
+      "idea": "Fuse the t1 soft-threshold and the t0 combine into the matvec kernels (out = soft(...) in fom_apply_t1_t_t0) to remove graph nodes",
+      "rule": "fom_apply must compute exactly out += M x",
+      "expected_gain": "~3-5 us per iteration (~5%)"
+    },
+    {
+      "round": 5,
+      "idea": "Compute A\u00b7s1 once per iteration and reuse it, instead of applying both `t0_state` = [0, A] and `t0_state__d_gamma` = [-A', A] to the state; that streams about 26 MB less per iteration",
+      "rule": "fom_solver.cu must call each term's own fom_apply_<name>, and a helper may read only its own matrix's data (A' differs from A by up to ~8 ulps, so it is a different matrix)",
+      "expected_gain": "~20 us/iter (~25%)"
+    },
+    {
+      "round": 5,
+      "idea": "Fuse the `t0_state` and `t0_state__d_gamma` products into one kernel that reads x once and shares the tile schedule and combine step",
+      "rule": "a helper may read only its own matrix's data / one fom_apply per matrix",
+      "expected_gain": "~5-8 us/iter (one fewer combine and interleave node on the critical path)"
+    },
+    {
+      "round": 5,
+      "idea": "Fold the t1 soft-threshold into the `t1_t_t0` kernel's epilogue, removing the separate pass before the next iteration's matvecs",
+      "rule": "fom_apply_<name> must compute exactly out += M x",
+      "expected_gain": "~3 us/iter"
+    }
+  ],
+  "fomtools": {
+    "version": "0.0.4.dev22+g25b3f7327",
+    "path": "/scratch/gpfs/BSTELLATO/bs37/fomtools"
+  },
+  "model": "claude-opus-5-5",
+  "agent_host": "della9.princeton.edu",
+  "build_host": "della-l02g3: GPU 0: NVIDIA A100 80GB PCIe (UUID: GPU-05ef1c1d-196e-65cb-8c1d-398bff80ad80)",
+  "alloc": "holders.sh",
+  "env": {
+    "OMPFLAGS": "-fopenmp",
+    "NVCCFLAGS": "-O3 -Iinclude -Itest -gencode arch=compute_80,code=sm_80",
+    "OMP_NUM_THREADS": "16"
+  },
+  "code": {
+    "fomtools_experiments": {},
+    "fomtools": {
+      "commit": "25b3f73273d396e641ec29d0c72f636c7e173b88",
+      "dirty": false
+    }
+  },
+  "environment": {
+    "host": "della9.princeton.edu",
+    "platform": "Linux-5.14.0-687.59.1.el9_8.x86_64-x86_64-with-glibc2.34",
+    "python": "3.13.12",
+    "cpu_count": 192,
+    "slurm": {},
+    "grb_license_file": "",
+    "numpy_version": "2.5.3",
+    "scipy_version": "1.18.1",
+    "gurobipy_version": "13.0.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "hydra_version": "1.3.7",
+    "cvxpy_version": "1.9.3",
+    "clarabel_version": "0.11.1",
+    "gurobi_version": "13.0.3"
+  },
+  "started_utc": "2026-10-23T21:40:06+00:00",
+  "finished_utc": "2026-10-24T04:05:37+00:00"
+}

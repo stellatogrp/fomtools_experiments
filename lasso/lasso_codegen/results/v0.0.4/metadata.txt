@@ -1,0 +1,14 @@
+host=della-l08g5 slurm_job=16172406
+GPU 0: NVIDIA A100-SXM4-80GB (UUID: GPU-9526f284-5d42-42c6-7180-26e855f7cb74)
+GPU 1: NVIDIA A100-SXM4-80GB (UUID: GPU-3bae32ea-7500-d97f-68d3-b73eaf826482)
+GPU 2: NVIDIA A100-SXM4-80GB (UUID: GPU-34b15fc1-6bfd-d499-6da0-10a9b8b1582c)
+GPU 3: NVIDIA A100-SXM4-80GB (UUID: GPU-a20700a1-ed8d-42b4-3a83-38d3a8d7e57b)
+Model name:                              AMD EPYC 7413 24-Core Processor
+Socket(s):                               2
+NUMA node(s):                            2
+shape=10000x40000 nnz_per_row=260 iterations=200 dtype=float64
+OMP_NUM_THREADS=16 OMP_PLACES=cores OMP_PROC_BIND=close OMPFLAGS=-fopenmp NVCCFLAGS=-O3 -Iinclude -Itest -gencode arch=compute_80,code=sm_80
+gcc (GCC) 11.5.0 20240719 (Red Hat 11.5.0-14)
+Build cuda_13.3.r13.3/compiler.38244171_0
+code={'fomtools_experiments': {}, 'fomtools': {'commit': '25b3f73273d396e641ec29d0c72f636c7e173b88', 'dirty': False}}
+solvers=rep1/fista_cuda rep1/fista_openmp rep1/ista_cuda rep1/ista_openmp rep2/fista_cuda rep2/fista_openmp rep2/ista_cuda rep2/ista_openmp rep3/fista_cuda rep3/fista_openmp rep3/ista_cuda rep3/ista_openmp

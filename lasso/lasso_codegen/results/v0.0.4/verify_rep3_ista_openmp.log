@@ -1,0 +1,14 @@
+cc -O3 -Wall -Iinclude -flto -fopenmp -Itest src/fom_solver.c src/fom_linsolve.c src/fom_ops.c src/fom_objective.c test/ops_ref.c build/fom_data.o build/verify_main.o -o verify_bin -lm
+./verify_bin
+OPSCHECK name=t0_state mode=random probes=2 max_err=0.000e+00
+OPSCHECK name=t0_p_p0 mode=random probes=2 max_err=0.000e+00
+OPSCHECK name=t1_state mode=random probes=2 max_err=0.000e+00
+OPSCHECK name=t1_t_t0 mode=random probes=2 max_err=0.000e+00
+OPSCHECK name=su_t_t1 mode=random probes=2 max_err=0.000e+00
+OPSCHECK name=fused_t1 mode=random probes=2 max_err=0.000e+00
+OPSCHECK name=step_t0 mode=random probes=6 max_err=0.000e+00
+OPSCHECK name=step_t1 mode=random probes=6 max_err=0.000e+00
+OPSCHECK name=step_su mode=random probes=2 max_err=0.000e+00
+OPSCHECK name=iterate mode=random probes=6 max_err=7.105e-15
+worst max-abs error over 8 samples: 3.553e-15 (tol 1.000e-05)
+VERIFY OK
