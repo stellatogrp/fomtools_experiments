@@ -100,3 +100,9 @@ results file in the producing folder.
   fomtools then drops the whole objective tightening (M stays 147.5). The Mac solves every LP
   (M = 0.138). Decision (Bart): fix it in fomtools (branch `bs/obbt-per-entry-fallback`), then
   rerun K=17. Diagnostic job 16195668 (LP status and retries on della).
+- 2026-10-25: cause found (diagnostic 16197787, replaying the objective OBBT at K = 1..17 on della):
+  at K=17 Gurobi's warm-started concurrent LP declares a feasible OBBT LP INFEASIBLE; every cold solve
+  of it is optimal (0.0575). The Mac never fails. Fix: fomtools PR #159 (`541a88d`): retry a
+  non-optimal OBBT LP from scratch (dual simplex), then keep the input bound of that entry only.
+  Lasso FISTA rerun in run_023 on `541a88d` (job 16203297); the other variants are unaffected (the
+  fix only changes the path of a failed LP).
