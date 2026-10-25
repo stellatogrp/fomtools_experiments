@@ -84,3 +84,10 @@ results file in the producing folder.
   start Sun Oct 25. The committed results folders were copied to della first so run numbers continue.
 - 2026-10-23: C5 done, 3 reps (`aa119d6`): optimized vs OSQP 3.3 / 2.5 / 6.2 / 5.8x for n = 200 / 500 /
   1000 / 3000 (paper 1.9 / 1.6 / 2.5 / 3.4x), iterations identical. All Mac experiments done.
+- 2026-10-24: C3 done (`results/v0.0.4`): A100-SXM4-80GB + EPYC 7413 (paper: A100 40 GB + EPYC 7H12).
+  Medians: ISTA SciPy 0.819 s, OpenMP 0.028 s (29x), CuPy 0.041 s, CUDA 0.0088 s (4.6x); FISTA
+  SciPy 0.820 s, OpenMP 0.031 s (26x), CuPy 0.047 s, CUDA 0.0142 s (3.3x). Paper: 15x / 15x and
+  2.2x / 2.1x. Agent time per solver 2-11 min translation + 1.7-6.2 h optimization (4-5 rounds).
+- 2026-10-24: V1-V3 done (`625d7ee`); lasso FISTA K=17 and control R12 K=73 hit the 1 h limit;
+  both variants rerun with the new one-time 2x retry (jobs 16171588, 16171590). Home quota on della
+  filled (uv cache); pruned 6.3 GiB, caches moved to scratch.
