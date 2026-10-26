@@ -47,15 +47,16 @@ no steps or variables to the VP.
 
 ## Results
 
-At $K = 39$, equilibration lowers the worst-case residual of PDHG from 0.91 to
-0.45, and that of momentum PDHG from 0.70 to 0.17. The paper's figure reads
+At $K = 39$, equilibration lowers the worst-case residual of PDHG from 0.88 to
+0.45, and that of momentum PDHG from 0.73 to 0.17 (`results/run_006`, the run behind
+the paper's figure). The paper's figure reads
 `data/network_residual.csv` in the paper repository, which `plots/export_paper_data.py`
 writes from this run.
 
 ## Reproduce
 
 The defaults in `conf/experiment/network.yaml` are the paper's instance and horizon
-($K \le 39$; the archived run is `results/run_005`), so no overrides are needed:
+($K \le 39$; the paper's run is `results/run_006`, the archived one `results/run_005`), so no overrides are needed:
 
 ```sh
 uv run python -m fomexp.run experiment=network      # the four variants into a new results/run_NNN

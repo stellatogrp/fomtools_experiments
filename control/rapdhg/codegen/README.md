@@ -37,24 +37,29 @@ The figure eight, flown from its position and velocity at time zero:
 with `a = 1 m`, `c = 0.4 m`, `h = 1 m`, and `w = 2 pi / 4.0`. At this period the path
 asks for about 31 degrees of tilt at its peaks, so the bound is active only there.
 
-## Result (the archived run, before the rerun)
+## Result (the rerun, three agent runs)
 
-| implementation | us/iteration | vs NumPy |
-|---|---:|---:|
-| NumPy | 13.26 | 1.0x |
-| translated C | 2.87 | 4.6x |
-| optimized C | 0.144 | 92x |
+Medians over the three repetitions (`results/` and `results/reps/rep<k>/`,
+`manifest.json`), at the figure's 40 us budget per sampling instant:
 
-With 40 us of computation per sampling instant, the three implementations run 3,
-13, and 275 iterations. The NumPy controller loses the path, the translated solver
-cuts its corners, and the optimized solver tracks it
-(`out/figures_figure8_flight.pdf`).
+| implementation | us/iteration | vs NumPy | iterations in 40 us |
+|---|---:|---:|---:|
+| NumPy | 13.91 | 1.0x | 2 |
+| translated C | 2.256 | 6.2x | 17 |
+| optimized C | 0.0824 | 169x | 485 |
 
-In the optimization phase the agent dropped the structurally zero blocks and
-turned the identity blocks into copies. It applied a two-level Hadamard
-factorization to the dense 40 x 40 condensed Hessian, and it collapsed the
-Toeplitz coupling block of the tilt rows into two ten-point convolutions per
-direction. Its report is `out/codegen/optimized/OPTIMIZATIONS.md`.
+Code optimization makes each iteration 22 to 29 times faster in the three runs. The
+NumPy controller loses the path, the translated solver cuts its corners, and the
+optimized solver tracks it. The paper shows the flight of repetition 2, whose optimized
+solver runs the median number of iterations (`results/reps/rep2/figures_figure8_flight.pdf`,
+copied by `python -m codegen_timings.paper_csv --only flight --write` from the repository
+root).
+
+The optimizations differ between runs. In repetition 2 the agent used the lower
+triangular Toeplitz structure of the tilt rows (55 two-wide FMAs instead of 440 sparse
+products) and reduced the dense 40 x 40 block to 400 FMAs instead of 1600 with sum and
+difference transforms. Each report is the run's `OPTIMIZATIONS.md`. The archived run
+(before the rerun) ran 3, 13, and 275 iterations at 13.26, 2.87, and 0.144 us per iteration.
 
 ## Checks
 

@@ -38,7 +38,5 @@ study runs from this directory:
 
 ```
 python -m codegen.check_against_fomtools
-FOMTOOLS_CODEGEN_AGENT=1 python -m codegen.generate --max-iters 512
-python -m codegen.run_implementations
-python -m codegen.run_figures --reference figure8 --iterations 3 13 275 --no-gif
+FOMTOOLS_CODEGEN_AGENT=1 python -m codegen.run --force    # 3 repetitions: generate, extend, time, fly
 ```
