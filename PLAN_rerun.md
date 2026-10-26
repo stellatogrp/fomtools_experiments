@@ -55,10 +55,10 @@ results file in the producing folder.
       `.value`), sparse `MatrixData` (`.nnz()`, `.shape`), codegen through
       `run_code_optimization`, `--rep` repetitions, no generated `fom_data.c`/`test/` in git.
       Check: `uv run python -W error::DeprecationWarning` on each entry point's check-only path.
-- [ ] 2. AI codegen (agent sessions): C1, C2, C4, C5 on the Mac; C3 on the della9 login node.
-- [ ] 3. Numerics: timings (Mac), A100 benchmark (della), then V1, V2, V3 (della, Gurobi).
-- [ ] 4. Compare with the paper; stop and ask at any difference above 20%.
-- [ ] 5. Paper data export (ask first; the scripts must point at `papers/2026/fomtools/data`).
+- [x] 2. AI codegen (agent sessions): C1, C2, C4, C5 on the Mac; C3 on the della9 login node.
+- [x] 3. Numerics: timings (Mac), A100 benchmark (della), then V1, V2, V3 (della, Gurobi).
+- [x] 4. Compare with the paper; stop and ask at any difference above 20%.
+- [x] 5. Paper data export (ask first; the scripts must point at `papers/2026/fomtools/data`).
 
 ## Log
 
@@ -109,3 +109,9 @@ results file in the producing folder.
 - 2026-10-25: lasso FISTA rerun on fomtools `541a88d` (PR #159) done (job 16203297, 5.6 h): K=17 hits the
   failing OBBT LP again, which is now solved from scratch; bound 0.13496 (paper 0.13495). All 20 K reach
   the 5% gap within 2 h; max deviation from the paper 0.6%. Every verification variant now within 5%.
+- 2026-10-25: step 4 and 5 (Bart: "do 1-5 thoroughly"). All verification variants within 5% of the paper at
+  every K; codegen numbers kept (better). `codegen_timings.paper_csv` gained `gpu` (GPU table and agent-time
+  CSVs) and `flight` (copies the median repetition's figure). Paper branch `bs/rerun-v0.0.4`: data, numbers,
+  quotes (verbatim, median runs), codegen description per a code audit, listings on the v0.0.4 API.
+  Notes: portfolio n=200 rep 1 kept the translated solver (rewrite used a division); 7 rounds in 6 runs were
+  cut short, most likely by Claude usage limits, which fomtools reports as "stopped at its budget".

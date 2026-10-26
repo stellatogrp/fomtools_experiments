@@ -32,17 +32,18 @@ the probability of exceeding a specified convergence tolerance. From the same al
 description, FOMTools generates specialized solver code for embedded hardware, multicore
 CPUs, and GPUs. The package first generates the numerical data, factorizations, and
 matrix-vector routines without any agent. An LLM coding agent then works in two phases.
-First, it translates the iteration into C or CUDA code. Second, it iteratively optimizes
-the implementation. After each phase, the package compares the generated code with a
+First, it translates the iteration into C or CUDA code. Second, it optimizes the
+implementation in rounds. After each phase, the package compares the generated code with a
 reference execution on sampled inputs. The package works with any coding agent. FOMTools
 also serves as a CVXPYgen backend, generating and optimizing solvers for parametric CVXPY
 problems. Our numerical examples cover sparse coding, network optimization, optimal
 control, and portfolio rebalancing. On the small verified instances, the generated C
-solvers are 37–190× faster than NumPy implementations of the same iterations, and code
-optimization contributes 1.9–18.3× of this speedup. For a Lasso instance with 40,000
-variables, the generated CUDA solvers are 2.1–2.2× faster than CuPy implementations. For
+solvers are 32–162× faster than NumPy implementations of the same iterations, and code
+optimization contributes 3.5–12× of this speedup. For a Lasso instance with 40,000
+variables, the generated CUDA solvers are 3.3–4.6× faster than CuPy implementations. For
 portfolio rebalancing with up to 3000 assets, solvers generated through CVXPYgen are
-1.6–3.4× faster than CVXPYgen with OSQP at reaching a tolerance of 10⁻⁴.
+2.5–6.2× faster than CVXPYgen with OSQP at reaching a tolerance of 10⁻⁴. These are
+medians over three independent agent runs per generated solver.
 
 ## Dependencies
 
@@ -131,7 +132,9 @@ sbatch --export=ALL,RUN=<name> lasso/lasso_codegen/della/bench.sbatch   # after 
 
 **Paper data.** Both scripts are dry runs that print what they would write; `--write`
 writes into the paper's `data/` (default
-`~/Library/CloudStorage/Dropbox/work/research/papers/2026/fomtools/data`, or `--paper-data`).
+`~/Library/CloudStorage/Dropbox/work/research/papers/2026/fomtools/data`, or `--paper-data`
+and `--paper-dir`). `paper_csv` also copies the flight figure of the median repetition to
+the paper's `figures/`, and prints every number the paper's text quotes.
 
 ```bash
 uv run python plots/make_plots.py && uv run python plots/kl_bounds.py

@@ -16,7 +16,13 @@ in the paper is copied by hand. Writes, under ``--paper-dir`` (default
   of CVXPYgen with OSQP and with the fomtools ADMM backend, translated and
   optimized, against the number of assets, from
   ``portfolio/portfolio_cvxpygen/results_factor/portfolio_cvxpygen_stop_wide.csv``
-  (``portfolio_cvxpygen.plot``).
+  (``portfolio_cvxpygen.plot``);
+- ``codegen_lasso_rect.csv`` and ``codegen_lasso_agent_time.csv`` (``gpu``): the
+  large-scale Lasso benchmark on della and the agent time per solver, from
+  ``lasso/lasso_codegen/results/<GPU_RUN>/``;
+- ``../figures/control_figure8_flight.pdf`` (``flight``): the closed-loop flight of
+  the repetition whose optimized solver runs the median number of iterations in
+  the figure's budget, from ``control/rapdhg/codegen/results/``.
 """
 
 from __future__ import annotations
@@ -25,7 +31,9 @@ import argparse
 import csv
 import json
 import re
+import shutil
 import statistics
+from datetime import datetime
 from pathlib import Path
 
 from codegen_timings.common import HERE, REPO
@@ -40,6 +48,9 @@ PORTFOLIO_WIDE = (
     / "portfolio_cvxpygen_stop_wide.csv"
 )
 SCHEDULE = HERE / "network_schedule"
+GPU_RUN = "v0.0.4"
+GPU = REPO / "lasso" / "lasso_codegen" / "results" / GPU_RUN
+FLIGHT = REPO / "control" / "rapdhg" / "codegen" / "results"
 
 #: (experiment, variant, group, problem title, method label), in table order.
 ROWS = [
@@ -62,7 +73,13 @@ FIELDS = [
     "speedtrans",
     "speedopt",
     "speedtotal",
+    "speedtotalmin",
+    "speedtotalmax",
 ]
+
+
+def _span(values) -> tuple[float, float, float]:
+    return statistics.median(values), min(values), max(values)
 
 
 def _out(args, name: str, fields: list[str], rows: list[dict]) -> None:
@@ -100,6 +117,8 @@ def write_table(args) -> None:
                 speedtrans=f"{t['speedup_translation']:.0f}",
                 speedopt=f"{t['speedup_optimization']:.1f}",
                 speedtotal=f"{t['speedup_total']:.0f}",
+                speedtotalmin=f"{t['speedup_total_min']:.0f}",
+                speedtotalmax=f"{t['speedup_total_max']:.0f}",
             )
         )
         print(
@@ -184,11 +203,139 @@ def write_portfolio_tolerance(args) -> None:
             )
     _out(args, "codegen_portfolio_tolerance.csv", ["N", *times, *iters], rows)
 
+    # Per repetition: speedups over OSQP, and the generation times.
+    results = PORTFOLIO_WIDE.parent
+    reps = [results, *sorted(results.glob("reps/rep*"))]
+    for n in sorted({int(r["N"]) for r in rows}):
+        speedups, translated, total, kept = [], [], [], []
+        for d in reps:
+            arms = {
+                r["arm"]: float(r["us_per_solve"])
+                for r in csv.DictReader(open(d / "timings_stop.csv"))
+                if int(r["N"]) == n and r["level"] == "c"
+            }
+            speedups.append(arms["cpg_osqp"] / arms["cpg_fom_opt"])
+            gen = json.loads((d / f"gen_n{n}.json").read_text())
+            translated.append(gen["fom"]["wall_s"])
+            total.append(gen["fom"]["wall_s"] + gen["fom_opt"]["wall_s"])
+            kept.append(gen["fom_opt"].get("optimization_kept"))
+        print(
+            f"portfolio n={n}: OSQP/optimized per rep {[f'{x:.2f}' for x in speedups]}, "
+            f"translation {min(translated):.0f}-{max(translated):.0f} s, translation + "
+            f"code optimization {min(total) / 60:.1f}-{max(total) / 60:.1f} min, kept {kept}"
+        )
+
+
+def write_gpu(args) -> None:
+    """The large-scale Lasso table (medians over the repetitions, with the range of the
+    speedups) and the agent time per solver."""
+    summary = list(csv.DictReader(open(GPU / "summary.csv")))
+
+    def per_rep(algorithm: str, series: str) -> list[float]:
+        return [
+            float(r["median_us"])
+            for r in summary
+            if (r["algorithm"], r["series"]) == (algorithm, series) and r["rep"].isdigit()
+        ]
+
+    def baseline(algorithm: str, series: str) -> float:
+        (us,) = [
+            float(r["median_us"])
+            for r in summary
+            if (r["algorithm"], r["series"], r["rep"]) == (algorithm, series, "")
+        ]
+        return us
+
+    rows = []
+    for algorithm in ("ista", "fista"):
+        scipy, cupy = baseline(algorithm, "scipy"), baseline(algorithm, "cupy")
+        omp, cuda = per_rep(algorithm, "openmp"), per_rep(algorithm, "cuda")
+        s_omp = [scipy / t for t in omp]
+        s_cuda = [cupy / t for t in cuda]
+        rows.append(
+            dict(
+                method=algorithm.upper(),
+                scipys=f"{scipy / 1e6:.3f}",
+                omps=f"{statistics.median(omp) / 1e6:.4f}",
+                speedomp=f"{scipy / statistics.median(omp):.0f}",
+                speedompmin=f"{min(s_omp):.0f}",
+                speedompmax=f"{max(s_omp):.0f}",
+                cupys=f"{cupy / 1e6:.4f}",
+                cudas=f"{statistics.median(cuda) / 1e6:.4f}",
+                speedcuda=f"{cupy / statistics.median(cuda):.1f}",
+                speedcudamin=f"{min(s_cuda):.1f}",
+                speedcudamax=f"{max(s_cuda):.1f}",
+            )
+        )
+        print(f"gpu {algorithm}: {rows[-1]}")
+    _out(args, "codegen_lasso_rect.csv", list(rows[0]), rows)
+
+    agent, overhead = [], []
+    for algorithm in ("ista", "fista"):
+        for backend in ("openmp", "cuda"):
+            records = [
+                json.loads(p.read_text())
+                for p in sorted(GPU.glob(f"rep*/{algorithm}_{backend}/record.json"))
+            ]
+            tr = [r["agent_wall_s"]["translation"] / 60 for r in records]
+            opt = [r["agent_wall_s"]["code_optimization"] / 3600 for r in records]
+            rounds = [len(r["optimization_rounds"]) for r in records]
+            for r in records:
+                wall = datetime.fromisoformat(r["finished_utc"]) - datetime.fromisoformat(
+                    r["started_utc"]
+                )
+                overhead.append(wall.total_seconds() - sum(r["agent_wall_s"].values()))
+            row = dict(method=algorithm.upper(), target="OpenMP" if backend == "openmp" else "CUDA")
+            for key, values, fmt in (("tr", tr, "{:.1f}"), ("opt", opt, "{:.1f}")):
+                med, lo, hi = _span(values)
+                row.update(
+                    {key: fmt.format(med), f"{key}min": fmt.format(lo), f"{key}max": fmt.format(hi)}
+                )
+            row.update(
+                rounds=f"{statistics.median(rounds):.0f}",
+                roundsmin=min(rounds),
+                roundsmax=max(rounds),
+            )
+            agent.append(row)
+            print(f"gpu agent {row}")
+    print(f"gpu: time outside both phases {min(overhead):.0f}-{max(overhead):.0f} s per solver")
+    _out(args, "codegen_lasso_agent_time.csv", list(agent[0]), agent)
+
+
+def write_flight(args) -> None:
+    """Copy the flight figure of the median repetition into the paper's figures/."""
+    reps = [FLIGHT, *sorted(FLIGHT.glob("reps/rep*"))]
+    figures = {d: json.loads((d / "manifest.json").read_text())["figure"] for d in reps}
+    order = sorted(reps, key=lambda d: figures[d]["arms"]["optimized C"]["iterations"])
+    median = order[len(order) // 2]
+    for d in reps:
+        arms = figures[d]["arms"]
+        print(
+            f"flight {d.relative_to(REPO)} at {figures[d]['budget_us']:.0f} us: "
+            + ", ".join(
+                f"{a} {v['iterations']} it at {v['us_per_iteration']:.3f} us"
+                for a, v in arms.items()
+            )
+            + f"; translated/optimized per iteration "
+            f"{arms['emitted C']['us_per_iteration'] / arms['optimized C']['us_per_iteration']:.1f}x"
+            + ("  <- shown" if d == median else "")
+        )
+    path = Path(args.paper_dir).parent / "figures" / "control_figure8_flight.pdf"
+    if not args.write:
+        print(
+            f"(dry run) would copy {median.relative_to(REPO)}/figures_figure8_flight.pdf to {path}"
+        )
+        return
+    shutil.copyfile(median / "figures_figure8_flight.pdf", path)
+    print(f"wrote {path}")
+
 
 WRITERS = {
     "table": write_table,
     "network": write_network_schedule,
     "portfolio": write_portfolio_tolerance,
+    "gpu": write_gpu,
+    "flight": write_flight,
 }
 
 
