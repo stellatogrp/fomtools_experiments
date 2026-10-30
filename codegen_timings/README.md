@@ -18,9 +18,9 @@ parameter samples.
 
 ## Running
 
-From the repository root, with the main fomtools clone next to this repository
-(`../fomtools`, at the commit the paper cites). Every paper number is the median
-over three independent agent repetitions:
+From the repository root, with fomtools 0.0.5 from `uv sync` (the paper's runs used
+commit `25b3f73`, whose code generation is the same as in 0.0.5). Every paper number is
+the median over three independent agent repetitions:
 
 ```bash
 uv run python -m codegen_timings.run lasso --check-only                       # no agent; seconds

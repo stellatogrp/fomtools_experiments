@@ -47,18 +47,18 @@ medians over three independent agent runs per generated solver.
 
 ## Dependencies
 
-Clone this repository next to fomtools and install with [uv](https://docs.astral.sh/uv/):
+Install with [uv](https://docs.astral.sh/uv/):
 
 ```bash
-git clone https://github.com/stellatogrp/fomtools
 git clone https://github.com/stellatogrp/fomtools_experiments
 cd fomtools_experiments
 uv sync
 ```
 
-`uv sync` creates a Python 3.13 environment (`.python-version`) in `.venv/` and installs
-fomtools (with its `codegen`, `gurobi` and `cvxpygen` extras) in editable mode from `../fomtools`, so the experiments
-always run against the local checkout. In addition:
+`uv sync` creates a Python 3.13 environment in `.venv/` and installs fomtools 0.0.5 from
+PyPI (with its `codegen`, `gurobi` and `cvxpygen` extras), the release that matches the paper. To
+run against a local fomtools checkout instead, clone it next to this repository and run
+`uv pip install -e "../fomtools[codegen,gurobi,cvxpygen]"` after `uv sync`. In addition:
 
 - **Verification** needs a [Gurobi](https://www.gurobi.com) license, set up as described in
   the [fomtools repository](https://github.com/stellatogrp/fomtools).
