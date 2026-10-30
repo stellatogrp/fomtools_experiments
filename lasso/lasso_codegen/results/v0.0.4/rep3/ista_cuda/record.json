@@ -1,0 +1,177 @@
+{
+  "algorithm": "ista",
+  "backend": "cuda",
+  "rep": 3,
+  "size": {
+    "m": 10000,
+    "n": 40000,
+    "nnz_per_row": 260
+  },
+  "D_nnz": 2599983,
+  "step_size": 0.014703924227805058,
+  "iterations": 200,
+  "tol_verify": 1e-05,
+  "translated_us": 18047.858505,
+  "optimized_us": 8745.131956,
+  "optimization_kept": true,
+  "agent_wall_s": {
+    "translation": 357.8010742664337,
+    "code_optimization": 16792.09239578247
+  },
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 18047.858505,
+      "us_after": 13028.801623,
+      "gain": 0.27809708728653404,
+      "agent_wall_s": 4268.878342814001,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 13244.57652,
+      "us_after": 11404.521074,
+      "gain": 0.13892897543544866,
+      "agent_wall_s": 5507.999243140002,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 11419.925773,
+      "us_after": 9827.593049,
+      "gain": 0.1394345949047003,
+      "agent_wall_s": 3998.2641864960024,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 4,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 9810.379088,
+      "us_after": 8745.131956,
+      "gain": 0.10858368697525712,
+      "agent_wall_s": 1622.402120971994,
+      "truncated": true,
+      "stop_reason": null
+    },
+    {
+      "index": 5,
+      "changed": false,
+      "correct": true,
+      "kept": false,
+      "us_before": null,
+      "us_after": null,
+      "gain": null,
+      "agent_wall_s": 135.19788184500067,
+      "truncated": true,
+      "stop_reason": "the round left the sources unchanged"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Capture the 200-iteration loop in a CUDA graph",
+      "rule": "the `fom_apply_*` signatures are fixed and launch on the legacy default stream, which cannot be stream-captured",
+      "expected_gain": "~3-5% (launch gaps)"
+    },
+    {
+      "round": 1,
+      "idea": "Fuse the soft-threshold/state update into the epilogue of the t1_t_t0 matvec",
+      "rule": "`fom_apply_<name>` must compute exactly out += M x, and matvec loops may not live in `fom_solver.cu`",
+      "expected_gain": "~5-10% (saves one kernel and a 320 KB round trip per iteration)"
+    },
+    {
+      "round": 1,
+      "idea": "Use t1_t_t0's relation to t0_state (it appears to be a scaled A^T) to keep one 26 MB matrix, which would fit entirely in L2, instead of two",
+      "rule": "each `fom_apply_<name>` may read only its own matrix's data",
+      "expected_gain": "potentially large, maybe 1.5-2x, since both products would run from L2"
+    },
+    {
+      "round": 2,
+      "idea": "Computing `G(A s)` with one matrix's data (`A^T` values are `-step \u00d7 A` values), so only one 21 MB value array is streamed per iteration, which would fit the 40 MB L2 together with the indices",
+      "rule": "`fom_apply_<name>` may read only its own matrix's data (and its signature is fixed)",
+      "expected_gain": "~35\u201340% (about 40 us per iteration less DRAM traffic)"
+    },
+    {
+      "round": 2,
+      "idea": "Fusing the soft-threshold into the epilogue of the `A^T` matvec (`ns = soft(s + G t0)` in one kernel), dropping the separate update kernel",
+      "rule": "each `fom_apply_<name>` must apply exactly `M` and accumulate into `out`",
+      "expected_gain": "~5% (about 3\u20134 us per iteration)"
+    },
+    {
+      "round": 2,
+      "idea": "Fusing the `A s` and `A^T t0` launches into one persistent cooperative kernel with a grid-wide barrier",
+      "rule": "matrix-vector loops must live inside their own `fom_apply_<name>` and may not be written in `fom_solver.cu`",
+      "expected_gain": "unknown, ~2\u20133%"
+    },
+    {
+      "round": 3,
+      "idea": "Share the coefficients of `t0_state` (A) and `t1_t_t0` (\u2212\u03b3A\u1d40, the same nonzeros scaled) so one stream of about 26 MB serves both products, or keep that one copy L2-resident",
+      "rule": "each `fom_apply_<name>` may read only its own matrix's data",
+      "expected_gain": "large, roughly 25-40% (DRAM traffic per iteration drops from 52 MB toward 26 MB)"
+    },
+    {
+      "round": 3,
+      "idea": "Fuse the soft threshold and t0 = c re-arm into the epilogue of the `t1_t_t0` matvec kernel",
+      "rule": "matvec code must live in `fom_apply_*`, which must compute exactly out += M\u00b7x",
+      "expected_gain": "~2 \u00b5s per iteration (~4%)"
+    },
+    {
+      "round": 3,
+      "idea": "Store the coefficients in float32 to halve the value stream",
+      "rule": "`fom_apply_<name>` must apply exactly M (checked directly against the reference)",
+      "expected_gain": "~35-40%, but it breaks exactness"
+    }
+  ],
+  "fomtools": {
+    "version": "0.0.4.dev22+g25b3f7327",
+    "path": "/scratch/gpfs/BSTELLATO/bs37/fomtools"
+  },
+  "model": "claude-opus-5-5",
+  "agent_host": "della9.princeton.edu",
+  "build_host": "della-l09g1: GPU 0: NVIDIA A100-SXM4-80GB (UUID: GPU-1bb8c100-3d47-98d7-f1aa-249137898fc9)",
+  "alloc": "holders.sh",
+  "env": {
+    "OMPFLAGS": "-fopenmp",
+    "NVCCFLAGS": "-O3 -Iinclude -Itest -gencode arch=compute_80,code=sm_80",
+    "OMP_NUM_THREADS": "16"
+  },
+  "code": {
+    "fomtools_experiments": {},
+    "fomtools": {
+      "commit": "25b3f73273d396e641ec29d0c72f636c7e173b88",
+      "dirty": false
+    }
+  },
+  "environment": {
+    "host": "della9.princeton.edu",
+    "platform": "Linux-5.14.0-687.59.1.el9_8.x86_64-x86_64-with-glibc2.34",
+    "python": "3.13.12",
+    "cpu_count": 192,
+    "slurm": {},
+    "grb_license_file": "",
+    "numpy_version": "2.5.3",
+    "scipy_version": "1.18.1",
+    "gurobipy_version": "13.0.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "hydra_version": "1.3.7",
+    "cvxpy_version": "1.9.3",
+    "clarabel_version": "0.11.1",
+    "gurobi_version": "13.0.3"
+  },
+  "started_utc": "2026-10-23T12:05:07+00:00",
+  "finished_utc": "2026-10-23T16:50:58+00:00"
+}

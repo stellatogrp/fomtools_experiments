@@ -1,9 +1,0 @@
-[2026-10-15 14:41:43,143][fomtools.canonicalizers.obbt_handler][INFO] - OBBT: repaired 2 crossed bound(s), largest crossing 5.551e-17
-[2026-10-15 14:41:43,321][fomtools.canonicalizers.obbt_handler][INFO] - OBBT: repaired 9 crossed bound(s), largest crossing 1.776e-15
-[2026-10-15 14:42:08,714][fomtools.canonicalizers.obbt_handler][INFO] - OBBT: repaired 1 crossed bound(s), largest crossing 1.305e-07
-[2026-10-15 14:42:20,498][fomtools.canonicalizers.obbt_handler][INFO] - OBBT: repaired 1 crossed bound(s), largest crossing 1.997e-08
-[2026-10-15 14:43:39,598][fomtools.canonicalizers.obbt_handler][INFO] - OBBT: repaired 1 crossed bound(s), largest crossing 1.599e-07
-[2026-10-15 14:44:15,990][fomtools.canonicalizers.obbt_handler][INFO] - OBBT: repaired 1 crossed bound(s), largest crossing 1.644e-07
-[2026-10-15 14:46:24,431][fomtools.canonicalizers.obbt_handler][INFO] - OBBT: repaired 1 crossed bound(s), largest crossing 3.005e-07
-[2026-10-15 14:46:48,264][fomtools.canonicalizers.obbt_handler][INFO] - OBBT: repaired 1 crossed bound(s), largest crossing 3.770e-07
-[2026-10-15 14:47:36,579][fomtools.canonicalizers.obbt_handler][INFO] - OBBT: repaired 1 crossed bound(s), largest crossing 2.559e-07

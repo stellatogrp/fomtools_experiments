@@ -1,3 +1,0 @@
-CHECK fista K=200 scipy vs FOMTools-form: max abs diff 3.520e-08
-CHECK fista K=200 cupy vs scipy: max abs diff 4.556e-09
-CHECK_OK fista

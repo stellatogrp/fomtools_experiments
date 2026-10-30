@@ -1,0 +1,219 @@
+{
+  "algorithm": "ista",
+  "backend": "cuda",
+  "rep": 2,
+  "size": {
+    "m": 10000,
+    "n": 40000,
+    "nnz_per_row": 260
+  },
+  "D_nnz": 2599983,
+  "step_size": 0.014703924227805058,
+  "iterations": 200,
+  "tol_verify": 1e-05,
+  "translated_us": 18153.333568,
+  "optimized_us": 7368.32157,
+  "optimization_kept": true,
+  "agent_wall_s": {
+    "translation": 363.08393597602844,
+    "code_optimization": 18091.243383407593
+  },
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 18153.333568,
+      "us_after": 13307.454848,
+      "gain": 0.2669415345588167,
+      "agent_wall_s": 4495.5691228619835,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 13335.39962,
+      "us_after": 8248.680593,
+      "gain": 0.381444813950015,
+      "agent_wall_s": 4457.352565488982,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 8092.588831,
+      "us_after": 7368.32157,
+      "gain": 0.08949759787938001,
+      "agent_wall_s": 4456.254384524014,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 4,
+      "changed": false,
+      "correct": true,
+      "kept": false,
+      "us_before": null,
+      "us_after": null,
+      "gain": null,
+      "agent_wall_s": 3867.663946885994,
+      "truncated": false,
+      "stop_reason": "the round left the sources unchanged"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Read `t0_state` once per iteration for both products: `t1_t_t0` equals \u22120.0147 \u00b7 `t0_state`\u1d40 (checked entry by entry), so one stored matrix could serve both",
+      "rule": "each `fom_apply_<name>` may read only its own matrix's data, and no new float constants",
+      "expected_gain": "up to ~40% less matrix traffic, plausibly 1.3\u20131.6\u00d7"
+    },
+    {
+      "round": 1,
+      "idea": "Fuse the soft-threshold, state update and accumulator reset into the `t1_t_t0` matvec's final per-row write",
+      "rule": "`fom_apply_<name>` must compute exactly `out += M x`",
+      "expected_gain": "~2\u20133 \u00b5s/iter (~4%)"
+    },
+    {
+      "round": 1,
+      "idea": "One persistent cooperative kernel running both matvecs and the update with grid syncs, removing per-kernel tail effects",
+      "rule": "matvec loops must live inside the separate `fom_apply_*` entry points, each launched as its own kernel",
+      "expected_gain": "unknown, likely 5\u201310%"
+    },
+    {
+      "round": 1,
+      "idea": "Build or persist the derived index arrays and L2 policy in `fom_setup` instead of lazily inside the first `fom_apply` call",
+      "rule": "`fom_setup` may not call `fom_apply_*`, and `fom_ops.cu` has no other setup hook",
+      "expected_gain": "~0 per solve (first-call cost only)"
+    },
+    {
+      "round": 1,
+      "idea": "Pin host buffers or overlap the per-solve upload and download",
+      "rule": "`include/` workspace layout and the bench harness are fixed",
+      "expected_gain": "<1%"
+    },
+    {
+      "round": 2,
+      "idea": "Store A once and use it for both products. I checked that `t1_t_t0` has exactly the pattern of `t0_state` transposed, with every value scaled by -0.014703924\u2026 (equal to within a few ulps). One 26 MB copy would nearly fit in L2 instead of streaming 52 MB per iteration",
+      "rule": "each `fom_apply_<name>` and its helpers may read only its own matrix's data, and each must apply exactly its own matrix",
+      "expected_gain": "about 30\u201345%"
+    },
+    {
+      "round": 2,
+      "idea": "Fold the soft-threshold, residual and state update into the `t1_t_t0` kernel's epilogue, removing one kernel boundary per iteration",
+      "rule": "`fom_apply_<name>` must compute exactly `out += M x`; activations belong in the solver",
+      "expected_gain": "about 3\u20135% (about 2 us per iteration)"
+    },
+    {
+      "round": 2,
+      "idea": "Run the whole iteration as one persistent kernel with grid-wide syncs, so the x slices stay in shared memory and there are no kernel-boundary drains",
+      "rule": "matrix-vector work may not live in `src/fom_solver.cu`, and the `fom_apply_*` signatures (no stream or fusion hook) are fixed",
+      "expected_gain": "unknown, likely 5\u201310%"
+    },
+    {
+      "round": 3,
+      "idea": "Read only A (t0_state) in both matvecs, since t1_t_t0 equals -0.0147\u00b7A^T exactly (checked); 23 MB would then fit in persisting L2 and DRAM traffic per iteration would roughly halve",
+      "rule": "each fom_apply_<name> may read only its own matrix's data",
+      "expected_gain": "~30-40%"
+    },
+    {
+      "round": 3,
+      "idea": "Fuse the soft-threshold, the t0 = c re-arm and the residual into the epilogue of the A^T kernel, and the threshold into the x staging of the next A x kernel, removing one kernel and one full drain per iteration",
+      "rule": "fom_apply_* must compute exactly out += M x, and matrix kernels must live in fom_ops.cu, not fom_solver.cu",
+      "expected_gain": "~8% (removing the update kernel measured ~7.5%)"
+    },
+    {
+      "round": 3,
+      "idea": "Run each iteration as one persistent kernel with a grid-wide sync between the A x, A^T and threshold phases (no launch gaps)",
+      "rule": "matvecs must go through the separate fom_apply_* entry points",
+      "expected_gain": "unknown, ~5-10%"
+    },
+    {
+      "round": 3,
+      "idea": "Programmatic dependent launch so the next matvec's matrix loads start while the previous kernel drains",
+      "rule": "target constraint: the build is fixed at sm_80 and PDL needs sm_90",
+      "expected_gain": "~5%"
+    },
+    {
+      "round": 3,
+      "idea": "Shrink matrix values further with a lossy fp32+fp16 split (8 bytes per entry)",
+      "rule": "the kernel must apply exactly M (and the 1e-10 operator check)",
+      "expected_gain": "~8%"
+    },
+    {
+      "round": 4,
+      "idea": "Store `t0_state` once and apply `t1_t_t0` as its scaled transpose (here `t1_t_t0` = \u2212step\u00b7`t0_state`\u1d40), so one matrix copy is shared and could stay in L2",
+      "rule": "`fom_apply_<name>` and its helpers may read only their own matrix's data",
+      "expected_gain": "~up to 2x less matrix traffic; unknown net, since a transposed apply needs a scatter or second layout"
+    },
+    {
+      "round": 4,
+      "idea": "One persistent fused kernel per iteration batch (t0 product \u2192 soft \u2192 t1 product with grid-wide syncs), removing 3 launches per iteration and letting staging overlap the previous phase",
+      "rule": "matvec loops must live inside each `fom_apply_<name>`, and no code may read two matrices' data",
+      "expected_gain": "~3\u20136 us/iter (8\u201315%)"
+    },
+    {
+      "round": 4,
+      "idea": "Fold the soft-threshold of y into the t0 kernel's x staging, dropping the state-update kernel",
+      "rule": "each `fom_apply_<name>` must compute exactly `out += M x` for its given `x`",
+      "expected_gain": "~1\u20132 us/iter"
+    },
+    {
+      "round": 4,
+      "idea": "Lossy value compression (float32 or truncated mantissas) to cut the 9 bytes per entry",
+      "rule": "the direct `fom_apply` checks require applying exactly `M`",
+      "expected_gain": "~40% less matrix traffic, unknown net"
+    },
+    {
+      "round": 4,
+      "idea": "Programmatic dependent launch or thread-block clusters (shared x staging across SMs)",
+      "rule": "target constraint: the build flags pin sm_80, and these features need sm_90",
+      "expected_gain": "unknown"
+    }
+  ],
+  "fomtools": {
+    "version": "0.0.4.dev22+g25b3f7327",
+    "path": "/scratch/gpfs/BSTELLATO/bs37/fomtools"
+  },
+  "model": "claude-opus-5-5",
+  "agent_host": "della9.princeton.edu",
+  "build_host": "della-l02g5: GPU 0: NVIDIA A100 80GB PCIe (UUID: GPU-d2063d1c-73e8-cb3d-8511-730055033cb9)",
+  "alloc": "holders.sh",
+  "env": {
+    "OMPFLAGS": "-fopenmp",
+    "NVCCFLAGS": "-O3 -Iinclude -Itest -gencode arch=compute_80,code=sm_80",
+    "OMP_NUM_THREADS": "16"
+  },
+  "code": {
+    "fomtools_experiments": {},
+    "fomtools": {
+      "commit": "25b3f73273d396e641ec29d0c72f636c7e173b88",
+      "dirty": false
+    }
+  },
+  "environment": {
+    "host": "della9.princeton.edu",
+    "platform": "Linux-5.14.0-687.59.1.el9_8.x86_64-x86_64-with-glibc2.34",
+    "python": "3.13.12",
+    "cpu_count": 192,
+    "slurm": {},
+    "grb_license_file": "",
+    "numpy_version": "2.5.3",
+    "scipy_version": "1.18.1",
+    "gurobipy_version": "13.0.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "hydra_version": "1.3.7",
+    "cvxpy_version": "1.9.3",
+    "clarabel_version": "0.11.1",
+    "gurobi_version": "13.0.3"
+  },
+  "started_utc": "2026-10-24T07:24:10+00:00",
+  "finished_utc": "2026-10-24T12:31:45+00:00"
+}

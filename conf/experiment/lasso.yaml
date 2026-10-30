@@ -1,13 +1,15 @@
 # ISTA and FISTA on the sparse-coding Lasso, infinity-norm KKT residual
-# (paper Sec. 6.2; lasso/lasso_verify). Defaults are the paper's instance.
+# (paper Sec. 6.2; lasso/lasso_verify). Defaults are the paper's instance
+# (archived run: lasso/lasso_verify/results/run_022).
 name: lasso
 dir: lasso/lasso_verify
 variants: [ista, fista]
+k_max: 20              # the horizon the paper plots; sets schedule.k_max
 problem:
-  m: 3                 # measurements (rows of D); P in problem.py
-  n: 5                 # features (columns of D); N in problem.py
+  m: 25                # measurements (rows of D); P in problem.py
+  n: 50                # features (columns of D); N in problem.py
   density: 0.2         # fraction of nonzero entries of D (sparse dictionary)
-  lambd: 0.1
+  lambd: 0.001
   n_star: 100          # sparse vectors z* whose measurements D z* span the parameter box
   p_star: 0.1          # probability that an entry of z* is nonzero
   seed: 0

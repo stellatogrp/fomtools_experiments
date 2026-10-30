@@ -1,0 +1,21 @@
+{
+  "experiment": "rapdhg",
+  "run_id": "run_002",
+  "created_utc": "2026-10-23T19:41:08+00:00",
+  "label": "",
+  "overrides": [
+    "experiment=rapdhg",
+    "schedule.budget_hours=7"
+  ],
+  "variants": [
+    "R12",
+    "R6"
+  ],
+  "code": {
+    "fomtools_experiments": {},
+    "fomtools": {
+      "commit": "25b3f73273d396e641ec29d0c72f636c7e173b88",
+      "dirty": false
+    }
+  }
+}

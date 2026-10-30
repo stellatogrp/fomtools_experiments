@@ -20,6 +20,7 @@ import argparse
 
 from fomtools.codegen.emit import scaffold
 from fomtools.codegen.harness import build_and_verify
+from fomtools.codegen.targets import get_target
 
 from codegen.study import MAX_ITERS, build
 from common import codegen_driver
@@ -27,12 +28,13 @@ from common import study as pipeline
 from common.csolver import CSolver
 
 
-def main() -> None:
+def main(argv=None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--max-iters", type=int, default=MAX_ITERS)
-    args = parser.parse_args()
+    parser.add_argument("--rep", type=int, default=1, help="repetition; 2, 3, ... in out/reps/")
+    args = parser.parse_args(argv)
 
-    study = build(max_iters=args.max_iters)
+    study = build(max_iters=args.max_iters, rep=args.rep)
     config = codegen_driver.config_for(args.max_iters, study.tol_verify)
     ir = codegen_driver.extract(
         study.recording, study.boxes, config=config, name=f"mpc_{study.name}"
@@ -43,11 +45,14 @@ def main() -> None:
         if not (directory / "src" / "fom_solver.c").exists():
             print(f"skipping {label}: nothing generated in {directory}")
             continue
-        solver_src = (directory / "src" / "fom_solver.c").read_text()
+        # The agent may have rewritten more than the solver (the matrix-vector
+        # products and linear solves): keep every editable source across the
+        # re-scaffold, which regenerates everything else at the new length.
+        editable = [directory / rel for rel in get_target(config).optimization_editable_paths()]
+        kept = {path: path.read_text() for path in editable if path.exists()}
         target = scaffold(ir, directory, config)
-        assert (directory / "src" / "fom_solver.c").read_text() == solver_src, (
-            "scaffold touched the solver"
-        )
+        for path, text in kept.items():
+            path.write_text(text)
         result = build_and_verify(directory, target)
         print(
             f"{label}: tables extended to {args.max_iters}; make verify "

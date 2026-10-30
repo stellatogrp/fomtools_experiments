@@ -11,11 +11,12 @@ code optimization phase runs on the copy.  Both solvers then descend from the sa
 translation, which is what makes the comparison between them a statement about
 the code optimization phase rather than about two independent agent runs.
 
-The code optimization phase is driven here rather than through ``generate_code``, and
-mirrors the gating in :mod:`fomtools.codegen.generate`: restore the deterministic
-files so only the solver body can have changed, require the result to still
-verify, require it to be no slower than what it started from, and fall back to
-the translated source otherwise.
+The code optimization phase runs on the copy through
+:func:`fomtools.codegen.generate.run_code_optimization`, the function
+``generate_code`` itself calls, so the gating is fomtools' own: in rounds, the
+editable sources (solver, linear solves, matrix-vector products) are re-verified
+under the kernel rules and benchmarked head to head, and the translated sources
+come back if no round is kept.
 
 Agent runs are expensive and nondeterministic, so both phases are skipped when
 the directory already holds a solver that verifies.  Pass ``force=True`` to
@@ -24,20 +25,16 @@ regenerate.
 
 from __future__ import annotations
 
-import difflib
 import shutil
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from fomtools.codegen import CodegenConfig, TerminationSpec
-from fomtools.codegen.agent.driver import AgentTask
-from fomtools.codegen.agent.prompts import code_optimization_instructions
 from fomtools.codegen.emit import scaffold
 from fomtools.codegen.extract_scheduled import extract_scheduled_ir
-from fomtools.codegen.generate import extract_fom_ir, generate_code, optimization_is_faster
-from fomtools.codegen.harness import build_and_verify, run_bench
+from fomtools.codegen.generate import extract_fom_ir, generate_code, run_code_optimization
+from fomtools.codegen.harness import build_and_verify
 from fomtools.codegen.ir import FomIR
-from fomtools.codegen.postprocess import extract_agent_notes, write_optimization_report
 from fomtools.codegen.targets import get_target
 
 from common.recording import ScheduledRecording
@@ -149,9 +146,11 @@ def translate(
     config = config or config_for()
     emitted = Path(out_dir) / "emitted"
 
-    if not force and _verifies(emitted, config):
-        print(f"reusing the verified solver already in {emitted}")
-        return extract(recording, boxes, config=config, name=name), emitted
+    if not force:
+        ir = extract(recording, boxes, config=config, name=name)
+        if _verifies(emitted, config, ir):
+            print(f"reusing the verified solver already in {emitted}")
+            return ir, emitted
 
     if isinstance(recording, ScheduledRecording):
         _check_tables_cover(recording, config)
@@ -195,6 +194,8 @@ class OptimizeResult:
     notes: str = ""
     emitted_us: float | None = None  # per solve, at the generated iteration count
     optimized_us: float | None = None
+    rounds: list[dict] = field(default_factory=list)  # one per agent round
+    rule_friction: list[dict] = field(default_factory=list)  # what the rules blocked
 
 
 def optimize(
@@ -209,133 +210,51 @@ def optimize(
     config = config or config_for()
     optimized = Path(out_dir) / "optimized"
 
-    if not force and _verifies(optimized, config):
+    if not force and _verifies(optimized, config, ir):
         print(f"reusing the optimized solver already in {optimized}")
         return OptimizeResult(path=optimized, kept=True, notes="reused from a previous run")
 
     if optimized.exists():
         shutil.rmtree(optimized)
     shutil.copytree(emitted, optimized)
-
     target = scaffold(ir, optimized, config)
-    solver_path = optimized / target.solver_source_path()
-    before = solver_path.read_text()
 
-    task = AgentTask(
-        workdir=optimized,
-        solver_rel_path=target.solver_source_path(),
-        verify_cmd=target.verify_command(),
-        instructions=code_optimization_instructions(ir, target),
-        phase="code_optimization",
-        max_turns=config.agent_optimize_max_turns,
-        bench_cmd=["make", "bench"],
-        restore_hook=lambda: target.scaffold(ir, optimized),
+    result = run_code_optimization(
+        ir, target, optimized, driver or default_driver(config), config, profile=True
     )
-    outcome = (driver or default_driver(config)).run(task)
-    target.scaffold(ir, optimized)  # discard any edit outside the solver body
-    (optimized / "agent_code_optimization.log").write_text(outcome.agent_log or outcome.log)
-
-    after = solver_path.read_text()
-    if after == before:
-        return OptimizeResult(
-            path=optimized, kept=False, notes="the code optimization phase left the source unchanged"
-        )
-
-    recheck = build_and_verify(optimized, target)
-    if not (outcome.success and recheck.success):
-        solver_path.write_text(before)
-        return OptimizeResult(
-            path=optimized,
-            kept=False,
-            notes=f"the optimized solver did not verify:\n{recheck.output[-2000:]}",
-        )
-
-    fast = _bench(optimized)
-    solver_path.write_text(before)
-    slow = _bench(optimized)
-    kept = optimization_is_faster(fast, slow)
-    solver_path.write_text(after if kept else before)
-
-    _write_report(optimized, before, after, outcome, fast, slow, kept)
-
-    if not kept:
-        return OptimizeResult(
-            path=optimized,
-            kept=False,
-            notes=f"the optimized solver ({fast} us) was not faster than the emitted one ({slow} us)",
-            emitted_us=slow,
-            optimized_us=fast,
-        )
-    return OptimizeResult(path=optimized, kept=True, emitted_us=slow, optimized_us=fast)
+    (optimized / "agent_code_optimization.log").write_text(
+        result.optimize.agent_log or result.optimize.log
+    )
+    if result.optimizations_md:
+        print(f"wrote {result.optimizations_md}")
+    stop = result.rounds[-1].stop_reason if result.rounds else None
+    return OptimizeResult(
+        path=optimized,
+        kept=result.kept,
+        notes="" if result.kept else (stop or "no round was kept"),
+        emitted_us=result.translated_us,
+        optimized_us=result.final_us,
+        rounds=[r.as_dict() for r in result.rounds],
+        rule_friction=result.rule_friction,
+    )
 
 
-def _write_report(
-    optimized: Path,
-    before: str,
-    after: str,
-    outcome,
-    fast: float | None,
-    slow: float | None,
-    kept: bool,
-    extra_caveats: list[str] | None = None,
-) -> None:
-    """Write ``OPTIMIZATIONS.md``, as :func:`generate_code` does on its own path.
+def _verifies(directory: Path, config: CodegenConfig, ir: FomIR | None = None) -> bool:
+    """Whether ``directory`` already holds a solver that passes ``make verify``.
 
-    Running the code optimization phase here rather than through ``generate_code`` is
-    what lets both solvers survive, but it also skips the postprocessing that
-    records what the phase did.  The agent's summary is the only account of which
-    structure it exploited and what it tried and rejected, and it exists only
-    inside a log that nothing else reads.
+    With ``ir``, the files ``scaffold`` generates (matrix data and the verify
+    harness, which are not committed) are first rewritten from it, keeping the
+    sources the agent may edit, so a committed solver is reused, not regenerated.
+    Reuse needs the fomtools commit the solver was generated with: a later one may
+    declare kernels the committed sources do not define.
     """
-    notes = extract_agent_notes(outcome.agent_log or outcome.log or "")
-    caveats = list(extra_caveats or [])
-    if getattr(outcome, "truncated", False):
-        caveats.append(
-            "The agent was terminated at its wall-clock budget before it finished, so it may "
-            "never have written a summary. The timing and diff are still sound: the solver on "
-            "disk was re-verified and benchmarked either way."
-        )
-    if not notes.strip():
-        caveats.append(
-            "No agent summary was recovered from this run, so the notes section is absent "
-            "rather than empty-by-choice."
-        )
-    timing = ""
-    if fast is not None and slow is not None:
-        speedup = f"{slow / fast:.2f}x" if fast else "n/a"
-        timing = (
-            f"translated (emitted) {slow:9.1f} us/solve\n"
-            f"optimized            {fast:9.1f} us/solve\n"
-            f"speedup              {speedup:>9}"
-        )
-    diff = "".join(
-        difflib.unified_diff(
-            before.splitlines(keepends=True),
-            after.splitlines(keepends=True),
-            fromfile="translated (emitted)",
-            tofile="optimized",
-        )
-    )
-    path = write_optimization_report(
-        optimized,
-        timing_summary=timing,
-        diff=diff,
-        agent_notes=notes,
-        optimize_succeeded=kept,
-        caveats=caveats,
-    )
-    print(f"wrote {path}")
-
-
-def _verifies(directory: Path, config: CodegenConfig) -> bool:
-    """Whether ``directory`` already holds a solver that passes ``make verify``."""
     if not (directory / "src" / "fom_solver.c").exists():
         return False
-    return build_and_verify(directory, get_target(config)).success
-
-
-def _bench(workdir: Path) -> float | None:
-    try:
-        return run_bench(workdir).mean_us
-    except Exception:
-        return None
+    target = get_target(config)
+    if ir is not None:
+        editable = [directory / rel for rel in target.optimization_editable_paths()]
+        kept = {path: path.read_text() for path in editable if path.exists()}
+        scaffold(ir, directory, config)
+        for path, text in kept.items():
+            path.write_text(text)
+    return build_and_verify(directory, target).success

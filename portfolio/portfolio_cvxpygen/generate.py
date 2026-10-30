@@ -23,7 +23,9 @@ separator):
     20-minute budget).
 
 A directory that already holds a compiled wrapper is reused unless ``--force``.
-``gen_n{N}.json`` records generation wall times and the canonical problem sizes.
+``--reps`` (default 1 2 3) generates the agent arms once per repetition: repetition k > 1
+uses ``cpg_n{N}_<arm>_rep<k>``; OSQP is generated once. ``gen_n{N}.json`` in
+``model.results_dir()`` (tracked) records generation wall times and the canonical sizes.
 """
 
 from __future__ import annotations
@@ -34,6 +36,7 @@ import json
 import time
 
 from portfolio_cvxpygen.model import (
+    AGENT_ARMS,
     CHECK_TERMINATION,
     FOM_OPTIONS,
     MAX_ITER,
@@ -44,6 +47,8 @@ from portfolio_cvxpygen.model import (
     code_dir,
     param_bounds,
     prefix,
+    results_dir,
+    set_rep,
 )
 
 ARMS = ("osqp", "fom", "fom_opt")
@@ -114,6 +119,7 @@ def generate_fom(N: int, arm: str) -> dict:
             info["optimize"] = dict(success=result.optimize.success,
                                     turns_used=result.optimize.turns_used,
                                     truncated=result.optimize.truncated)
+        info["rule_friction"] = getattr(result, "rule_friction", [])
         if result.timing is not None:
             info["timing"] = {
                 k: v for k, v in vars(result.timing).items() if isinstance(v, (int, float, str))
@@ -144,13 +150,24 @@ def main() -> None:
     parser.add_argument("--N", type=int, nargs="+", default=list(SIZES))
     parser.add_argument("--arms", nargs="+", choices=ARMS, default=list(ARMS))
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--reps", type=int, nargs="+", default=[1, 2, 3],
+                        help="independent generations of the agent arms (fom, fom_opt)")
     args = parser.parse_args()
+    for rep in args.reps:
+        set_rep(rep)
+        # OSQP has no agent: generated once, with repetition 1.
+        arms = [a for a in args.arms if rep == 1 or a in AGENT_ARMS]
+        generate(args.N, arms, args.force)
 
-    for N in args.N:
-        record_path = OUT / f"gen_n{N}.json"
+
+def generate(sizes: list[int], arms: list[str], force: bool) -> None:
+    """Generate ``arms`` at every n for the current repetition, and record it."""
+    for N in sizes:
+        results_dir().mkdir(parents=True, exist_ok=True)
+        record_path = results_dir() / f"gen_n{N}.json"
         record = json.loads(record_path.read_text()) if record_path.exists() else {}
-        for arm in args.arms:
-            if compiled(N, arm) and not args.force:
+        for arm in arms:
+            if compiled(N, arm) and not force:
                 print(f"N={N} {arm}: reusing {code_dir(N, arm)}")
                 continue
             print(f"N={N} {arm}: generating {code_dir(N, arm)}", flush=True)

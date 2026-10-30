@@ -1,56 +1,139 @@
 {
   "experiment": "lasso",
   "variant": "fista",
+  "rep": 1,
   "iterations": 200,
   "verified_run": "lasso/lasso_verify/results/run_022",
-  "numpy_us": 1037.707999785198,
-  "translated_us": 362.072,
-  "optimized_us": 28.1132,
-  "speedup_translation": 2.866026646040561,
-  "speedup_optimization": 12.87907459840929,
-  "speedup_total": 36.91177097538515,
+  "numpy_us": 1013.1454328075051,
+  "translated_us": 331.7786,
+  "optimized_us": 27.6434,
+  "speedup_translation": 3.053679269270246,
+  "speedup_optimization": 12.002090915010454,
+  "speedup_total": 36.65053621506418,
   "optimization_kept": true,
   "optimization_notes": "",
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 332.0422,
+      "us_after": 95.8916,
+      "gain": 0.7112065875963959,
+      "agent_wall_s": 146.74932833295316,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 96.287,
+      "us_after": 28.5158,
+      "gain": 0.7038457943439925,
+      "agent_wall_s": 61.84136012499221,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": true,
+      "correct": true,
+      "kept": false,
+      "us_before": 27.6218,
+      "us_after": 28.0948,
+      "gain": -0.017124155558290877,
+      "agent_wall_s": 110.91300825006329,
+      "truncated": false,
+      "stop_reason": "the round's sources were not faster than the best so far"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Collapse `A x + gamma D x` into `H((1+gamma) s1 - gamma s0)`. Here H is the 50\u00d750 right half of `t0_state`, and `t0_state__d_gamma` \u2248 [-H, H].",
+      "rule": "Not a rule as such. The relation holds only to about 1e-15, so the fused or step routine must stay exact for any gamma, and the left half of `t0_state` holds stored entries up to about 8e-17.",
+      "expected_gain": "About 2 to 4\u00d7 fewer flops in `step_t0`, roughly 40 to 50 \u00b5s"
+    },
+    {
+      "round": 1,
+      "idea": "Vectorized row dot-products with reordered reductions (fast-math or -march flags)",
+      "rule": "Build flags and the Makefile are fixed",
+      "expected_gain": "unknown, likely small after the axpy rewrite"
+    },
+    {
+      "round": 2,
+      "idea": "Folding the soft-threshold `lambda` into the precomputed constant bias would save one compare per row",
+      "rule": "`src/fom_ops.c` must not read `FOM_ACT_*` or the constant vectors, and the step must apply whatever `act` it is passed",
+      "expected_gain": "under 1%"
+    },
+    {
+      "round": 2,
+      "idea": "Fusing the residual and termination check into `fom_iterate` to save the extra pass over the state",
+      "rule": "`fom_iterate` has a fixed signature in the fixed headers",
+      "expected_gain": "about 1\u20132%"
+    },
+    {
+      "round": 3,
+      "idea": "Store the 50x50 D2 factor in single precision to halve the load bandwidth of the only hot loop",
+      "rule": "entries must equal the matrix's values exactly (kernel rule on inlined coefficients)",
+      "expected_gain": "about 1.3x for step_t0"
+    },
+    {
+      "round": 3,
+      "idea": "Use NEON intrinsics for a row-major dot-product kernel with reassociated accumulation",
+      "rule": "target constraints (portable embedded C)",
+      "expected_gain": "unknown, probably under 5%"
+    },
+    {
+      "round": 3,
+      "idea": "Precompute all 200 iterations' schedule-dependent work in `fom_setup` (the schedule is fixed and the tolerance is 0)",
+      "rule": "`fom_ops.c` must not read the schedule; routines must be exact for any schedule value",
+      "expected_gain": "under 1%"
+    }
+  ],
   "max_abs_dev": {
     "translated": {
-      "verified_set": 1.378598363938055e-10
+      "verified_set": 1.4422100839961427e-10
     },
     "optimized": {
-      "verified_set": 1.1062584008569853e-10
+      "verified_set": 3.0056083663576594e-10
     }
   },
   "timing_rounds": {
     "numpy": [
-      918.2085000247753,
-      1031.3544999007718,
-      1055.0209999564686,
-      1037.707999785198,
-      1039.3329998805712,
-      1048.7709996596095,
-      1035.7090000070457
+      1021.4165085926652,
+      1007.5829923152924,
+      1000.1255432143807,
+      1013.1454328075051,
+      1025.3124637529254,
+      1020.8130115643144,
+      1002.146047540009
     ],
     "translated": [
-      364.9632,
-      362.3844,
-      359.6764,
-      361.1702,
-      361.799,
-      363.5928,
-      362.072
+      331.45,
+      330.1506,
+      329.1528,
+      333.5488,
+      331.7786,
+      334.5886,
+      333.5632
     ],
     "optimized": [
-      28.2434,
-      28.1132,
-      28.478,
-      27.4884,
-      28.6024,
-      28.015,
-      27.5078
+      27.2938,
+      27.6434,
+      28.2374,
+      28.3472,
+      27.2122,
+      28.413,
+      27.4094
     ]
   },
   "agent_wall_s": {
-    "translation": 17.264877796173096,
-    "code_optimization": 158.7671389579773
+    "translation": 45.52080321311951,
+    "code_optimization": 327.6670320034027
   },
   "agent_budgets_s": {
     "translation": 600,
@@ -58,7 +141,7 @@
   },
   "check": {
     "numpy_vs_verify_recurrence": 0.0,
-    "oracle_vs_numpy_max_rel": 1.2970878516278114e-11,
+    "oracle_vs_numpy_max_rel": 6.7256497627742495e-12,
     "state_dim": 100,
     "params": {
       "p0": 25
@@ -72,15 +155,17 @@
     "method": "fista"
   },
   "machine": {
-    "cpu": "Apple M5",
-    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
-    "compiler": "Apple clang version 17.0.0 (clang-1700.6.3.2)",
+    "cpu": "Apple M4 Pro",
+    "os": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
     "python": "3.13.11",
     "numpy": "2.5.3",
-    "fomtools_commit": "e645386",
-    "fomtools_branch": "vr/cvxpygen_features",
-    "fomtools_path": "/Users/vranjan/Research/2026/fomtools/fomtools"
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "fomtools_commit": "25b3f73",
+    "fomtools_dirty": false,
+    "fomtools_branch": "",
+    "fomtools_path": "/Users/bs37/Documents/projects/fomtools/fomtools"
   },
-  "started_utc": "2026-10-15T16:47:26+00:00",
-  "finished_utc": "2026-10-15T16:50:40+00:00"
+  "started_utc": "2026-10-22T18:15:10+00:00",
+  "finished_utc": "2026-10-22T18:21:41+00:00"
 }

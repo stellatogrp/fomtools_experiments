@@ -27,15 +27,16 @@ from codegen.study import MAX_ITERS, build
 from common import study as pipeline
 
 
-def main() -> None:
+def main(argv=None) -> dict:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--force", action="store_true", help="regenerate rather than reuse")
     parser.add_argument("--max-iters", type=int, default=MAX_ITERS)
-    args = parser.parse_args()
+    parser.add_argument("--rep", type=int, default=1, help="repetition; 2, 3, ... in out/reps/")
+    args = parser.parse_args(argv)
 
-    s = build(force_boxes=args.force, max_iters=args.max_iters)
+    s = build(force_boxes=args.force, max_iters=args.max_iters, rep=args.rep)
     print(s.numpy_controller.describe())
-    pipeline.generate(s, force=args.force, max_iters=args.max_iters)
+    return pipeline.generate(s, force=args.force, max_iters=args.max_iters)
 
 
 if __name__ == "__main__":

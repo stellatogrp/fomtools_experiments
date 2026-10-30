@@ -1,3 +1,0 @@
-ista: paper_ista_sparse_m325000_n1300000_a8nnz_lambda002_sepA vs paper_ista_sparse_m325000_n1300000_a8nnz_lambda002: eta 0.07308955543183375 vs 0.07308955543183375 (identical: True); state shapes (1300000,) vs (1300000,); max abs diff after 200 iterations 9.770e-14 (limit 1e-09) -> OK
-fista: paper_fista_sparse_m325000_n1300000_a8nnz_lambda002_sepA vs paper_fista_sparse_m325000_n1300000_a8nnz_lambda002: eta 0.07308955543183375 vs 0.07308955543183375 (identical: True); state shapes (2600000,) vs (2600000,); max abs diff after 200 iterations 3.511e-07 (limit 1e-05) -> OK
-SEPA_CHECK_OK

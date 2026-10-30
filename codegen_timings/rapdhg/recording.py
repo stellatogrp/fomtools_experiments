@@ -19,7 +19,7 @@ import numpy as np
 
 from codegen_timings.common import ITERATIONS, VariantSetup, load_adapter
 
-VARIANTS = ["R12", "R6", "pdhg"]
+VARIANTS = ["R12", "R6"]  # the paper's two restart periods
 
 
 def tables(problem, method: str, n_iters: int) -> dict[str, np.ndarray]:

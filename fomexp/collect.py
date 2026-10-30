@@ -2,19 +2,23 @@
 
     python -m fomexp.collect lasso run_001        # or a path to the run folder
 
-Writes two files into the run folder:
+Writes three files into the run folder:
 
 - ``summary.csv``: every variant's ``bounds.csv`` rows stacked, each joined with
   that variant's simulator statistics at the same K (``sim_*`` columns);
 - ``wide.csv``: one row per K, with the columns named as the experiment's
   ``plot.py`` and the paper's ``data/*.csv`` name them, so the existing plotting
-  code reads it unchanged.
+  code reads it unchanged;
+- ``summary.json``: per variant, the numbers the paper quotes about a run without
+  a data file of their own (verification hours, largest model, solve statuses).
 """
 
 from __future__ import annotations
 
 import csv
+import json
 import sys
+from collections import Counter
 from pathlib import Path
 
 from fomexp.paths import REPO
@@ -54,6 +58,35 @@ def write(path: Path, rows: list[dict]) -> None:
         writer.writerows(rows)
 
 
+def _float(value) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float("nan")
+
+
+def run_facts(run: Path, variants: list[str]) -> dict:
+    """Per variant: K reached, hours, largest model, statuses, time-limited K."""
+    facts = {}
+    for v in variants:
+        rows = [r for r in read(run / v / "bounds.csv") if not r.get("error")]
+        if not rows:
+            continue
+        facts[v] = dict(
+            k_max=max(int(r["K"]) for r in rows),
+            # Wall time of the job at its last K (simulator, build and solves).
+            hours_total=max(_float(r["cumulative_time"]) for r in rows) / 3600,
+            # Model building and solving only, summed over K.
+            hours_mip=sum(_float(r["t_total"]) for r in rows) / 3600,
+            max_num_vars=int(max(_float(r["num_vars"]) for r in rows)),
+            max_num_bin_vars=int(max(_float(r["num_bin_vars"]) for r in rows)),
+            statuses=dict(Counter(r["status"] for r in rows)),
+            time_limited_K=[int(r["K"]) for r in rows if r["status"] == "TIME_LIMIT"],
+            max_gap=max(_float(r["gap"]) for r in rows),
+        )
+    return facts
+
+
 def collect(run: Path, experiment: str) -> None:
     variants = sorted(
         p.name for p in run.iterdir() if p.is_dir() and (p / "manifest.json").exists()
@@ -80,8 +113,15 @@ def collect(run: Path, experiment: str) -> None:
     k_end = max(last.values(), default=0) or max(wide, default=0)
     write(run / "summary.csv", summary)
     write(run / "wide.csv", [wide[K] for K in sorted(wide) if K <= k_end])
+    facts = run_facts(run, variants)
+    (run / "summary.json").write_text(json.dumps(facts, indent=2) + "\n")
     print(f"{run}: variants {variants}, last MIP K {last}")
-    print(f"  wrote {run / 'summary.csv'} and {run / 'wide.csv'}")
+    for v, f in facts.items():
+        print(
+            f"  {v}: {f['hours_total']:.2f} h, up to {f['max_num_vars']} variables "
+            f"({f['max_num_bin_vars']} binary), statuses {f['statuses']}"
+        )
+    print(f"  wrote {run / 'summary.csv'}, {run / 'wide.csv'} and {run / 'summary.json'}")
 
 
 def main() -> None:

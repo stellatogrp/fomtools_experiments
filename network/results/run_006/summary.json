@@ -1,0 +1,50 @@
+{
+  "ruiz": {
+    "k_max": 39,
+    "hours_total": 1.3162949864069622,
+    "hours_mip": 1.3151782780288421,
+    "max_num_vars": 3494,
+    "max_num_bin_vars": 385,
+    "statuses": {
+      "OPTIMAL": 39
+    },
+    "time_limited_K": [],
+    "max_gap": 0.04997818868699653
+  },
+  "ruiz_momentum": {
+    "k_max": 39,
+    "hours_total": 0.0521167598830329,
+    "hours_mip": 0.05131682104413307,
+    "max_num_vars": 3415,
+    "max_num_bin_vars": 306,
+    "statuses": {
+      "OPTIMAL": 39
+    },
+    "time_limited_K": [],
+    "max_gap": 0.047675436902941806
+  },
+  "unscaled": {
+    "k_max": 39,
+    "hours_total": 0.021821645895640056,
+    "hours_mip": 0.020584353123065537,
+    "max_num_vars": 3437,
+    "max_num_bin_vars": 328,
+    "statuses": {
+      "OPTIMAL": 39
+    },
+    "time_limited_K": [],
+    "max_gap": 0.04696507553030499
+  },
+  "unscaled_momentum": {
+    "k_max": 39,
+    "hours_total": 0.015253306097454495,
+    "hours_mip": 0.014529476779522762,
+    "max_num_vars": 3429,
+    "max_num_bin_vars": 320,
+    "statuses": {
+      "OPTIMAL": 39
+    },
+    "time_limited_K": [],
+    "max_gap": 0.04721704254003415
+  }
+}

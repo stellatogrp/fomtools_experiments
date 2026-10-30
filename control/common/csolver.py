@@ -22,8 +22,10 @@ from __future__ import annotations
 
 import ctypes
 import importlib.util
+import shutil
 import statistics
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 
@@ -49,7 +51,14 @@ class CSolver:
         self.param_names = list(module.PARAM_NAMES)
         self.param_dims = dict(module.PARAM_DIMS)
 
-        self._lib = ctypes.CDLL(str(self._library_path()))
+        # Load a private copy: dlopen returns the library already loaded from a
+        # path, so a solver rebuilt in place (extend_tables) would otherwise keep
+        # running its old build within the same process.
+        self._libdir = tempfile.TemporaryDirectory(prefix="csolver_")
+        library = self._library_path()
+        private = Path(self._libdir.name) / library.name
+        shutil.copy2(library, private)
+        self._lib = ctypes.CDLL(str(private))
         self._lib.fom_set_default_settings.argtypes = [ctypes.POINTER(module.FomSettings)]
         self._lib.fom_setup.argtypes = [
             ctypes.POINTER(module.FomWorkspace),

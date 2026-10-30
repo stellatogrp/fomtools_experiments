@@ -1,0 +1,203 @@
+{
+  "experiment": "rapdhg",
+  "variant": "R6",
+  "rep": 3,
+  "iterations": 200,
+  "verified_run": "control/rapdhg/verify/results/run_001",
+  "numpy_us": 2405.4584791883826,
+  "translated_us": 152.8066,
+  "optimized_us": 15.0736,
+  "speedup_translation": 15.741849365069196,
+  "speedup_optimization": 10.137365990871457,
+  "speedup_total": 159.5808883868739,
+  "optimization_kept": true,
+  "optimization_notes": "",
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 154.7826,
+      "us_after": 28.9208,
+      "gain": 0.813152124334389,
+      "agent_wall_s": 124.3105191248469,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 30.2382,
+      "us_after": 15.476,
+      "gain": 0.48819704876613024,
+      "agent_wall_s": 169.81713000009768,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 14.5586,
+      "us_after": 13.5706,
+      "gain": 0.06786366820985532,
+      "agent_wall_s": 60.6729223751463,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 4,
+      "changed": false,
+      "correct": true,
+      "kept": false,
+      "us_before": null,
+      "us_after": null,
+      "gain": null,
+      "agent_wall_s": 48.015737124951556,
+      "truncated": false,
+      "stop_reason": "the round left the sources unchanged"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Hardcoding the `t1_t_t0__d_eta` index pattern and the d_eta/d_taux values as literals in `fom_iterate`, to drop the indirect loads",
+      "rule": "not blocked; literals are allowed inside `fom_iterate`, but I ran out of the time budget",
+      "expected_gain": "~5\u201310%"
+    },
+    {
+      "round": 1,
+      "idea": "Folding the per-iteration bias build (`a0 + tau*b0`, `a1 + eta*b1`) into `fom_iterate`, which would save two 48- and 16-element passes per iteration",
+      "rule": "fixed `fom_iterate` signature in `include/fom_ops.h` (the bias is passed in as a finished array) and the rule that `src/fom_ops.c` must not read the schedule",
+      "expected_gain": "~3%"
+    },
+    {
+      "round": 1,
+      "idea": "Skipping the zero `bias_su` add in the state update",
+      "rule": "`fom_iterate` must honour any `bias_su`, and the signature is fixed",
+      "expected_gain": "~1\u20132%"
+    },
+    {
+      "round": 2,
+      "idea": "Hoist the per-iteration bias computation (`a0 + tau*b0`, where `t0_p_p1` is all zeros) or drop it in `fom_solver.c`",
+      "rule": "`fom_solver.c` may not read `FOM_MAT_*` data for matrices it multiplies by, so it cannot see that the member is zero",
+      "expected_gain": "under 2%"
+    },
+    {
+      "round": 2,
+      "idea": "Precompute the circulant eigen-coefficients once at setup from the matrix data, instead of using literal tables",
+      "rule": "setup may not probe or apply matrices, and ops routines have no setup hook",
+      "expected_gain": "none (literals already give this)"
+    },
+    {
+      "round": 3,
+      "idea": "Dropping the per-iteration add of the all-zero su bias (160 adds) inside `fom_iterate`",
+      "rule": "fom_iterate must be exact for any bias, and fom_ops.c may not read the constant vectors",
+      "expected_gain": "~1-2%"
+    },
+    {
+      "round": 3,
+      "idea": "Dropping the per-iteration bias_t0/bias_t1 FMAs, since t0_p_p1 and t1_p_p0 are zero matrices",
+      "rule": "src/fom_solver.c must not read FOM_MAT data to detect that, and every routine must stay general",
+      "expected_gain": "~1-2%"
+    },
+    {
+      "round": 4,
+      "idea": "Running the whole 200-iteration loop inside `fom_ops.c` (one call, schedule values kept in registers)",
+      "rule": "`src/fom_ops.c` may not read the schedule",
+      "expected_gain": "small (a few %), since LTO already inlines the call"
+    },
+    {
+      "round": 4,
+      "idea": "Precomputing per-iteration biases (`tau*b0`, `eta*b1`) for all 200 iterations in `fom_update_params`",
+      "rule": "not blocked by any rule; it moves the same work and has no expected gain",
+      "expected_gain": "~0"
+    }
+  ],
+  "max_abs_dev": {
+    "translated": {
+      "verified_set": 1.6431300764452317e-14
+    },
+    "optimized": {
+      "verified_set": 1.7541523789077473e-14
+    }
+  },
+  "timing_rounds": {
+    "numpy": [
+      2365.1254596188664,
+      2423.6669996753335,
+      2380.1043862476945,
+      2410.9584046527743,
+      2379.7500180080533,
+      2405.4584791883826,
+      2447.4795209243894
+    ],
+    "translated": [
+      152.7758,
+      152.9782,
+      154.041,
+      151.921,
+      152.8066,
+      155.8596,
+      152.6592
+    ],
+    "optimized": [
+      15.1498,
+      14.925,
+      14.932,
+      17.119,
+      14.9576,
+      15.1656,
+      15.0736
+    ]
+  },
+  "agent_wall_s": {
+    "translation": 44.363438844680786,
+    "code_optimization": 412.22027111053467
+  },
+  "agent_budgets_s": {
+    "translation": 600,
+    "code_optimization": 600
+  },
+  "check": {
+    "tables_vs_rapdhg_schedule_tables": 0.0,
+    "numpy_x_vs_verify_recurrence": 2.3314683517128287e-15,
+    "oracle_vs_numpy_max_rel": 3.303752133483771e-13,
+    "state_dim": 160,
+    "params": {
+      "p0": 16,
+      "p1": 48
+    }
+  },
+  "info": {
+    "method": "rapdhg",
+    "restart": 6,
+    "horizon": 5,
+    "n": 16,
+    "m": 48,
+    "param_coords": [
+      0,
+      1,
+      5
+    ],
+    "state_dim": 160
+  },
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "os": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
+    "python": "3.13.11",
+    "numpy": "2.5.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "fomtools_commit": "25b3f73",
+    "fomtools_dirty": false,
+    "fomtools_branch": "",
+    "fomtools_path": "/Users/bs37/Documents/projects/fomtools/fomtools"
+  },
+  "started_utc": "2026-10-22T22:21:55+00:00",
+  "finished_utc": "2026-10-22T22:29:44+00:00"
+}

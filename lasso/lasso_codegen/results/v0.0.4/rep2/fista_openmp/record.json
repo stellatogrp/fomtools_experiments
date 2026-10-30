@@ -1,0 +1,159 @@
+{
+  "algorithm": "fista",
+  "backend": "openmp",
+  "rep": 2,
+  "size": {
+    "m": 10000,
+    "n": 40000,
+    "nnz_per_row": 260
+  },
+  "D_nnz": 2599983,
+  "step_size": 0.014703924227805058,
+  "iterations": 200,
+  "tol_verify": 1e-05,
+  "translated_us": 214959.3399,
+  "optimized_us": 26917.713187,
+  "optimization_kept": true,
+  "agent_wall_s": {
+    "translation": 169.79012989997864,
+    "code_optimization": 12823.87449002266
+  },
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 214959.3399,
+      "us_after": 71732.24075,
+      "gain": 0.6662985624008236,
+      "agent_wall_s": 3503.64782153102,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 37749.859038,
+      "us_after": 34780.611362,
+      "gain": 0.07865586128443754,
+      "agent_wall_s": 2994.3855586109858,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 35311.336053,
+      "us_after": 26917.713187,
+      "gain": 0.237703349808167,
+      "agent_wall_s": 3406.1054333109932,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 4,
+      "changed": false,
+      "correct": true,
+      "kept": false,
+      "us_before": null,
+      "us_after": null,
+      "gain": null,
+      "agent_wall_s": 2664.0843042829947,
+      "truncated": false,
+      "stop_reason": "the round left the sources unchanged"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Build the SELL layouts in `fom_setup` through a public init routine in `src/fom_ops.c`, instead of lazily on the first `fom_iterate` call",
+      "rule": "every function in fom_ops.c except the entry points must be static; fom_setup must not call fom_iterate",
+      "expected_gain": "~0 at steady state (only moves a one-time ~0.1 s setup out of the first solve)"
+    },
+    {
+      "round": 1,
+      "idea": "AVX2/AVX-512 gathers and FMA for the SELL kernels (`-march`)",
+      "rule": "build flags are fixed",
+      "expected_gain": "unknown, likely small: Zen 4 gathers run about 1 element per cycle, close to the current scalar rate"
+    },
+    {
+      "round": 2,
+      "idea": "AVX2/AVX-512 kernels (FMA plus hardware gathers, which Ice Lake supports) through `-march` or `__attribute__((target))`",
+      "rule": "fixed build flags / portable embedded target (the build is SSE2-only)",
+      "expected_gain": "unknown, likely 1.3\u20132x on both product kernels"
+    },
+    {
+      "round": 2,
+      "idea": "Building the SELL layouts in `fom_setup` with a parallel first-touch, instead of lazily in the first `fom_iterate` call",
+      "rule": "`fom_ops.c` may export only the listed entry points, and `fom_setup` may not call `fom_iterate`/`fom_step_*`",
+      "expected_gain": "about 0 on the bench (setup falls in warmup), lower first-solve latency"
+    },
+    {
+      "round": 3,
+      "idea": "AVX2/FMA versions of the SELL gather and scatter kernels via `__attribute__((target(\"avx2,fma\")))` with runtime CPU dispatch (4-wide value loads, fused multiply-add)",
+      "rule": "the build flags are fixed (SSE2 baseline), and forcing a wider instruction set from the source would get around them",
+      "expected_gain": "the kernels are bound by load and instruction count and take about 85% of the time, so I estimate 15\u201330% on them; not measured"
+    },
+    {
+      "round": 4,
+      "idea": "Compile the gather and scatter kernels with AVX2/FMA via `__attribute__((target))` plus a runtime CPU check, giving 256-bit value loads (fewer FP loads per entry) and FMA",
+      "rule": "build flags are fixed (`-O3`, no `-march`), and per-function target attributes would amount to changing them, which also hurts portability on the embedded target",
+      "expected_gain": "unknown, roughly 10-20% on the gather passes"
+    },
+    {
+      "round": 4,
+      "idea": "Inline-asm offset extraction (in-place `shr`/`movzwl`) to drop the register copies GCC adds",
+      "rule": "x86-specific asm conflicts with portable embedded C under fixed flags",
+      "expected_gain": "unknown, under 5%"
+    },
+    {
+      "round": 4,
+      "idea": "Choose the reduction groups from the actual CPU-to-L3 topology (on AMD one group of four threads spans two L3 caches)",
+      "rule": "needs OS topology queries (`sched_getcpu`, `/sys`) that don't belong in an allocation-free embedded solver",
+      "expected_gain": "about 1%"
+    }
+  ],
+  "fomtools": {
+    "version": "0.0.4.dev22+g25b3f7327",
+    "path": "/scratch/gpfs/BSTELLATO/bs37/fomtools"
+  },
+  "model": "claude-opus-5-5",
+  "agent_host": "della9.princeton.edu",
+  "build_host": "della-l01g13: GPU 0: NVIDIA A100 80GB PCIe (UUID: GPU-f4a2d8c1-08e8-e5a2-ed14-e86123e2f186)",
+  "alloc": "holders.sh",
+  "env": {
+    "OMPFLAGS": "-fopenmp",
+    "NVCCFLAGS": "-O3 -Iinclude -Itest -gencode arch=compute_80,code=sm_80",
+    "OMP_NUM_THREADS": "16"
+  },
+  "code": {
+    "fomtools_experiments": {},
+    "fomtools": {
+      "commit": "25b3f73273d396e641ec29d0c72f636c7e173b88",
+      "dirty": false
+    }
+  },
+  "environment": {
+    "host": "della9.princeton.edu",
+    "platform": "Linux-5.14.0-687.59.1.el9_8.x86_64-x86_64-with-glibc2.34",
+    "python": "3.13.12",
+    "cpu_count": 192,
+    "slurm": {},
+    "grb_license_file": "",
+    "numpy_version": "2.5.3",
+    "scipy_version": "1.18.1",
+    "gurobipy_version": "13.0.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "hydra_version": "1.3.7",
+    "cvxpy_version": "1.9.3",
+    "clarabel_version": "0.11.1",
+    "gurobi_version": "13.0.3"
+  },
+  "started_utc": "2026-10-24T12:31:45+00:00",
+  "finished_utc": "2026-10-24T16:08:19+00:00"
+}

@@ -1,0 +1,167 @@
+{
+  "experiment": "network_schedule",
+  "arm": "scheduled",
+  "rep": 2,
+  "variant": "ruiz_momentum",
+  "iterations": 50,
+  "overrides": [
+    "experiment=network",
+    "experiment.problem.ns=20",
+    "experiment.problem.nd=30",
+    "experiment.problem.edge_prob=1.0",
+    "experiment.problem.seed=20",
+    "experiment.problem.gain_spread=100.0",
+    "experiment.problem.cost_range=[1.0,10.0]",
+    "experiment.problem.capacity_range=[2.0,6.0]",
+    "experiment.problem.supply=4",
+    "experiment.problem.x_lb=-6.0",
+    "experiment.problem.x_ub=-4.0",
+    "experiment.problem.warm_start=center",
+    "experiment.problem.ruiz_iters=30",
+    "experiment.problem.eta_scale=0.5"
+  ],
+  "numpy_us": 678.2084237784147,
+  "translated_us": 124.764,
+  "optimized_us": 30.0604,
+  "speedup_translation": 5.435930426873255,
+  "speedup_optimization": 4.150443773203284,
+  "speedup_total": 22.561523591782368,
+  "optimization_kept": true,
+  "optimization_notes": "",
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 125.4888,
+      "us_after": 29.918,
+      "gain": 0.7615882851696725,
+      "agent_wall_s": 205.52231695898809,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": false,
+      "us_before": 29.3124,
+      "us_after": 29.9502,
+      "gain": -0.021758709624595685,
+      "agent_wall_s": 118.94828258408234,
+      "truncated": false,
+      "stop_reason": "the round's sources were not faster than the best so far"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Single-pass fused iteration: one pass over j computing the t0 block, its t1 dot product and the su accumulators while the data is in registers. It would need the literal coefficient tables shared at file scope between `fom_step_*` and `fom_iterate`, and I wasn't sure the kernel rule allows that (each routine may read only its own data, tables kept \"inside the routine\"). I also ran out of time budget.",
+      "rule": "kernel rule: matrix data/table scoping per entry point",
+      "expected_gain": "~10-20%"
+    },
+    {
+      "round": 1,
+      "idea": "Setting up the combined `A + xi*D` coefficient per iteration once (xi changes every iteration, so this means precomputing the 50 schedule-weighted tables in setup)",
+      "rule": "kernel rule: nothing in fom_ops.c may read the schedule, and setup may not probe or rebuild matrices",
+      "expected_gain": "~10%"
+    },
+    {
+      "round": 2,
+      "idea": "Precompute the combined coefficients `A + xi(it) D` once per schedule value in setup, which would save one multiply-add per coefficient per iteration in t1 and su_rest",
+      "rule": "`src/fom_ops.c` may not read the schedule, and `src/fom_solver.c` / `fom_setup` may not read matrix data",
+      "expected_gain": "~10-20% (estimate)"
+    },
+    {
+      "round": 2,
+      "idea": "Share one coefficient table between `fom_step_t1`/`fom_step_su__rest` and a fused `fom_iterate` without duplicating the literals",
+      "rule": "literal tables must be `static const` inside each routine",
+      "expected_gain": "unknown, mainly code size"
+    }
+  ],
+  "max_abs_dev": {
+    "translated": 9.325873406851315e-15,
+    "optimized": 8.881784197001252e-15
+  },
+  "timing_rounds": {
+    "numpy": [
+      733.0209482461214,
+      687.4995306134224,
+      678.2084237784147,
+      695.0414972379804,
+      666.2500090897083,
+      675.3329653292894,
+      668.2290695607662
+    ],
+    "translated": [
+      124.6746,
+      124.4356,
+      124.7668,
+      124.5366,
+      125.237,
+      124.764,
+      125.8848
+    ],
+    "optimized": [
+      30.0278,
+      30.0458,
+      30.0604,
+      29.593,
+      30.3368,
+      31.0716,
+      31.6084
+    ]
+  },
+  "size": {
+    "ir": {
+      "oracle_vs_numpy_max_rel": 1.5055579460674808e-15,
+      "unrolled": false,
+      "body_steps": 2,
+      "coefficient_blocks": 15,
+      "coefficient_entries_dense": 2099320,
+      "coefficient_nonzeros": 8520,
+      "schedules": [
+        "xi"
+      ]
+    },
+    "translated": {
+      "solver_c_lines": 72,
+      "data_c_bytes": 246564,
+      "library_bytes": 169360
+    },
+    "optimized": {
+      "solver_c_lines": 84,
+      "data_c_bytes": 246564,
+      "library_bytes": 219216
+    }
+  },
+  "agent_wall_s": {
+    "translation": 34.32897210121155,
+    "code_optimization": 329.8996458053589
+  },
+  "agent_budgets_s": {
+    "translation": 600,
+    "code_optimization": 600
+  },
+  "instance": {
+    "ns": 20,
+    "nd": 30,
+    "ne": 600,
+    "eta": 0.09268607528845305
+  },
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "os": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
+    "python": "3.13.11",
+    "numpy": "2.5.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "fomtools_commit": "25b3f73",
+    "fomtools_dirty": false,
+    "fomtools_branch": "",
+    "fomtools_path": "/Users/bs37/Documents/projects/fomtools/fomtools"
+  },
+  "started_utc": "2026-10-22T23:01:24+00:00",
+  "finished_utc": "2026-10-22T23:07:39+00:00"
+}

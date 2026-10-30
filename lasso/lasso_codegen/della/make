@@ -1,0 +1,42 @@
+#!/bin/bash
+# `make` (and, through the cc/gcc/clang/nvcc symlinks to this file, the compilers)
+# for the agent and fomtools on the login node: every make target that builds or runs
+# code (verify, bench, profile, compile, release, lib, binaries, objects) and every
+# compiler call runs as a step of a held GPU allocation (holders.sh), with this
+# environment; only `make clean` runs here. Inside a Slurm job it is the plain tool;
+# on the login node without a holder it refuses, so nothing is ever built or timed
+# there by accident.
+tool="$(basename "$0")"
+here="$(cd "$(dirname "$0")" && pwd)"
+real="$(PATH="${PATH//$here:/}" command -v "$tool")"
+[[ -n $real ]] || { echo "della/$tool: no $tool on PATH" >&2; exit 127; }
+if [[ -n "${SLURM_JOB_ID:-}" ]]; then
+  exec "$real" "$@"
+fi
+compute=1
+if [[ $tool == make ]]; then
+  compute=0
+  for arg in "$@"; do
+    case "$arg" in
+      -*|*=*) ;;
+      clean|clean-*) ;;
+      *) compute=1 ;;
+    esac
+  done
+  (( $# == 0 )) && compute=1  # the default target builds
+fi
+(( compute == 0 )) && exec "$real" "$@"
+# The holder to run in: $FOM_ALLOC if set, else the current one from holders.sh,
+# waiting up to 30 minutes for one rather than ever building here.
+for _ in $(seq 180); do
+  alloc="${FOM_ALLOC:-$(cat "${HOLDER_FILE:-/dev/null}" 2> /dev/null)}"
+  [[ -n $alloc ]] && break
+  sleep 10
+done
+if [[ -z "${alloc:-}" ]]; then
+  echo "della/$tool: no holder allocation (is holders.sh running?); refusing to run on the login node" >&2
+  exit 97
+fi
+exec srun --jobid="$alloc" --overlap --nodes=1 --ntasks=1 \
+  --cpus-per-task="${OMP_NUM_THREADS:-16}" --chdir="$PWD" \
+  bash -c 'ulimit -s unlimited; exec "$0" "$@"' "$real" "$@"

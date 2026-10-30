@@ -18,31 +18,46 @@ parameter samples.
 
 ## Running
 
+From the repository root, with fomtools 0.0.5 from `uv sync` (the paper's runs used
+commit `25b3f73`, whose code generation is the same as in 0.0.5). Every paper number is
+the median over three independent agent repetitions:
+
 ```bash
-uv run python -m codegen_timings.run <exp> --check-only          # no agent; seconds
-uv run python -m codegen_timings.run <exp> --variants <variant>  # both agent phases
-uv run python -m codegen_timings.summarize                       # -> timings.csv
-uv run python -m codegen_timings.paper_csv                       # -> ../fomtools_paper/data/codegen_timing.csv (code generation tables)
-uv run python -m codegen_timings.network_schedule                # scheduled vs. unrolled momentum PDHG, 600 edges, K = 50
-uv run python -m codegen_timings.paper_csv --only network        # -> codegen_network_schedule.csv (network_schedule)
+uv run python -m codegen_timings.run lasso --check-only                       # no agent; seconds
+FOMTOOLS_CODEGEN_AGENT=1 uv run python -m codegen_timings.run lasso --force    # reps 1 2 3
+FOMTOOLS_CODEGEN_AGENT=1 uv run python -m codegen_timings.run network --force
+FOMTOOLS_CODEGEN_AGENT=1 uv run python -m codegen_timings.run rapdhg --force
+FOMTOOLS_CODEGEN_AGENT=1 uv run python -m codegen_timings.network_schedule --force   # scheduled vs. unrolled, 600 edges, K = 50
+uv run python -m codegen_timings.summarize        # -> timings.csv (medians, ranges), timings_reps.csv (every rep)
+uv run python -m codegen_timings.paper_csv        # dry run: prints the numbers the text quotes
+uv run python -m codegen_timings.paper_csv --write   # -> the paper's data/ (codegen_timing.csv, codegen_network_schedule.csv, ...)
 ```
 
-`--check-only` compares fomtools' reference oracle on the extracted program
-with the NumPy loop, and the NumPy loop with the verification's own recurrence.
-The agent phases use the Claude backend with a 10-minute budget each
-(translation per attempt, code optimization once). A directory that already
-holds a verified solver is reused unless `--force`.
+Use `ANTHROPIC_MODEL=claude-opus-5-5` for the paper's agent. `--check-only`
+compares fomtools' reference oracle on the extracted program with the NumPy loop,
+and the NumPy loop with the verification's own recurrence. Each repetition is an
+independent pair of agent runs: translation (10 minutes), then code optimization on
+a copy in up to 5 rounds of 10 minutes each, stopping at a round that gains less
+than 2% (`run_code_optimization`). `--reps 2 3` runs only some repetitions; a
+directory that already holds a verified solver is reused unless `--force` (the
+matrix data and verify harness, not committed, are regenerated first, which needs
+the fomtools commit recorded in its `timing.json`).
 
 ## Output, per variant
 
 ```
-<exp>/<variant>/
-  check.json     pre-flight checks
-  emitted/       translation phase: the full generated tree, agent_translation.log
-  optimized/     code optimization phase on a copy: OPTIMIZATIONS.md, agent_code_optimization.log
+<exp>/<variant>/                 repetition 1 (repetition k: <exp>/<variant>/reps/rep<k>/)
+  check.json     pre-flight checks (untracked)
+  emitted/       translation phase: the full generated tree, agent_translation.log (untracked)
+  optimized/     code optimization phase on a copy; only OPTIMIZATIONS.md is tracked
   timing.json    NumPy / translated / optimized us per solve, speedups, max |C - NumPy|,
-                 agent wall time, machine (CPU, compiler, versions)
+                 agent wall time, optimization rounds, what the rules blocked
+                 (rule_friction), machine (CPU, compiler, versions, fomtools commit)
 ```
+
+The repository tracks `timing.json` and `OPTIMIZATIONS.md` of every repetition. The
+generated solvers and agent logs of the paper rerun are in the outputs archive of the latest
+release.
 
 ## Timing protocol
 

@@ -1,0 +1,60 @@
+experiment:
+  name: lasso
+  dir: lasso/lasso_verify
+  variants:
+  - ista
+  - fista
+  k_max: 20
+  problem:
+    m: 25
+    'n': 50
+    density: 0.2
+    lambd: 0.001
+    n_star: 100
+    p_star: 0.1
+    seed: 0
+    signal_scale: 1.0
+solver:
+  mip_gap: 0.05
+  time_limit: 3600
+  retry_factor: 2
+  mip_focus: 2
+  threads: ${cluster.cpus}
+  seed: 0
+  obbt_solver: gurobi
+  tighten_objective_bounds: null
+  convex_hull_cuts: false
+  cut_rounds: 1
+  save_logs: true
+  extra_params: {}
+  obbt_params: {}
+schedule:
+  k_max: ${experiment.k_max}
+  budget_hours: 12
+  build_margin_min: 10
+  sequential_warm_start: true
+  sample_start: true
+  n_start_samples: 10000
+  start_samples_seed: 0
+  run_mip: true
+simulator:
+  enabled: true
+  n_samples: 1000
+  seed: 0
+  k_max: ${schedule.k_max}
+  cross_check: true
+cluster:
+  cpus: 16
+  mem: 32G
+  time: null
+  slack_min: 30
+  partition: null
+  account: bstellato
+  license_file: /usr/licensed/gurobi/license/gurobi.lic
+  max_parallel: null
+  mail: null
+  mail_type: FAIL,TIME_LIMIT
+run_dir: /scratch/gpfs/BSTELLATO/bs37/fomtools_v004/lasso/lasso_verify/results/run_023
+variant: fista
+variant_index: null
+label: ''

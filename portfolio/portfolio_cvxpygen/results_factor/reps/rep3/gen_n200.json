@@ -1,0 +1,124 @@
+{
+  "fom": {
+    "wall_s": 55.50657225004397,
+    "fom_options": {
+      "rho": 1.0
+    },
+    "termination": {
+      "kind": "objective",
+      "max_iters": 4000,
+      "tol": 0.0001,
+      "check_termination": 25
+    },
+    "auto_equilibrate": true,
+    "code_optimization": false,
+    "out_dir": "cpg_n200_fom_rep3/c/solver_code",
+    "verified": true
+  },
+  "fom_opt": {
+    "wall_s": 1020.3822017079219,
+    "fom_options": {
+      "rho": 1.0
+    },
+    "termination": {
+      "kind": "objective",
+      "max_iters": 4000,
+      "tol": 0.0001,
+      "check_termination": 25
+    },
+    "auto_equilibrate": true,
+    "code_optimization": true,
+    "out_dir": "cpg_n200_fom_opt_rep3/c/solver_code",
+    "verified": true,
+    "optimization_kept": true,
+    "optimize": {
+      "success": true,
+      "turns_used": 3,
+      "truncated": false
+    },
+    "rule_friction": [
+      {
+        "round": 1,
+        "idea": "Fuse the t0 right-hand side (bias + t0_state@state) with the factor's permutation gather, so the 1401-entry rhs buffer is never written",
+        "rule": "the `fom_lin_solve_t0` signature is fixed, and matrix products may not be written in `fom_linsolve.c`",
+        "expected_gain": "~2-3%"
+      },
+      {
+        "round": 1,
+        "idea": "Use Accelerate/AMX BLAS for the dense 101x200 and 101x101 factor blocks",
+        "rule": "Makefile and build flags are fixed (no framework link)",
+        "expected_gain": "unknown, possibly 1.5-2x on the solve"
+      },
+      {
+        "round": 1,
+        "idea": "Store the dense factor blocks in float32 to halve the bandwidth-bound rectangle traffic",
+        "rule": "result must be the exact float64 factorization",
+        "expected_gain": "~10-15%"
+      },
+      {
+        "round": 1,
+        "idea": "Speed up or amortize the verification metric (14% of runtime)",
+        "rule": "`fom_objective.c` is fixed and must be called exactly where it is",
+        "expected_gain": "up to ~14%"
+      },
+      {
+        "round": 2,
+        "idea": "Store the 101\u00d7200 dense rectangle (the hottest data, about 25% of the solve) in float32 to halve its memory and load traffic",
+        "rule": "must apply the same factorization exactly (the factor data in `fom_linsolve.c` is the factorization the solve is checked against)",
+        "expected_gain": "~10\u201315%"
+      },
+      {
+        "round": 2,
+        "idea": "Have `fom_lin_solve_t0` take its right-hand side already in permuted order, so the `t0_rhs` pass writes into factor order and the separate gather pass disappears",
+        "rule": "the `fom_lin_solve_<name>` signature and its `M x = b` contract are fixed",
+        "expected_gain": "~2\u20133%"
+      },
+      {
+        "round": 2,
+        "idea": "Merge `t1_step` and `su_step` into one pass over rows 601..1400, which read the same `t0[i]` and `state[i+901]` entries",
+        "rule": "only the given entry points may be non-static, and there is no combined step routine across output blocks",
+        "expected_gain": "~1\u20132%"
+      },
+      {
+        "round": 3,
+        "idea": "Fuse `fom_step_t1` and `fom_step_su__rest` into one pass. Row k of t1 and row k+601 of su read the same `state[k+601]`, `state[k+1502]` and `t0[k+601]`, and the su row also needs `t1[k]`.",
+        "rule": "fom_ops.c may define only the listed entry points, there is no cross-block or `fom_iterate` entry here, and fom_solver.c may not hold matrix-vector loops.",
+        "expected_gain": "about 0.2 to 0.3 us per iteration (2 to 3%)"
+      },
+      {
+        "round": 3,
+        "idea": "Fold the t0 right-hand side (bias copy plus banded `t0_state` product) into the solve's permuted gather, writing `y[i]` straight into factor order.",
+        "rule": "the fixed `fom_lin_solve_t0(b, x)` signature; matrix data may only be read inside `fom_apply_*`.",
+        "expected_gain": "about 0.3 us per iteration (3%)"
+      },
+      {
+        "round": 3,
+        "idea": "Store the dense rectangle block of the factor in float32 to halve its memory traffic.",
+        "rule": "the solve must apply the same factorization, and the target is float64.",
+        "expected_gain": "up to about 1.5 us per iteration (15%), at a precision cost"
+      },
+      {
+        "round": 3,
+        "idea": "Skip or cheapen the objective (17%).",
+        "rule": "fom_objective.c is fixed and must be called where it is now.",
+        "expected_gain": "unknown"
+      }
+    ],
+    "timing": {
+      "python_us": 17274.1663409397,
+      "c_initial_us": 3269.011438,
+      "c_final_us": 875.715849
+    }
+  },
+  "sizes": {
+    "n": 500,
+    "n_eq": 101,
+    "n_ineq": 800,
+    "nnz_P": 300,
+    "nnz_A": 21500,
+    "param_dependent": [
+      "q",
+      "u_ineq"
+    ]
+  }
+}

@@ -171,28 +171,41 @@ def machine() -> dict:
 
     import fomtools
 
+    # The checkout fomtools is imported from (pyproject installs it editable).
+    repo = str(Path(fomtools.__file__).resolve().parents[1])
     return dict(
         cpu=sh("sysctl", "-n", "machdep.cpu.brand_string") or platform.processor(),
         os=platform.platform(),
         compiler=sh("cc", "--version").splitlines()[0] if sh("cc", "--version") else "",
         python=platform.python_version(),
         numpy=np.__version__,
-        fomtools_commit=sh(
-            "git", "-C", str(REPO.parent / "fomtools"), "rev-parse", "--short", "HEAD"
-        ),
-        fomtools_branch=sh("git", "-C", str(REPO.parent / "fomtools"), "branch", "--show-current"),
+        fomtools_version=fomtools.__version__,
+        fomtools_commit=sh("git", "-C", repo, "rev-parse", "--short", "HEAD"),
+        fomtools_dirty=bool(sh("git", "-C", repo, "status", "--porcelain")),
+        fomtools_branch=sh("git", "-C", repo, "branch", "--show-current"),
         fomtools_path=str(Path(fomtools.__file__).parent),
     )
 
 
+def rep_dir(base: Path, rep: int) -> Path:
+    """Where repetition ``rep`` of an agent run lives: ``base`` for the first,
+    ``base/reps/rep<k>`` for the others (each a full set of solvers)."""
+    return base if rep == 1 else base / "reps" / f"rep{rep}"
+
+
 def run_variant(
-    experiment: str, variant: str, setup: VariantSetup, check_only: bool, force: bool
+    experiment: str,
+    variant: str,
+    setup: VariantSetup,
+    check_only: bool,
+    force: bool,
+    rep: int = 1,
 ) -> dict:
     from common import codegen_driver
 
     config = codegen_config()
     name = f"{experiment}_{variant}"
-    out_dir = HERE / experiment / variant
+    out_dir = rep_dir(HERE / experiment / variant, rep)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     check = {**setup.checks, **check_oracle(setup, name, config)}
@@ -229,6 +242,7 @@ def run_variant(
     result = dict(
         experiment=experiment,
         variant=variant,
+        rep=rep,
         iterations=ITERATIONS,
         verified_run=str(Path(RUNS[experiment][0]) / RUNS[experiment][1]),
         numpy_us=med["numpy"],
@@ -239,6 +253,8 @@ def run_variant(
         speedup_total=med["numpy"] / med["optimized"],
         optimization_kept=bool(opt.kept),
         optimization_notes=opt.notes,
+        optimization_rounds=opt.rounds,
+        rule_friction=opt.rule_friction,
         max_abs_dev=deviation,
         timing_rounds=rounds,
         agent_wall_s=dict(translation=t_translate, code_optimization=t_optimize),

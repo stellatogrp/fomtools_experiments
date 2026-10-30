@@ -1,0 +1,231 @@
+{
+  "experiment": "lasso",
+  "variant": "fista",
+  "rep": 2,
+  "iterations": 200,
+  "verified_run": "lasso/lasso_verify/results/run_022",
+  "numpy_us": 1016.4370760321617,
+  "translated_us": 325.9852,
+  "optimized_us": 28.7346,
+  "speedup_translation": 3.1180466966971556,
+  "speedup_optimization": 11.344692461353212,
+  "speedup_total": 35.37328085416751,
+  "optimization_kept": true,
+  "optimization_notes": "",
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 323.6424,
+      "us_after": 150.8012,
+      "gain": 0.5340499267092322,
+      "agent_wall_s": 160.34087141696364,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 149.3162,
+      "us_after": 76.881,
+      "gain": 0.4851128008883162,
+      "agent_wall_s": 171.70454962505028,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 75.6846,
+      "us_after": 32.6862,
+      "gain": 0.5681261445525245,
+      "agent_wall_s": 67.53000624990091,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 4,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 32.7802,
+      "us_after": 32.1064,
+      "gain": 0.02055509118309223,
+      "agent_wall_s": 86.9071819591336,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 5,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 30.4484,
+      "us_after": 29.0384,
+      "gain": 0.046307851972517446,
+      "agent_wall_s": 78.17832758300938,
+      "truncated": false,
+      "stop_reason": "the last of agent_optimize_rounds rounds"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Merge the two products into one 50x50 product, B\u00b7(x_k + \u03b3(x_k \u2212 x_{k\u22121})). The data nearly satisfy D = [\u2212B, B] with B equal to the right half of `t0_state`, which would cut about 6730 multiply-adds per iteration to 2500.",
+      "rule": "Not blocked by a rule: the relation only holds to about 1e-15, and `t0_state` has tiny (~1e-17) entries in its left half. So the merged routine would not reproduce each member exactly, and I did not risk the per-member verify check.",
+      "expected_gain": "about 2\u20132.5x on step_t0"
+    },
+    {
+      "round": 1,
+      "idea": "Build a dense or reordered copy of `t0_state` (or a merged A + \u03b3D table) once at setup, in workspace scratch.",
+      "rule": "`fom_setup` may not probe matrices, and `fom_ops.c` has no setup hook; the alternative is a large literal table, which I tested and was slower",
+      "expected_gain": "unknown, small"
+    },
+    {
+      "round": 1,
+      "idea": "`-ffast-math` or `-march=native` so the compiler can reassociate and use wider vectors on its own.",
+      "rule": "The Makefile and build flags are fixed",
+      "expected_gain": "about 10\u201320%"
+    },
+    {
+      "round": 2,
+      "idea": "Collapse `A x + g D x` to `B((1+g) x1 - g x0)` with one 50x50 dense block (half the matrix traffic)",
+      "rule": "the fused/step check must recover each member exactly; the members match only to ~1e-15, so this relation cannot be used safely",
+      "expected_gain": "~1.6x on step_t0"
+    },
+    {
+      "round": 2,
+      "idea": "Allow `-O3`/`-ffast-math` or `-mcpu` flags so the compiler vectorizes the reductions itself and the hand-written NEON is unnecessary",
+      "rule": "Makefile and build flags are fixed",
+      "expected_gain": "unknown (portability gain, small speed gain)"
+    },
+    {
+      "round": 2,
+      "idea": "Store `A` and `D` interleaved per row tile in one precomputed buffer, built at setup, for better streaming",
+      "rule": "`fom_setup` may not prepare matrix data, so the lazy static copy inside `fom_step_t0` is the only legal place",
+      "expected_gain": "~5%"
+    },
+    {
+      "round": 3,
+      "idea": "Guard the momentum fusion with a runtime check that `d_gamma[:, :50] == -d_gamma[:, 50:]` and `t0_state == [0, d_gamma[:, 50:]]` within a relative tolerance, falling back to the general path otherwise",
+      "rule": "float-literal rule (the tolerance is not a matrix coefficient, and `fom_step_t0` may only inline the matrix's own values)",
+      "expected_gain": "none for speed; it adds robustness"
+    },
+    {
+      "round": 3,
+      "idea": "Ping-pong the two state halves through pointers so the per-iteration shift memcpy (about 14%) disappears",
+      "rule": "fixed `fom_step_t0` signature, which takes one contiguous 100-vector state, and headers are not editable",
+      "expected_gain": "up to about 10%"
+    },
+    {
+      "round": 3,
+      "idea": "Precompute `A + g_k D` for each scheduled gamma once, which would save forming the momentum point",
+      "rule": "ops.c may not read the schedule, and setup may not probe or rebuild matrices",
+      "expected_gain": "small (under 5%)"
+    },
+    {
+      "round": 4,
+      "idea": "Packing W (stride 100) into a contiguous 50x50 table in `fom_setup`",
+      "rule": "fom_setup cannot read matrix data or call fom_apply; lazily packing inside fom_ops is allowed but L1-resident anyway",
+      "expected_gain": "<2%"
+    },
+    {
+      "round": 4,
+      "idea": "Using W's symmetry to cut loads in half (upper triangle with scatter)",
+      "rule": "none (not blocked; the scatter pattern doesn't vectorize well, so I didn't try it)",
+      "expected_gain": "unknown"
+    },
+    {
+      "round": 5,
+      "idea": "Store W in float32 or a precomputed packed layout as static const data in `fom_data.c`, to halve load bandwidth or skip the lazy pack",
+      "rule": "numeric data and other files are fixed, and precision must stay exact",
+      "expected_gain": "unknown, maybe 5-10%"
+    },
+    {
+      "round": 5,
+      "idea": "Fuse the y = x1 + g(x1 - x0) momentum combination and the residual into `fom_iterate`, and run the whole 200-iteration loop inside `src/fom_ops.c` to drop the per-call overhead",
+      "rule": "`fom_ops.c` may not read the schedule (`fom_sched_*`), so the loop over the gamma schedule must stay in `fom_solver.c`",
+      "expected_gain": "~3-5%"
+    }
+  ],
+  "max_abs_dev": {
+    "translated": {
+      "verified_set": 1.4422100839961427e-10
+    },
+    "optimized": {
+      "verified_set": 3.0056083663576594e-10
+    }
+  },
+  "timing_rounds": {
+    "numpy": [
+      1043.875003233552,
+      1023.3955690637231,
+      993.2294487953186,
+      1008.0005740746856,
+      1011.6875637322664,
+      1016.4370760321617,
+      1017.5204370170832
+    ],
+    "translated": [
+      323.6702,
+      323.2326,
+      325.689,
+      327.0998,
+      325.9852,
+      326.9604,
+      327.512
+    ],
+    "optimized": [
+      28.538,
+      28.9496,
+      28.7346,
+      28.878,
+      28.7164,
+      29.058,
+      28.3032
+    ]
+  },
+  "agent_wall_s": {
+    "translation": 24.973029136657715,
+    "code_optimization": 578.4693598747253
+  },
+  "agent_budgets_s": {
+    "translation": 600,
+    "code_optimization": 600
+  },
+  "check": {
+    "numpy_vs_verify_recurrence": 0.0,
+    "oracle_vs_numpy_max_rel": 6.7256497627742495e-12,
+    "state_dim": 100,
+    "params": {
+      "p0": 25
+    }
+  },
+  "info": {
+    "m": 25,
+    "n": 50,
+    "lambd": 0.001,
+    "eta": 0.2212861544693803,
+    "method": "fista"
+  },
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "os": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
+    "python": "3.13.11",
+    "numpy": "2.5.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "fomtools_commit": "25b3f73",
+    "fomtools_dirty": false,
+    "fomtools_branch": "",
+    "fomtools_path": "/Users/bs37/Documents/projects/fomtools/fomtools"
+  },
+  "started_utc": "2026-10-22T18:24:43+00:00",
+  "finished_utc": "2026-10-22T18:35:04+00:00"
+}

@@ -1,0 +1,165 @@
+{
+  "algorithm": "ista",
+  "backend": "openmp",
+  "rep": 2,
+  "size": {
+    "m": 10000,
+    "n": 40000,
+    "nnz_per_row": 260
+  },
+  "D_nnz": 2599983,
+  "step_size": 0.014703924227805058,
+  "iterations": 200,
+  "tol_verify": 1e-05,
+  "translated_us": 93498.855318,
+  "optimized_us": 33978.817932,
+  "optimization_kept": true,
+  "agent_wall_s": {
+    "translation": 98.0384783744812,
+    "code_optimization": 11813.997881889343
+  },
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 93498.855318,
+      "us_after": 46726.290326,
+      "gain": 0.5002474611365166,
+      "agent_wall_s": 2903.6966631940013,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 46570.311744,
+      "us_after": 40229.5748,
+      "gain": 0.13615405838070047,
+      "agent_wall_s": 2854.845971673014,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 39216.942059,
+      "us_after": 34453.752288,
+      "gain": 0.12145744978876752,
+      "agent_wall_s": 3639.719118916022,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 4,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 34160.776966,
+      "us_after": 33978.817932,
+      "gain": 0.005326548461737336,
+      "agent_wall_s": 2267.472869805002,
+      "truncated": false,
+      "stop_reason": "the round gained less than agent_optimize_min_gain"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Repack the matrices once in `fom_setup` instead of on the first `fom_iterate` call",
+      "rule": "fom_solver.c may not read FOM_MAT data, and setup may not call fom_iterate or fom_apply",
+      "expected_gain": "unknown; this only removes a one-time setup cost from the first solve"
+    },
+    {
+      "round": 1,
+      "idea": "Add `-march=native` so AVX2/FMA code is generated without hand-written target attributes and run-time dispatch",
+      "rule": "Makefile and build flags are fixed",
+      "expected_gain": "unknown, probably small; the kernels are hand-vectorized already"
+    },
+    {
+      "round": 1,
+      "idea": "Choose the thread count or CPU placement, e.g. 32 threads to use more L3 slices",
+      "rule": "OMP_NUM_THREADS comes from the environment",
+      "expected_gain": "about 1.5x when 32 threads were tried on the login node"
+    },
+    {
+      "round": 1,
+      "idea": "Store A in float32 or another compressed format to halve memory traffic on bandwidth-bound nodes",
+      "rule": "exactness and the data in fom_data.c are fixed (not allowed to approximate the coefficients)",
+      "expected_gain": "not tested"
+    },
+    {
+      "round": 2,
+      "idea": "Store A/B values in a reduced-precision split (float32 plus a correction, or 48-bit truncation) to cut the bytes streamed from L3 per nonzero by 20\u201340%",
+      "rule": "`fom_iterate` must apply exactly M (1e-10 check), and the target constraints call for an exact apply",
+      "expected_gain": "~10\u201320% where L3 bandwidth binds (Intel node), unknown on AMD"
+    },
+    {
+      "round": 2,
+      "idea": "One persistent OpenMP parallel region across iterations, removing the per-iteration fork/join",
+      "rule": "the clean version needs `fom_solve` to ask `fom_ops.c` which mode is active, but every function in `src/fom_ops.c` other than the entry points must be `static`; doing it inside the fixed `fom_iterate` signature needs fragile orphaned-construct state",
+      "expected_gain": "~1.5\u20132.5% (about 3.5 \u00b5s of 136 \u00b5s per iteration)"
+    },
+    {
+      "round": 3,
+      "idea": "Store B's values as float32 to cut the dominant memory stream from 9 to 5 bytes per entry, so each thread's slice of B fits in L2",
+      "rule": "kernels must apply exactly M (target and verify constraints)",
+      "expected_gain": "20-30% (removes the L3 stream and most of the miss stalls)"
+    },
+    {
+      "round": 3,
+      "idea": "Use more than the 16 allotted cores (L2 is 1.25 MB per core; 26 or more cores would keep all of B L2-resident)",
+      "rule": "fixed bench environment and thread count (OMP_NUM_THREADS / cgroup)",
+      "expected_gain": "unknown, likely large"
+    },
+    {
+      "round": 3,
+      "idea": "Run the iteration loop inside one persistent parallel region, which needs solver-level orphaned worksharing across the `fom_iterate` boundary",
+      "rule": "`fom_iterate` signature and the iteration boundary in `include/`, plus the rule that `fom_solver.c` has no matrix loops",
+      "expected_gain": "about 1% (fork/join and barrier)"
+    }
+  ],
+  "fomtools": {
+    "version": "0.0.4.dev22+g25b3f7327",
+    "path": "/scratch/gpfs/BSTELLATO/bs37/fomtools"
+  },
+  "model": "claude-opus-5-5",
+  "agent_host": "della9.princeton.edu",
+  "build_host": "della-l03g10: GPU 0: NVIDIA A100 80GB PCIe (UUID: GPU-341902b5-4294-e6d2-d1fd-75f8eb3277d8)",
+  "alloc": "holders.sh",
+  "env": {
+    "OMPFLAGS": "-fopenmp",
+    "NVCCFLAGS": "-O3 -Iinclude -Itest -gencode arch=compute_80,code=sm_80",
+    "OMP_NUM_THREADS": "16"
+  },
+  "code": {
+    "fomtools_experiments": {},
+    "fomtools": {
+      "commit": "25b3f73273d396e641ec29d0c72f636c7e173b88",
+      "dirty": false
+    }
+  },
+  "environment": {
+    "host": "della9.princeton.edu",
+    "platform": "Linux-5.14.0-687.59.1.el9_8.x86_64-x86_64-with-glibc2.34",
+    "python": "3.13.12",
+    "cpu_count": 192,
+    "slurm": {},
+    "grb_license_file": "",
+    "numpy_version": "2.5.3",
+    "scipy_version": "1.18.1",
+    "gurobipy_version": "13.0.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "hydra_version": "1.3.7",
+    "cvxpy_version": "1.9.3",
+    "clarabel_version": "0.11.1",
+    "gurobi_version": "13.0.3"
+  },
+  "started_utc": "2026-10-24T04:05:37+00:00",
+  "finished_utc": "2026-10-24T07:24:10+00:00"
+}

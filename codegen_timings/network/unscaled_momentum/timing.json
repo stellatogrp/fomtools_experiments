@@ -1,63 +1,110 @@
 {
   "experiment": "network",
   "variant": "unscaled_momentum",
+  "rep": 1,
   "iterations": 200,
   "verified_run": "network/results/run_005",
-  "numpy_us": 1232.0419991738163,
-  "translated_us": 61.878,
-  "optimized_us": 33.3088,
-  "speedup_translation": 19.910824512327746,
-  "speedup_optimization": 1.857707272552599,
-  "speedup_total": 36.98848349906981,
+  "numpy_us": 1438.8124691322446,
+  "translated_us": 60.4428,
+  "optimized_us": 17.619,
+  "speedup_translation": 23.80453038463216,
+  "speedup_optimization": 3.430546569044781,
+  "speedup_total": 81.6625500387221,
   "optimization_kept": true,
   "optimization_notes": "",
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 63.1188,
+      "us_after": 19.3188,
+      "gain": 0.6939295423867373,
+      "agent_wall_s": 81.09150033281185,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": false,
+      "correct": true,
+      "kept": false,
+      "us_before": null,
+      "us_after": null,
+      "gain": null,
+      "agent_wall_s": 69.14500274998136,
+      "truncated": false,
+      "stop_reason": "the round left the sources unchanged"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Merge each `su` row's `x[j]` and `t_t0[j]` terms into one `c * (t_t0[j] - x[j])`, since the coefficients are equal and opposite up to about 1e-16, and the same for the `__d_xi` pair",
+      "rule": "values must be exactly the matrix's; the tiny mismatches make the merged coefficient differ from the package data",
+      "expected_gain": "about 5-10%"
+    },
+    {
+      "round": 1,
+      "idea": "Build flags such as `-ffast-math` or `-march=native` to let the compiler reassociate and vectorize the unrolled sums",
+      "rule": "the Makefile and build flags are fixed",
+      "expected_gain": "unknown, maybe 10-20%"
+    },
+    {
+      "round": 2,
+      "idea": "Changing the compile flags so the compiler could vectorize the 49-row `t0` clip and the gather-heavy `su` rows",
+      "rule": "the Makefile and build flags are fixed",
+      "expected_gain": "unknown, probably under 10%"
+    }
+  ],
   "max_abs_dev": {
     "translated": {
-      "verified_set": 5.56776846849516e-14
+      "verified_set": 7.843725668976731e-14
     },
     "optimized": {
-      "verified_set": 5.4789506265251475e-14
+      "verified_set": 7.627232179174825e-14
     }
   },
   "timing_rounds": {
     "numpy": [
-      1235.3125021036249,
-      1233.2499991316581,
-      1232.0419991738163,
-      1217.5205010862555,
-      1223.6669990670634,
-      1237.4999987514457,
-      1220.4369995743036
+      1451.4585491269827,
+      1438.8124691322446,
+      1468.1669417768717,
+      1416.665967553854,
+      1432.2914648801088,
+      1443.6044730246067,
+      1434.270991012454
     ],
     "translated": [
-      59.9036,
-      61.9448,
-      61.8458,
-      61.878,
-      60.7754,
-      62.167,
-      62.9578
+      60.0046,
+      60.1988,
+      60.4428,
+      63.5886,
+      61.1852,
+      59.9266,
+      60.5994
     ],
     "optimized": [
-      32.1946,
-      33.3088,
-      33.0958,
-      33.4638,
-      33.4592,
-      33.636,
-      32.9446
+      16.2108,
+      19.2966,
+      17.2298,
+      17.7466,
+      17.705,
+      17.0818,
+      17.619
     ]
   },
   "agent_wall_s": {
-    "translation": 23.087624073028564,
-    "code_optimization": 136.99451899528503
+    "translation": 27.222859144210815,
+    "code_optimization": 153.34517407417297
   },
   "agent_budgets_s": {
     "translation": 600,
     "code_optimization": 600
   },
   "check": {
-    "oracle_vs_numpy_max_rel": 1.0215901051843693e-14,
+    "oracle_vs_numpy_max_rel": 1.424876430695218e-14,
     "state_dim": 74,
     "params": {
       "p0": 15
@@ -73,15 +120,17 @@
     "state_dim": 74
   },
   "machine": {
-    "cpu": "Apple M5",
-    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
-    "compiler": "Apple clang version 17.0.0 (clang-1700.6.3.2)",
+    "cpu": "Apple M4 Pro",
+    "os": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
     "python": "3.13.11",
     "numpy": "2.5.3",
-    "fomtools_commit": "56b7e81",
-    "fomtools_branch": "vr/cvxpygen_features",
-    "fomtools_path": "/Users/vranjan/Research/2026/fomtools/fomtools"
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "fomtools_commit": "25b3f73",
+    "fomtools_dirty": false,
+    "fomtools_branch": "",
+    "fomtools_path": "/Users/bs37/Documents/projects/fomtools/fomtools"
   },
-  "started_utc": "2026-10-15T23:31:30+00:00",
-  "finished_utc": "2026-10-15T23:34:18+00:00"
+  "started_utc": "2026-10-22T18:57:45+00:00",
+  "finished_utc": "2026-10-22T19:00:55+00:00"
 }

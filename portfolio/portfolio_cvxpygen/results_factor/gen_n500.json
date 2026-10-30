@@ -1,0 +1,187 @@
+{
+  "osqp": {
+    "wall_s": 10.293624000158161
+  },
+  "fom": {
+    "wall_s": 52.99753262521699,
+    "fom_options": {
+      "rho": 1.0
+    },
+    "termination": {
+      "kind": "objective",
+      "max_iters": 4000,
+      "tol": 0.0001,
+      "check_termination": 25
+    },
+    "auto_equilibrate": true,
+    "code_optimization": false,
+    "out_dir": "cpg_n500_fom/c/solver_code",
+    "verified": true
+  },
+  "fom_opt": {
+    "wall_s": 1600.464422708843,
+    "fom_options": {
+      "rho": 1.0
+    },
+    "termination": {
+      "kind": "objective",
+      "max_iters": 4000,
+      "tol": 0.0001,
+      "check_termination": 25
+    },
+    "auto_equilibrate": true,
+    "code_optimization": true,
+    "out_dir": "cpg_n500_fom_opt/c/solver_code",
+    "verified": true,
+    "optimization_kept": true,
+    "optimize": {
+      "success": true,
+      "turns_used": 5,
+      "truncated": false
+    },
+    "rule_friction": [
+      {
+        "round": 1,
+        "idea": "Exploit the structure of the dense factor block B (it is likely A\u00b7diag(\u00b7) of the KKT system, rank 101) to avoid streaming 490 KB twice per solve",
+        "rule": "fom_linsolve must apply the stored factorization and may not read other matrix data",
+        "expected_gain": "unknown, possibly up to 40% of solve time"
+      },
+      {
+        "round": 1,
+        "idea": "Fuse the rhs build (bias + t0_state\u00b7state) with the permutation gather inside the linear solve",
+        "rule": "`fom_lin_solve_t0` signature is fixed (takes a formed b) and matrix data stays inside `fom_apply_*`",
+        "expected_gain": "~3-5%"
+      },
+      {
+        "round": 1,
+        "idea": "Store B in float32 or a compressed format to halve bandwidth",
+        "rule": "would change the factorization's values, so it is no longer the same system",
+        "expected_gain": "~20% of solve"
+      },
+      {
+        "round": 1,
+        "idea": "Speed up or amortize the termination objective (22% of runtime)",
+        "rule": "`fom_objective.c` is fixed and must be called exactly at the check points",
+        "expected_gain": "up to ~20%"
+      },
+      {
+        "round": 2,
+        "idea": "Store the dense factor block B (101\u00d7500) in float32 to halve the bandwidth of the hottest region",
+        "rule": "each `fom_lin_solve` must apply the same factorization; a reduced-precision factor is a different one",
+        "expected_gain": "~10-12% of the whole solve"
+      },
+      {
+        "round": 2,
+        "idea": "Precompute the Schur-type product B\u1d40\u00b7L_T\u207b\u1d40\u00b7D\u207b\u00b9\u00b7L_T\u207b\u00b9\u00b7B, so the two B passes become one smaller dense product",
+        "rule": "never form or use a matrix inverse",
+        "expected_gain": "unknown, possibly ~10%"
+      },
+      {
+        "round": 2,
+        "idea": "Fuse the t0 right-hand side (bias + t0_state @ state) directly into the factor's permuted order, removing the gather pass",
+        "rule": "`fom_lin_solve_t0(b, x)` and `fom_apply_*` signatures are fixed, and the solver may not write matrix-vector loops",
+        "expected_gain": "~2-3%"
+      },
+      {
+        "round": 2,
+        "idea": "Evaluate the termination objective more cheaply, or fuse it with the su step (it is about 18% of the solve)",
+        "rule": "`fom_objective.c` is fixed and the metric may not be reimplemented or inlined",
+        "expected_gain": "up to ~15%"
+      },
+      {
+        "round": 3,
+        "idea": "Store the dense block B and the triangle LT in float32 to halve the cache traffic of the bandwidth-bound dense passes",
+        "rule": "the solve must apply the same factorization exactly (and the objective's precision tolerance)",
+        "expected_gain": "~3-4 \u00b5s/solve (~15%)"
+      },
+      {
+        "round": 3,
+        "idea": "Build the next iteration's t0 right-hand side (`bias + t0_state @ new_state`) inside the su/t1 step pass, saving the memcpy and a re-read of the state",
+        "rule": "no fused routine spans two output blocks, and `fom_solver.c` may not write matrix loops",
+        "expected_gain": "~1 \u00b5s/iteration (~4%)"
+      },
+      {
+        "round": 3,
+        "idea": "Write the su `__rest` coefficients (state, t_t0, t_t1 values) as literals or drop unit values",
+        "rule": "`fom_step_su__rest` is not on the literal-coefficient exception list",
+        "expected_gain": "unknown, small (~0.3 \u00b5s/iteration)"
+      },
+      {
+        "round": 3,
+        "idea": "Re-order or re-factor the KKT system so the 500x101 dense coupling block disappears",
+        "rule": "the solve must apply the given factorization",
+        "expected_gain": "large, unknown (ls_dense is ~34% of the solve)"
+      },
+      {
+        "round": 4,
+        "idea": "Storing the dense 101x500 factor block B (and LT) in float32 or with mixed-precision refinement to halve the memory traffic of `ls_dense`",
+        "rule": "must apply the same precomputed factorization in float64 (target dtype and the linsolve check)",
+        "expected_gain": "~10-15%"
+      },
+      {
+        "round": 4,
+        "idea": "Reordering or refactoring the t0 KKT system so the dense 500-column Schur coupling shrinks",
+        "rule": "each `fom_lin_solve_t0` must apply THE given factorization",
+        "expected_gain": "unknown"
+      },
+      {
+        "round": 4,
+        "idea": "Fusing the t0_rhs build (bias + diagonal `t0_state` product) into the permuted gather of the linear solve",
+        "rule": "`fom_lin_solve_t0(b, x)` signature is fixed and the solver may not read `FOM_MAT_t0_state`",
+        "expected_gain": "~2%"
+      },
+      {
+        "round": 4,
+        "idea": "Inlining the su segment constants as literals in `fom_step_su__rest`, instead of loading them from data",
+        "rule": "floating-point literal rule (`fom_step_su__rest` is not on the exception list)",
+        "expected_gain": "<0.5%"
+      },
+      {
+        "round": 4,
+        "idea": "Avoiding the `objective` evaluation cost (20% of runtime)",
+        "rule": "`fom_objective.c` is fixed and its call sites are prescribed",
+        "expected_gain": "unknown"
+      },
+      {
+        "round": 5,
+        "idea": "Store B in float32 (or mixed precision) to halve the L2 traffic of the dominant dense gemvs",
+        "rule": "factorization values must be the package's, and the solve must apply the same factorization",
+        "expected_gain": "~10-12% (unknown accuracy impact)"
+      },
+      {
+        "round": 5,
+        "idea": "Fuse t1_step into the su_step pass (su rows 1201..3200 use t1[r] from the same r) in one loop",
+        "rule": "the solver may not write matrix-vector loops, and fused/step routines are per output block and may read only their members' data",
+        "expected_gain": "~1-2%"
+      },
+      {
+        "round": 5,
+        "idea": "Speed up or amortize the objective evaluation (20% of the time)",
+        "rule": "fom_objective.c is fixed and must be called exactly where it is now",
+        "expected_gain": "up to ~15%"
+      },
+      {
+        "round": 5,
+        "idea": "Split the gemvs across cores",
+        "rule": "single-threaded embedded target",
+        "expected_gain": "unknown (~2x on ls_dense)"
+      }
+    ],
+    "timing": {
+      "python_us": 38677.0834447816,
+      "c_initial_us": 7533.921053,
+      "c_final_us": 2224.512222
+    }
+  },
+  "sizes": {
+    "n": 1100,
+    "n_eq": 101,
+    "n_ineq": 2000,
+    "nnz_P": 600,
+    "nnz_A": 53600,
+    "param_dependent": [
+      "q",
+      "u_ineq"
+    ]
+  }
+}

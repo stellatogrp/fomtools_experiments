@@ -1,56 +1,139 @@
 {
   "experiment": "rapdhg",
   "variant": "R6",
+  "rep": 1,
   "iterations": 200,
   "verified_run": "control/rapdhg/verify/results/run_001",
-  "numpy_us": 1892.811997095123,
-  "translated_us": 182.7228,
-  "optimized_us": 9.9628,
-  "speedup_translation": 10.358926182693802,
-  "speedup_optimization": 18.34050668486771,
-  "speedup_total": 189.9879549017468,
+  "numpy_us": 2478.6664871498942,
+  "translated_us": 149.4138,
+  "optimized_us": 15.3504,
+  "speedup_translation": 16.58927413096979,
+  "speedup_optimization": 9.73354440275172,
+  "speedup_total": 161.4724363632149,
   "optimization_kept": true,
   "optimization_notes": "",
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 153.5024,
+      "us_after": 29.5994,
+      "gain": 0.8071730474572384,
+      "agent_wall_s": 141.76587045798078,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 30.3386,
+      "us_after": 15.4024,
+      "gain": 0.49231671863566545,
+      "agent_wall_s": 183.60144825000316,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": false,
+      "correct": true,
+      "kept": false,
+      "us_before": null,
+      "us_after": null,
+      "gain": null,
+      "agent_wall_s": 56.12260699993931,
+      "truncated": false,
+      "stop_reason": "the round left the sources unchanged"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Precompute a dense, transposed (column-major) copy of the 16\u00d716 `t1_state__d_eta` block at setup for unit-stride vector loads",
+      "rule": "`src/fom_ops.c` may not keep setup-time state, and `fom_setup` may not probe matrices; inlining the 256 literals is allowed but did not fit the time budget",
+      "expected_gain": "~5\u201310% of t1, unknown"
+    },
+    {
+      "round": 1,
+      "idea": "none other",
+      "rule": "",
+      "expected_gain": ""
+    },
+    {
+      "round": 2,
+      "idea": "Pass the hoisted parameter accumulators and tau/eta into the step routines, so the per-iteration bias assembly fuses into the t0/t1 pass",
+      "rule": "`include/fom_ops.h` signatures are fixed",
+      "expected_gain": "~2-4%"
+    },
+    {
+      "round": 2,
+      "idea": "Drop the all-zero su bias read in `fom_step_su__rest` (su has no constant or parameter terms)",
+      "rule": "the step routine must apply whatever `bias` it is passed, and the header is fixed",
+      "expected_gain": "~3-5%"
+    },
+    {
+      "round": 2,
+      "idea": "Store the 16x16 `t1_state__d_eta` block transposed or blocked for SIMD",
+      "rule": "`src/fom_data.c` is fixed, and `fom_setup` may not rebuild matrix data",
+      "expected_gain": "unknown, likely small"
+    },
+    {
+      "round": 3,
+      "idea": "Store a transposed copy of the dense `t1_state__d_eta` block, built once in setup, so the column sweep reads contiguous memory",
+      "rule": "`fom_setup` and `fom_solver.c` may not read `FOM_MAT_*` data, and `fom_ops.c` may not have non-static or non-entry code reading matrix data",
+      "expected_gain": "unknown, probably under 5%"
+    },
+    {
+      "round": 3,
+      "idea": "Change the build flags (e.g. `-march=native` or `-ffast-math`) to get wider SIMD",
+      "rule": "the Makefile and build flags are fixed",
+      "expected_gain": "unknown"
+    }
+  ],
   "max_abs_dev": {
     "translated": {
-      "verified_set": 9.43689570931383e-15
+      "verified_set": 1.6431300764452317e-14
     },
     "optimized": {
-      "verified_set": 1.4432899320127035e-14
+      "verified_set": 1.7541523789077473e-14
     }
   },
   "timing_rounds": {
     "numpy": [
-      1884.9374901037663,
-      1881.333504570648,
-      1885.27099089697,
-      1905.2499847020954,
-      1911.583007313311,
-      1911.4380120299757,
-      1892.811997095123
+      2413.353999145329,
+      2478.6664871498942,
+      2454.8539659008384,
+      2430.999535135925,
+      2483.7085511535406,
+      2547.9375617578626,
+      2555.1666039973497
     ],
     "translated": [
-      182.6764,
-      184.34,
-      179.2402,
-      184.3164,
-      182.7228,
-      180.9916,
-      183.5516
+      147.3916,
+      147.2706,
+      154.0686,
+      147.548,
+      149.4138,
+      151.6544,
+      149.6382
     ],
     "optimized": [
-      8.865,
-      9.9628,
-      10.3776,
-      8.2236,
-      10.3122,
-      10.2896,
-      7.9244
+      15.2206,
+      15.3504,
+      15.3446,
+      15.3436,
+      15.773,
+      15.961,
+      15.631
     ]
   },
   "agent_wall_s": {
-    "translation": 68.8351743221283,
-    "code_optimization": 677.78768491745
+    "translation": 52.06806492805481,
+    "code_optimization": 388.50815892219543
   },
   "agent_budgets_s": {
     "translation": 600,
@@ -59,7 +142,7 @@
   "check": {
     "tables_vs_rapdhg_schedule_tables": 0.0,
     "numpy_x_vs_verify_recurrence": 2.3314683517128287e-15,
-    "oracle_vs_numpy_max_rel": 2.514150219521659e-13,
+    "oracle_vs_numpy_max_rel": 3.303752133483771e-13,
     "state_dim": 160,
     "params": {
       "p0": 16,
@@ -80,15 +163,17 @@
     "state_dim": 160
   },
   "machine": {
-    "cpu": "Apple M5",
-    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
-    "compiler": "Apple clang version 17.0.0 (clang-1700.6.3.2)",
+    "cpu": "Apple M4 Pro",
+    "os": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
     "python": "3.13.11",
     "numpy": "2.5.3",
-    "fomtools_commit": "96eafd2",
-    "fomtools_branch": "vr/codegen_rename",
-    "fomtools_path": "/Users/vranjan/Research/2026/fomtools/fomtools"
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "fomtools_commit": "25b3f73",
+    "fomtools_dirty": false,
+    "fomtools_branch": "",
+    "fomtools_path": "/Users/bs37/Documents/projects/fomtools/fomtools"
   },
-  "started_utc": "2026-10-12T16:38:44+00:00",
-  "finished_utc": "2026-10-12T16:51:23+00:00"
+  "started_utc": "2026-10-22T19:48:57+00:00",
+  "finished_utc": "2026-10-22T19:56:31+00:00"
 }

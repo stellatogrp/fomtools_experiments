@@ -24,6 +24,12 @@ def taken_numbers(results: Path) -> set[int]:
     }
 
 
+def latest_run_dir(results: Path) -> Path | None:
+    """The highest-numbered ``run_NNN`` folder in ``results``, or None."""
+    taken = taken_numbers(results)
+    return results / f"run_{max(taken):03d}" if taken else None
+
+
 def peek_next_run_dir(results: Path) -> Path:
     """The folder ``next_run_dir`` would create, without creating it."""
     return results / f"run_{max(taken_numbers(results), default=0) + 1:03d}"

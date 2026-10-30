@@ -1,8 +1,0 @@
-{
-  "numpy_vs_verify_recurrence": 0.0,
-  "oracle_vs_numpy_max_rel": 1.2970878516278114e-11,
-  "state_dim": 100,
-  "params": {
-    "p0": 25
-  }
-}

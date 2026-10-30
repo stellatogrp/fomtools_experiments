@@ -1,3 +1,0 @@
-algorithm,numpy_median_us,cpu_median_us,cuda_median_us,numpy_to_cpu,numpy_to_cuda
-ISTA,4209.379898,271.028580,778.881467,15.531,5.404
-FISTA,7604.104932,264.896579,577.937742,28.706,13.157

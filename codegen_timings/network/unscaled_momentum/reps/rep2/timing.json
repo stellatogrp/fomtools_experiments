@@ -1,0 +1,160 @@
+{
+  "experiment": "network",
+  "variant": "unscaled_momentum",
+  "rep": 2,
+  "iterations": 200,
+  "verified_run": "network/results/run_005",
+  "numpy_us": 1450.5204744637012,
+  "translated_us": 42.1568,
+  "optimized_us": 11.5158,
+  "speedup_translation": 34.4077461871798,
+  "speedup_optimization": 3.6607791034925925,
+  "speedup_total": 125.95915824030473,
+  "optimization_kept": true,
+  "optimization_notes": "",
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 44.0596,
+      "us_after": 16.9962,
+      "gain": 0.6142452496164287,
+      "agent_wall_s": 48.094212708994746,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 17.1728,
+      "us_after": 15.8022,
+      "gain": 0.07981226125034938,
+      "agent_wall_s": 75.76955091697164,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 15.6128,
+      "us_after": 11.4398,
+      "gain": 0.26728069276491084,
+      "agent_wall_s": 64.84128516702913,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 4,
+      "changed": false,
+      "correct": true,
+      "kept": false,
+      "us_before": null,
+      "us_after": null,
+      "gain": null,
+      "agent_wall_s": 53.78240116708912,
+      "truncated": false,
+      "stop_reason": "the round left the sources unchanged"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Factor each `su` rest-row pair `-a*state[j] + 2a*t0[j]` into `a*(2*t0[j] - state[j])`",
+      "rule": "the inlined coefficients must exactly match the package data, and the stored values are only approximately 2x of each other (they differ in the last bits)",
+      "expected_gain": "~10\u201315% of step_su_rest"
+    },
+    {
+      "round": 2,
+      "idea": "Have the solver call `fom_iterate` and fuse all three blocks, keeping t0 in registers",
+      "rule": "`fom_iterate` must write every selection row as `bias + copy`. That rules out writing t0 and t1 into `new_state` directly, so it needs separate temporaries and extra copies. A new fused non-static entry point that skips this is forbidden by the \"every function but these entry points is static\" rule",
+      "expected_gain": "unknown, probably under 5% since LTO already inlines across files."
+    },
+    {
+      "round": 3,
+      "idea": "Computing d_k inside the t0 pass, while t0 is still in registers, and the t1 group sums in that same pass",
+      "rule": "not blocked by a rule: it needs `fom_iterate` rewritten to handle t_t0 and t_t1 aliasing new_state, and I ran out of time this round",
+      "expected_gain": "about 5-10%"
+    }
+  ],
+  "max_abs_dev": {
+    "translated": {
+      "verified_set": 7.843725668976731e-14
+    },
+    "optimized": {
+      "verified_set": 3.6137759451548845e-14
+    }
+  },
+  "timing_rounds": {
+    "numpy": [
+      1473.9789767190814,
+      1447.6664364337921,
+      1453.6879025399685,
+      1432.8124234452844,
+      1514.3330674618483,
+      1431.89646769315,
+      1450.5204744637012
+    ],
+    "translated": [
+      43.4518,
+      43.6948,
+      40.226,
+      41.779,
+      42.3534,
+      41.8242,
+      42.1568
+    ],
+    "optimized": [
+      9.3468,
+      11.6438,
+      10.9878,
+      11.5874,
+      11.684,
+      11.5158,
+      9.9654
+    ]
+  },
+  "agent_wall_s": {
+    "translation": 44.3852641582489,
+    "code_optimization": 250.03660202026367
+  },
+  "agent_budgets_s": {
+    "translation": 600,
+    "code_optimization": 600
+  },
+  "check": {
+    "oracle_vs_numpy_max_rel": 1.424876430695218e-14,
+    "state_dim": 74,
+    "params": {
+      "p0": 15
+    }
+  },
+  "info": {
+    "ns": 10,
+    "nd": 15,
+    "ne": 49,
+    "eta": 0.08226303133234722,
+    "momentum": true,
+    "ruiz": false,
+    "state_dim": 74
+  },
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "os": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
+    "python": "3.13.11",
+    "numpy": "2.5.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "fomtools_commit": "25b3f73",
+    "fomtools_dirty": false,
+    "fomtools_branch": "",
+    "fomtools_path": "/Users/bs37/Documents/projects/fomtools/fomtools"
+  },
+  "started_utc": "2026-10-22T19:14:07+00:00",
+  "finished_utc": "2026-10-22T19:19:10+00:00"
+}

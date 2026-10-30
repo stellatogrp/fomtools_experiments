@@ -1,0 +1,227 @@
+{
+  "experiment": "rapdhg",
+  "variant": "R12",
+  "rep": 3,
+  "iterations": 200,
+  "verified_run": "control/rapdhg/verify/results/run_001",
+  "numpy_us": 2362.6459296792746,
+  "translated_us": 142.2004,
+  "optimized_us": 13.5122,
+  "speedup_translation": 16.614903542319674,
+  "speedup_optimization": 10.523852518464794,
+  "speedup_total": 174.85279448789055,
+  "optimization_kept": true,
+  "optimization_notes": "",
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 137.9316,
+      "us_after": 37.03,
+      "gain": 0.731533600712237,
+      "agent_wall_s": 94.11261387495324,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 36.3146,
+      "us_after": 26.4336,
+      "gain": 0.27209441932445905,
+      "agent_wall_s": 98.3920844590757,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 25.6002,
+      "us_after": 15.1134,
+      "gain": 0.4096374247076195,
+      "agent_wall_s": 106.15349229099229,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 4,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 16.684,
+      "us_after": 14.4318,
+      "gain": 0.134991608726924,
+      "agent_wall_s": 111.01205379189923,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 5,
+      "changed": false,
+      "correct": true,
+      "kept": false,
+      "us_before": null,
+      "us_after": null,
+      "gain": null,
+      "agent_wall_s": 36.75454887491651,
+      "truncated": false,
+      "stop_reason": "the round left the sources unchanged"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Pass the tau/eta scale for the hoisted parameter term straight into `fom_iterate` instead of materializing the bias arrays each iteration (the 11% \"bias\" region)",
+      "rule": "the `fom_iterate`/`fom_step_*` signatures in `include/fom_ops.h` are fixed (a header) and take a precomputed bias vector",
+      "expected_gain": "~3-4 \u00b5s (about 10%)"
+    },
+    {
+      "round": 1,
+      "idea": "Drop the all-zero `bias_su` argument and its 160 loads per iteration",
+      "rule": "fixed `fom_iterate` signature in `include/fom_ops.h`",
+      "expected_gain": "~1 \u00b5s"
+    },
+    {
+      "round": 2,
+      "idea": "Exploit symmetry of the dense `t1_state__d_eta` block (D = D^T in the data) to read it column-contiguously",
+      "rule": "\"must apply exactly M for any input\"; D's symmetry is a property of the data that cannot be asserted at compile time",
+      "expected_gain": "small (~1-2%)"
+    },
+    {
+      "round": 2,
+      "idea": "Precompute bias_t0/bias_t1 = tau(it)*q1, eta(it)*q0 for all 200 iterations in `fom_update_params`, dropping the per-iteration bias pass",
+      "rule": "the loop must read the schedule through the clamping accessor, and max_iter may exceed the table length, so a fixed-size per-iteration table is unsafe; workspace layout is fixed (headers not editable)",
+      "expected_gain": "~5-10% (bias is ~11-14% of profile, mostly timer overhead)"
+    },
+    {
+      "round": 3,
+      "idea": "Fold the per-iteration bias scaling (tau*q1, eta*q0) into `fom_iterate`, which would drop a 64-element pass and the temporary bias vectors",
+      "rule": "the fixed `fom_iterate` signature takes `bias` as a precomputed vector and no schedule values for parameter terms (header is fixed)",
+      "expected_gain": "about 5-10% (the bias region is about 25% of profiled time, mostly timer overhead)"
+    },
+    {
+      "round": 3,
+      "idea": "Skip the zero `bias_su` additions, since the solver always passes zeros",
+      "rule": "`fom_iterate` must be right for any bias (verify uses random biases)",
+      "expected_gain": "about 2%"
+    },
+    {
+      "round": 4,
+      "idea": "Pass `tau`/`eta` into `fom_iterate` so it computes `tau*q1` inline, dropping the separate 64-element bias pass and its stores",
+      "rule": "`fom_iterate` signature in `include/fom_ops.h` is fixed",
+      "expected_gain": "~3-5%"
+    },
+    {
+      "round": 4,
+      "idea": "Skip the all-zero `bias_su` add (160 loads and adds per iteration)",
+      "rule": "`fom_iterate` must honor any `bias_su` it is passed, and the signature is fixed",
+      "expected_gain": "~2-4%"
+    },
+    {
+      "round": 4,
+      "idea": "Precompute even/odd combinations (`(a+c)/2`, `(a-c)/2`) of the dense-block coefficients in setup, cutting it to about 2 multiplies per row",
+      "rule": "needs derived per-matrix data stored outside `fom_ops.c`'s routines (workspace layout is fixed, and setup may not probe matrices)",
+      "expected_gain": "~5%"
+    },
+    {
+      "round": 5,
+      "idea": "Precompute `bias_t0`/`bias_t1` for every iteration at setup (a 200x64 table), removing the per-iteration rescale",
+      "rule": "no space in the fixed workspace, and `max_iter` is a runtime value with no bound, so this would need allocation",
+      "expected_gain": "about 1 to 2% (64 multiplies per iteration)"
+    },
+    {
+      "round": 5,
+      "idea": "Pass `tau` and `eta` into `fom_iterate` and fold the parameter rescale into the `t0`/`t1` loops",
+      "rule": "the fixed `fom_iterate` signature takes bias vectors, not the parameter schedule values",
+      "expected_gain": "about 1 to 2%"
+    }
+  ],
+  "max_abs_dev": {
+    "translated": {
+      "verified_set": 1.6486811915683575e-14
+    },
+    "optimized": {
+      "verified_set": 1.7291723608536813e-14
+    }
+  },
+  "timing_rounds": {
+    "numpy": [
+      2459.4375863671303,
+      2362.8539638593793,
+      2316.083526238799,
+      2336.8330439552665,
+      2318.146056495607,
+      2379.9376795068383,
+      2362.6459296792746
+    ],
+    "translated": [
+      140.5406,
+      144.3914,
+      142.6138,
+      142.2698,
+      141.097,
+      142.2004,
+      141.8912
+    ],
+    "optimized": [
+      13.9752,
+      12.9736,
+      13.9384,
+      13.5122,
+      13.4528,
+      15.565,
+      13.3112
+    ]
+  },
+  "agent_wall_s": {
+    "translation": 57.21515393257141,
+    "code_optimization": 458.16559886932373
+  },
+  "agent_budgets_s": {
+    "translation": 600,
+    "code_optimization": 600
+  },
+  "check": {
+    "tables_vs_rapdhg_schedule_tables": 0.0,
+    "numpy_x_vs_verify_recurrence": 3.3306690738754696e-15,
+    "oracle_vs_numpy_max_rel": 2.4370648353260406e-13,
+    "state_dim": 160,
+    "params": {
+      "p0": 16,
+      "p1": 48
+    }
+  },
+  "info": {
+    "method": "rapdhg",
+    "restart": 12,
+    "horizon": 5,
+    "n": 16,
+    "m": 48,
+    "param_coords": [
+      0,
+      1,
+      5
+    ],
+    "state_dim": 160
+  },
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "os": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
+    "python": "3.13.11",
+    "numpy": "2.5.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "fomtools_commit": "25b3f73",
+    "fomtools_dirty": false,
+    "fomtools_branch": "",
+    "fomtools_path": "/Users/bs37/Documents/projects/fomtools/fomtools"
+  },
+  "started_utc": "2026-10-22T22:13:07+00:00",
+  "finished_utc": "2026-10-22T22:21:55+00:00"
+}

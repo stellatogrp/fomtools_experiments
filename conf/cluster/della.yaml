@@ -1,0 +1,14 @@
+# Slurm resources for one array task (one variant) on Princeton's della, read by
+# `python -m fomexp.submit`. Same per-task resources as the paper's runs.
+cpus: 16
+mem: 32G
+time: null               # null: schedule.budget_hours + slack_min, as HH:MM:SS
+slack_min: 30
+partition: null          # della's default CPU partition
+account: bstellato
+# Princeton's Gurobi site license (token server); gurobipy 13.0 matches it.
+license_file: /usr/licensed/gurobi/license/gurobi.lic
+# At most this many variants at once (array throttle); null runs all together.
+max_parallel: null
+mail: null
+mail_type: FAIL,TIME_LIMIT

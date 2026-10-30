@@ -1,7 +1,0 @@
-{
-  "oracle_vs_numpy_max_rel": 1.0215901051843693e-14,
-  "state_dim": 74,
-  "params": {
-    "p0": 15
-  }
-}

@@ -1,0 +1,136 @@
+{
+  "fom": {
+    "wall_s": 322.77749187499285,
+    "fom_options": {
+      "rho": 1.0
+    },
+    "termination": {
+      "kind": "objective",
+      "max_iters": 4000,
+      "tol": 0.0001,
+      "check_termination": 25
+    },
+    "auto_equilibrate": true,
+    "code_optimization": false,
+    "out_dir": "cpg_n3000_fom_rep3/c/solver_code",
+    "verified": true
+  },
+  "fom_opt": {
+    "wall_s": 2253.633334417129,
+    "fom_options": {
+      "rho": 1.0
+    },
+    "termination": {
+      "kind": "objective",
+      "max_iters": 4000,
+      "tol": 0.0001,
+      "check_termination": 25
+    },
+    "auto_equilibrate": true,
+    "code_optimization": true,
+    "out_dir": "cpg_n3000_fom_opt_rep3/c/solver_code",
+    "verified": true,
+    "optimization_kept": true,
+    "optimize": {
+      "success": true,
+      "turns_used": 4,
+      "truncated": false
+    },
+    "rule_friction": [
+      {
+        "round": 1,
+        "idea": "Fold the objective's products into the step pass, or skip recomputing products the step pass already computed, saving most of the roughly 42 us per iteration the objective costs",
+        "rule": "`fom_objective.c` is fixed and must be called as is",
+        "expected_gain": "about 10%"
+      },
+      {
+        "round": 1,
+        "idea": "Store the factor panel in float32 to halve its 2.5 MB of traffic",
+        "rule": "`make verify` requires solving the same system with the given factorization, and it would lose accuracy",
+        "expected_gain": "about 15\u201320%, unknown accuracy impact"
+      },
+      {
+        "round": 1,
+        "idea": "Specialize `step_su__rest` / `t0_state` to their fixed small-row patterns, such as 1\u20132 entries per row with constant \u00b11/scaled structure (the matrices are scaled identity/difference blocks per spec.json)",
+        "rule": "`fom_ops.c` may not hardcode coefficients, so this needs runtime-derived structure tables that `fom_setup` cannot build through the ops entry points",
+        "expected_gain": "about 5%"
+      },
+      {
+        "round": 1,
+        "idea": "Gather the panel's group sums directly while doing the forward head pass, using a single combined buffer between the solve and the rhs",
+        "rule": "only the `fom_lin_solve_t0(b, x)` signature is exposed; no cross-call workspace in `include/`",
+        "expected_gain": "under 3%, unknown"
+      },
+      {
+        "round": 2,
+        "idea": "Inline or cheapen the per-check verification objective (13.4%)",
+        "rule": "`src/fom_objective.c` is fixed and must not be reimplemented",
+        "expected_gain": "about 5-10%"
+      },
+      {
+        "round": 2,
+        "idea": "Store the dense LDLT panel (P_DAT) in float32 or compressed form to halve the bandwidth-bound panel traffic (about 21%)",
+        "rule": "must apply the same factorization exactly (and accuracy)",
+        "expected_gain": "about 10%"
+      },
+      {
+        "round": 2,
+        "idea": "Build the ELL copies in `fom_setup` instead of lazily on first call",
+        "rule": "`fom_ops.c` has no setup hook, and the header and signature files are fixed",
+        "expected_gain": "negligible (removes one branch per call)"
+      },
+      {
+        "round": 3,
+        "idea": "Store the dense 3000x101 panel of the t0 factor in float32 (or use mixed precision) to halve the bandwidth of the two hottest regions",
+        "rule": "target constraints / \"apply that factorization\" (changes the factor's values, so accuracy is no longer guaranteed)",
+        "expected_gain": "~10-12% of solve time"
+      },
+      {
+        "round": 3,
+        "idea": "Speed up or cut the cost of `fom_objective` (fuse its products with `step_su`/`step_t1`, which read the same state and t0 data)",
+        "rule": "fom_objective.c is fixed and must not be reimplemented or inlined",
+        "expected_gain": "up to ~10-15%"
+      },
+      {
+        "round": 3,
+        "idea": "Fold the input/output permutation of the t0 solve into the `rhs_t0` and `step_*` kernels (write the rhs already permuted)",
+        "rule": "fom_lin_solve_t0 signature fixed and checked directly against the reference solve; solver may not read matrix data to build a permuted operator",
+        "expected_gain": "~3-5%"
+      },
+      {
+        "round": 4,
+        "idea": "Store the 2.4 MB dense panel in float32 (or float32 plus a correction) to halve L2 traffic in ls_fpanel and ls_bpanel",
+        "rule": "must solve the same system with the given factorization in fom_float (target precision / correctness)",
+        "expected_gain": "~10% overall"
+      },
+      {
+        "round": 4,
+        "idea": "Split the panel passes across 2 cores (each pass is L2-bandwidth-bound on one core)",
+        "rule": "fixed Makefile/build flags (no threads) and embedded target constraints",
+        "expected_gain": "~10\u201312%"
+      },
+      {
+        "round": 4,
+        "idea": "Make the objective's sparse loops faster (19.5% of runtime: about 1.1 ms per call, every 25 iterations)",
+        "rule": "`src/fom_objective.c` is fixed and the metric may not be reimplemented",
+        "expected_gain": "up to ~15%"
+      }
+    ],
+    "timing": {
+      "python_us": 278668.08336693794,
+      "c_initial_us": 333510.5,
+      "c_final_us": 44327.913043
+    }
+  },
+  "sizes": {
+    "n": 6100,
+    "n_eq": 101,
+    "n_ineq": 12000,
+    "nnz_P": 3100,
+    "nnz_A": 321100,
+    "param_dependent": [
+      "q",
+      "u_ineq"
+    ]
+  }
+}

@@ -1,6 +1,0 @@
-make: Entering directory '/home/dd7022/fomtools_codegen_runs/rect10k40k_study/prod_ista_openmp_optimized'
-cc -O3 -Wall -Iinclude  -Itest src/fom_solver.c src/fom_data.c src/fom_linsolve.c src/fom_ops.c test/verify_main.c -o verify_bin -lm
-./verify_bin
-worst max-abs error over 8 samples: 0.000e+00 (tol 1.000e-06)
-VERIFY OK
-make: Leaving directory '/home/dd7022/fomtools_codegen_runs/rect10k40k_study/prod_ista_openmp_optimized'

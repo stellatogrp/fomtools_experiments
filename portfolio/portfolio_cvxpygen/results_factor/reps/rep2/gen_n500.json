@@ -1,0 +1,94 @@
+{
+  "fom": {
+    "wall_s": 45.875341959064826,
+    "fom_options": {
+      "rho": 1.0
+    },
+    "termination": {
+      "kind": "objective",
+      "max_iters": 4000,
+      "tol": 0.0001,
+      "check_termination": 25
+    },
+    "auto_equilibrate": true,
+    "code_optimization": false,
+    "out_dir": "cpg_n500_fom_rep2/c/solver_code",
+    "verified": true
+  },
+  "fom_opt": {
+    "wall_s": 739.5052767079324,
+    "fom_options": {
+      "rho": 1.0
+    },
+    "termination": {
+      "kind": "objective",
+      "max_iters": 4000,
+      "tol": 0.0001,
+      "check_termination": 25
+    },
+    "auto_equilibrate": true,
+    "code_optimization": true,
+    "out_dir": "cpg_n500_fom_opt_rep2/c/solver_code",
+    "verified": true,
+    "optimization_kept": true,
+    "optimize": {
+      "success": true,
+      "turns_used": 2,
+      "truncated": false
+    },
+    "rule_friction": [
+      {
+        "round": 1,
+        "idea": "Specialize or speed up the verification objective (16.5% of the time, mostly the dense 101\u00d7500 `obj0_*` blocks), e.g. with the same blocked dense kernels",
+        "rule": "`fom_objective.c` is fixed and must not be reimplemented or inlined",
+        "expected_gain": "~10-12% of the whole solve"
+      },
+      {
+        "round": 1,
+        "idea": "Store the dense 101\u00d7500 factor block in float32 or a compressed form to halve the L2 traffic of the bandwidth-bound dense kernels",
+        "rule": "must apply the same factorization exactly (float64 data)",
+        "expected_gain": "~15-20%, but would change accuracy"
+      },
+      {
+        "round": 1,
+        "idea": "Fuse the t0 rhs product (`t0_state\u00b7state + bias`) directly into the solve's permuted gather, skipping the intermediate rhs buffer",
+        "rule": "`fom_lin_solve_t0` must take b and solve M x = b, and products must go through `fom_apply_*` (no matrix data in the solver or linsolve)",
+        "expected_gain": "~1-2%"
+      },
+      {
+        "round": 2,
+        "idea": "Storing the 101x500 dense factor block in single precision (or as a compressed float32+residual split) to halve the L2 traffic of the two bandwidth-bound dense passes",
+        "rule": "lin solve must apply the SAME factorization exactly (a float32 factor is a different, perturbed factor)",
+        "expected_gain": "~4 us/iteration (~15%)"
+      },
+      {
+        "round": 2,
+        "idea": "Fusing the rhs_t0 assembly (fom_apply_t0_state + bias) into the lin solve's permutation gather, or the solve's output scatter into step_t1/step_su",
+        "rule": "fixed `fom_lin_solve_<name>` / `fom_apply_<name>` signatures in include/ (solve must take an assembled b)",
+        "expected_gain": "~1 us/iteration (~4%)"
+      },
+      {
+        "round": 2,
+        "idea": "Reducing the cost of the termination metric (objective = 18.75% of time)",
+        "rule": "src/fom_objective.c is fixed and must be called exactly as now",
+        "expected_gain": "up to ~15%"
+      }
+    ],
+    "timing": {
+      "python_us": 38564.854534342885,
+      "c_initial_us": 7318.857664,
+      "c_final_us": 2763.038621
+    }
+  },
+  "sizes": {
+    "n": 1100,
+    "n_eq": 101,
+    "n_ineq": 2000,
+    "nnz_P": 600,
+    "nnz_A": 53600,
+    "param_dependent": [
+      "q",
+      "u_ineq"
+    ]
+  }
+}

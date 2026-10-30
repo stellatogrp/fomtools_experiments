@@ -1,0 +1,26 @@
+{
+  "R12": {
+    "k_max": 75,
+    "hours_total": 5.077437863482369,
+    "hours_mip": 5.074395849977025,
+    "max_num_vars": 4336,
+    "max_num_bin_vars": 540,
+    "statuses": {
+      "OPTIMAL": 75
+    },
+    "time_limited_K": [],
+    "max_gap": 0.04979842379846626
+  },
+  "R6": {
+    "k_max": 75,
+    "hours_total": 0.7977996919552485,
+    "hours_mip": 0.7961272805196414,
+    "max_num_vars": 4372,
+    "max_num_bin_vars": 576,
+    "statuses": {
+      "OPTIMAL": 75
+    },
+    "time_limited_K": [],
+    "max_gap": 0.04794152083830876
+  }
+}

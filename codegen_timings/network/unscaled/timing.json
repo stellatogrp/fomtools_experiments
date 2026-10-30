@@ -1,16 +1,123 @@
 {
   "experiment": "network",
   "variant": "unscaled",
+  "rep": 1,
   "iterations": 200,
   "verified_run": "network/results/run_005",
-  "numpy_us": 1190.3545000677695,
-  "translated_us": 43.3776,
-  "optimized_us": 17.2364,
-  "speedup_translation": 27.441686494129907,
-  "speedup_optimization": 2.5166276020514724,
-  "speedup_total": 69.06050567797044,
+  "numpy_us": 1433.5629530251026,
+  "translated_us": 32.7826,
+  "optimized_us": 12.116,
+  "speedup_translation": 43.72938549795021,
+  "speedup_optimization": 2.7057279630241005,
+  "speedup_total": 118.31982114766447,
   "optimization_kept": true,
   "optimization_notes": "",
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 31.7942,
+      "us_after": 13.6186,
+      "gain": 0.5716640141912676,
+      "agent_wall_s": 97.98509929189458,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 15.8572,
+      "us_after": 13.2722,
+      "gain": 0.1630174305678178,
+      "agent_wall_s": 65.67763208388351,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 15.1712,
+      "us_after": 13.7096,
+      "gain": 0.09634043450748792,
+      "agent_wall_s": 76.2829252500087,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 4,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 12.5488,
+      "us_after": 12.3582,
+      "gain": 0.01518870330230778,
+      "agent_wall_s": 79.59455804200843,
+      "truncated": false,
+      "stop_reason": "the round gained less than agent_optimize_min_gain"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "Skip the `bias_su` adds on rows 0..58, which are always zero for this package (`su_p_p0` only reaches rows 59..73)",
+      "rule": "`fom_iterate` must apply any bias it is given, and the constant/bias vectors may not be read in `fom_ops.c`",
+      "expected_gain": "about 1%"
+    },
+    {
+      "round": 1,
+      "idea": "Skip writing the `t_t0`/`t_t1` temporaries and keep only `new_state` (rows 0..58 already hold them)",
+      "rule": "`fom_iterate` must write every temporary",
+      "expected_gain": "about 1-2%"
+    },
+    {
+      "round": 2,
+      "idea": "Skipping the `t_t0`/`t_t1` temporary writes on all but the last iteration (the solver only needs them at the end)",
+      "rule": "`fom_iterate` must write every temporary, and the solver must call the checked routines",
+      "expected_gain": "unknown, probably <3%"
+    },
+    {
+      "round": 3,
+      "idea": "Skip writing `t_t0`/`t_t1` on every iteration except the last, since in the no-tolerance loop only `new_state` carries information",
+      "rule": "`fom_iterate` must write every temporary, and new non-static entry points in `src/fom_ops.c` are not allowed",
+      "expected_gain": "~10-15% (removes ~59 of ~180 stores per iteration)"
+    },
+    {
+      "round": 3,
+      "idea": "Fold the constant bias `t0_c` together with `bias_su` and the bounds into one precomputed per-row vector inside `fom_iterate`",
+      "rule": "`src/fom_ops.c` may not read `FOM_ACT_*` or the constant and bound vectors, and `fom_setup` cannot call the iteration routines",
+      "expected_gain": "unknown, small"
+    },
+    {
+      "round": 4,
+      "idea": "Skip writing `t_t0`/`t_t1` on all but the last iteration (they are dead when `check_termination` is off)",
+      "rule": "`fom_iterate` must write every temporary, and any other kernel must be a non-static entry point in `src/fom_ops.c` or must not read matrix data in `src/fom_solver.c`",
+      "expected_gain": "~5-10% (98 of ~180 stores per iteration)"
+    },
+    {
+      "round": 4,
+      "idea": "Unroll two iterations per call to hide cross-iteration latency and reuse loads",
+      "rule": "the `fom_iterate` signature is fixed to one iteration; adding a 2-step entry point breaks \"every function but these entry points is static\"",
+      "expected_gain": "unknown, maybe 5-10%"
+    },
+    {
+      "round": 4,
+      "idea": "Drop the `bias_su` additions on rows 0..58, where `su_p_p0` is zero for this data",
+      "rule": "`fom_iterate` must be exact for any bias, and specializing on the parameter matrix's zero rows inside `fom_iterate`'s bias would need reading `FOM_MAT_su_p_p0`, which is outside the iteration",
+      "expected_gain": "~2%"
+    },
+    {
+      "round": 4,
+      "idea": "`-O3`/`-march=native` in the bench build (the profile build already uses -O3)",
+      "rule": "build flags and Makefile are fixed",
+      "expected_gain": "unknown"
+    }
+  ],
   "max_abs_dev": {
     "translated": {
       "verified_set": 1.84297022087776e-14
@@ -21,36 +128,36 @@
   },
   "timing_rounds": {
     "numpy": [
-      1222.5840000610333,
-      1187.5625004904578,
-      1196.708499264787,
-      1180.8545004896587,
-      1190.3545000677695,
-      1185.1039998873603,
-      1208.2294997526333
+      1479.6870527788997,
+      1400.5625853314996,
+      1409.2079363763332,
+      1421.5005794540048,
+      1433.5629530251026,
+      1458.624959923327,
+      1441.041473299265
     ],
     "translated": [
-      42.0466,
-      43.8458,
-      43.316,
-      43.3776,
-      43.373,
-      43.532,
-      43.6586
+      33.4736,
+      31.8458,
+      32.7826,
+      29.8778,
+      33.6864,
+      32.9792,
+      31.6562
     ],
     "optimized": [
-      17.923,
-      18.0258,
-      17.2364,
-      17.0646,
-      16.8904,
-      16.5638,
-      17.4106
+      11.3806,
+      11.953,
+      12.3164,
+      12.0366,
+      12.3906,
+      12.116,
+      12.4666
     ]
   },
   "agent_wall_s": {
-    "translation": 19.430377960205078,
-    "code_optimization": 71.95470905303955
+    "translation": 50.41946077346802,
+    "code_optimization": 328.3663327693939
   },
   "agent_budgets_s": {
     "translation": 600,
@@ -73,15 +180,17 @@
     "state_dim": 74
   },
   "machine": {
-    "cpu": "Apple M5",
-    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
-    "compiler": "Apple clang version 17.0.0 (clang-1700.6.3.2)",
+    "cpu": "Apple M4 Pro",
+    "os": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
     "python": "3.13.11",
     "numpy": "2.5.3",
-    "fomtools_commit": "56b7e81",
-    "fomtools_branch": "vr/cvxpygen_features",
-    "fomtools_path": "/Users/vranjan/Research/2026/fomtools/fomtools"
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "fomtools_commit": "25b3f73",
+    "fomtools_dirty": false,
+    "fomtools_branch": "",
+    "fomtools_path": "/Users/bs37/Documents/projects/fomtools/fomtools"
   },
-  "started_utc": "2026-10-15T23:28:26+00:00",
-  "finished_utc": "2026-10-15T23:30:05+00:00"
+  "started_utc": "2026-10-22T18:46:51+00:00",
+  "finished_utc": "2026-10-22T18:53:18+00:00"
 }

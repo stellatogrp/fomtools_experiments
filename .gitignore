@@ -27,5 +27,30 @@ codegen_timings/**/profile_bin
 codegen_timings/**/*.dylib
 codegen_timings/**/*.so
 codegen_timings/**/*.dSYM/
-run_*
-*draft*
+# ... and what scaffold regenerates from the IR (matrix data, the verify harness: large
+# for unrolled solvers); codegen_driver rewrites them before reusing a solver.
+codegen_timings/**/src/fom_data.c
+codegen_timings/**/test/
+codegen_timings/**/build/
+# CVXPYgen solvers and bench builds (results_factor/ stays tracked)
+portfolio/portfolio_cvxpygen/out_factor/
+*draft*.cache/
+# Outputs stay out of the repository; only the summaries the paper exporters read are
+# tracked. The full outputs of the paper rerun are in the outputs archive of the latest release.
+*.log
+*.png
+*.pdf
+!control/rapdhg/codegen/results/**/figures_figure8_flight.pdf
+**/.hydra/hydra.yaml
+**/.hydra/overrides.yaml
+# Verification runs: the paper's runs are tracked; a new run stays untracked until it is
+# added on purpose (git add -f <folder>/results/run_NNN/...), since tracked files ignore this.
+**/results/run_*/
+codegen_timings/logs/
+codegen_timings/**/check.json
+codegen_timings/*/*/emitted/
+codegen_timings/*/*/reps/*/emitted/
+codegen_timings/*/*/optimized/*
+codegen_timings/*/*/reps/*/optimized/*
+!codegen_timings/*/*/optimized/OPTIMIZATIONS.md
+!codegen_timings/*/*/reps/*/optimized/OPTIMIZATIONS.md

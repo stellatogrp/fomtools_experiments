@@ -1,4 +1,0 @@
-experiment.problem.m=25
-experiment.problem.n=50
-experiment.problem.lambd=0.001
-label=lasso sparse 25x50 lambda 0.001

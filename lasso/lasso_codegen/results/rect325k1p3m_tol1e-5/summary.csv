@@ -1,3 +1,0 @@
-algorithm,numpy_median_us,openmp_median_us,cuda_median_us,openmp_speedup,cuda_speedup,cuda_vs_openmp,numpy_min_max_us,openmp_min_max_us,cuda_min_max_us
-ISTA,14812721.729,1177121.474,125099.056,12.58,118.41,9.41,14775679-15020318,1169552-1179356,124998-125526
-FISTA,72812861.032,1245793.699,128049.853,58.45,568.63,9.73,72677110-73157535,1242271-1249459,127945-128200

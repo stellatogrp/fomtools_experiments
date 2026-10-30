@@ -1,0 +1,201 @@
+{
+  "algorithm": "fista",
+  "backend": "openmp",
+  "rep": 3,
+  "size": {
+    "m": 10000,
+    "n": 40000,
+    "nnz_per_row": 260
+  },
+  "D_nnz": 2599983,
+  "step_size": 0.014703924227805058,
+  "iterations": 200,
+  "tol_verify": 1e-05,
+  "translated_us": 171117.74475,
+  "optimized_us": 51121.627075,
+  "optimization_kept": true,
+  "agent_wall_s": {
+    "translation": 164.09607243537903,
+    "code_optimization": 13172.817705631256
+  },
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 171117.74475,
+      "us_after": 50057.635775,
+      "gain": 0.7074667162769511,
+      "agent_wall_s": 3608.0338862579956,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 50524.4685,
+      "us_after": 31515.056812,
+      "gain": 0.37624169540744407,
+      "agent_wall_s": 2759.3943620219943,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 57639.8012,
+      "us_after": 47159.46493,
+      "gain": 0.1818246428997052,
+      "agent_wall_s": 2673.646011478995,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 4,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 52308.040154,
+      "us_after": 51121.627075,
+      "gain": 0.02268127567974424,
+      "agent_wall_s": 1771.2178987149964,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 5,
+      "changed": false,
+      "correct": true,
+      "kept": false,
+      "us_before": null,
+      "us_after": null,
+      "gain": null,
+      "agent_wall_s": 2040.0842619090108,
+      "truncated": false,
+      "stop_reason": "the round left the sources unchanged"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 1,
+      "idea": "AVX2/AVX-512 (FMA, wider vectors, `vgatherdpd`) through `-march` or `__attribute__((target))`; the kernels are latency/throughput-bound at about 2 cycles per nonzero with SSE2 only",
+      "rule": "build flags are fixed",
+      "expected_gain": "unknown, likely 10-20%"
+    },
+    {
+      "round": 1,
+      "idea": "Computing y for the next iteration inside the current t1 pass (removes the y pass and a barrier)",
+      "rule": "the `fom_iterate` signature in `include/fom_ops.h` is fixed and does not receive the next gamma",
+      "expected_gain": "~6% (the `gather_y` region)"
+    },
+    {
+      "round": 1,
+      "idea": "Documenting the NULL-means-zero bias convention in the header",
+      "rule": "headers are fixed",
+      "expected_gain": "none (documentation only; it is commented in `src/fom_ops.c` and `src/fom_solver.c`)"
+    },
+    {
+      "round": 2,
+      "idea": "Fold y_{k+1} = t1 + g_{k+1}(t1 \u2212 s1) into iteration k's B pass (removes the y phase and its barrier)",
+      "rule": "no schedule reads in fom_ops.c / fixed fom_iterate signature (it only receives the current gamma)",
+      "expected_gain": "~3-4% (y phase 6 us/iter plus its barrier)"
+    },
+    {
+      "round": 2,
+      "idea": "Compile with -march=native (AVX2/FMA in all loops, including auto-vectorized ones)",
+      "rule": "Makefile/build flags fixed (worked around with a target attribute and runtime dispatch for the hot kernel)",
+      "expected_gain": "<2%"
+    },
+    {
+      "round": 3,
+      "idea": "Store A and B values in fewer bytes (e.g. a float plus a 16-bit correction, about 2^-40 relative error, 6 B instead of 8 B per value) to cut L3 traffic in the bandwidth-bound passes",
+      "rule": "a kernel must apply exactly M (lossy coefficients); the 1e-10 ops tolerance would probably accept it, but it changes the matrix",
+      "expected_gain": "~15-25% on the two main passes"
+    },
+    {
+      "round": 3,
+      "idea": "Hoist y = s1 + g'(s1 - s0) for the next iteration into the B tail, to drop the y pass and one barrier",
+      "rule": "`src/fom_ops.c` may not read the schedule, and `fom_iterate` only receives the current gamma",
+      "expected_gain": "~2-4%"
+    },
+    {
+      "round": 3,
+      "idea": "Slide the state through the contiguous `state`/`new_state`/`acc` workspace so the shift copy new_s0 = s1 becomes a no-op",
+      "rule": "fixed workspace layout (headers not editable); pointer arithmetic across struct members is not portable",
+      "expected_gain": "~1%"
+    },
+    {
+      "round": 4,
+      "idea": "Store the values of A/B in compressed form (48-bit truncated or float32+correction mantissas; 6 instead of 8 bytes per value) to cut L3/DRAM traffic about 25\u201340%",
+      "rule": "the `make verify` ops tolerance of 1e-10 relative and the exactness requirement on `fom_iterate` (values are random and not float32-exact)",
+      "expected_gain": "about 20\u201330% on bandwidth-bound nodes"
+    },
+    {
+      "round": 4,
+      "idea": "Keep A\u00b7s0 from the previous iteration (A\u00b7y = (1+g)\u00b7A\u00b7s1 \u2212 g\u00b7A\u00b7s0, where s0 is the previous s1) to drop one third of the A work and the y pass",
+      "rule": "`fom_iterate` must be right for arbitrary input states; checking that the cache matches costs as much as recomputing it",
+      "expected_gain": "about 5\u201310% (unknown)"
+    },
+    {
+      "round": 4,
+      "idea": "Compute next iteration's y during the B phase to remove the y pass and its barrier",
+      "rule": "`src/fom_ops.c` may not read the schedule, and `fom_iterate` gets only the current gamma",
+      "expected_gain": "about 3\u20134%"
+    },
+    {
+      "round": 5,
+      "idea": "Fuse the next iteration's y = s1 + g'(s1 - s0) into the current B pass, removing the gather_y phase and its barrier",
+      "rule": "`fom_iterate` gets only this iteration's gamma, and `src/fom_ops.c` may not read the schedule (`fom_sched_*`, `FOM_SCHED_*`)",
+      "expected_gain": "about 4% (gather_y is 1.2 of 28.7 ms on Zen 3)"
+    },
+    {
+      "round": 5,
+      "idea": "Store B's values in float32 (or another lossy form) to halve the bytes streamed per nonzero",
+      "rule": "the `fom_apply`/`fom_iterate` checks require exactness to 1e-10 relative, which float32 values cannot meet",
+      "expected_gain": "unknown, possibly 20\u201330% since the passes look bandwidth-limited"
+    }
+  ],
+  "fomtools": {
+    "version": "0.0.4.dev22+g25b3f7327",
+    "path": "/scratch/gpfs/BSTELLATO/bs37/fomtools"
+  },
+  "model": "claude-opus-5-5",
+  "agent_host": "della9.princeton.edu",
+  "build_host": "della-l07g5: GPU 0: NVIDIA A100-SXM4-80GB (UUID: GPU-acaaefb4-8c05-10ea-0c60-c9f85e7a81f8)",
+  "alloc": "holders.sh",
+  "env": {
+    "OMPFLAGS": "-fopenmp",
+    "NVCCFLAGS": "-O3 -Iinclude -Itest -gencode arch=compute_80,code=sm_80",
+    "OMP_NUM_THREADS": "16"
+  },
+  "code": {
+    "fomtools_experiments": {},
+    "fomtools": {
+      "commit": "25b3f73273d396e641ec29d0c72f636c7e173b88",
+      "dirty": false
+    }
+  },
+  "environment": {
+    "host": "della9.princeton.edu",
+    "platform": "Linux-5.14.0-687.59.1.el9_8.x86_64-x86_64-with-glibc2.34",
+    "python": "3.13.12",
+    "cpu_count": 192,
+    "slurm": {},
+    "grb_license_file": "",
+    "numpy_version": "2.5.3",
+    "scipy_version": "1.18.1",
+    "gurobipy_version": "13.0.3",
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "hydra_version": "1.3.7",
+    "cvxpy_version": "1.9.3",
+    "clarabel_version": "0.11.1",
+    "gurobi_version": "13.0.3"
+  },
+  "started_utc": "2026-10-24T16:08:19+00:00",
+  "finished_utc": "2026-10-24T19:50:37+00:00"
+}

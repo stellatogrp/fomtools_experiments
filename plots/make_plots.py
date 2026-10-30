@@ -11,12 +11,17 @@ For every experiment it writes, into plots/:
   (dashed) per variant on a log scale. A hollow marker flags a K whose gap is
   above 5% (time-limited), where the bound is valid but loose.
 
-The runs and the K cut-offs are set in RUNS below.
+The K cut-offs and variants are set in EXPERIMENTS below. Each experiment's run
+is its latest ``results/run_NNN``; pick another with the environment variable
+``FOMEXP_RUNS``, e.g. ``FOMEXP_RUNS=lasso=run_022,network=run_005``. The other
+scripts in plots/ read the same selection.
 """
 
 from __future__ import annotations
 
 import csv
+import os
+import re
 from pathlib import Path
 
 import matplotlib
@@ -29,16 +34,40 @@ from matplotlib.ticker import FuncFormatter  # noqa: E402
 REPO = Path(__file__).resolve().parents[1]
 OUT = Path(__file__).resolve().parent
 
-#: experiment -> (run folder, K cut-off, variants in plotting order)
-RUNS = {
-    "lasso": ("lasso/lasso_verify/results/run_022", 20, ["ista", "fista"]),
-    "network": (
-        "network/results/run_005",
-        39,
-        ["unscaled", "ruiz", "unscaled_momentum", "ruiz_momentum"],
-    ),
-    "rapdhg": ("control/rapdhg/verify/results/run_001", 75, ["R12", "R6"]),
+#: experiment -> (experiment folder, K cut-off the paper plots, variants in plotting order)
+EXPERIMENTS = {
+    "lasso": ("lasso/lasso_verify", 20, ["ista", "fista"]),
+    "network": ("network", 39, ["unscaled", "ruiz", "unscaled_momentum", "ruiz_momentum"]),
+    "rapdhg": ("control/rapdhg/verify", 75, ["R12", "R6"]),
 }
+
+
+def select_runs(choice: str = "") -> dict[str, tuple[str, int, list[str]]]:
+    """experiment -> (run folder relative to the repository, K cut-off, variants).
+
+    ``choice`` is ``name=run_NNN,...``; an experiment it does not name gets its
+    latest ``results/run_NNN``.
+    """
+    chosen = dict(item.split("=", 1) for item in choice.split(",") if item.strip())
+    runs = {}
+    for name, (folder, k_cut, variants) in EXPERIMENTS.items():
+        results = REPO / folder / "results"
+        if name in chosen:
+            run = chosen[name]
+        else:
+            numbers = [
+                int(m.group(1))
+                for p in (results.iterdir() if results.is_dir() else [])
+                if p.is_dir() and (m := re.match(r"^run_(\d{3,})$", p.name))
+            ]
+            if not numbers:
+                continue
+            run = f"run_{max(numbers):03d}"
+        runs[name] = (f"{folder}/results/{run}", k_cut, variants)
+    return runs
+
+
+RUNS = select_runs(os.environ.get("FOMEXP_RUNS", ""))
 
 #: Categorical slots 1-4 of the dataviz reference palette, in fixed order.
 COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"]

@@ -1,13 +1,14 @@
-# rAPDHG with two restart periods against plain PDHG on the condensed quadcopter
-# MPC (paper Sec. 6.5; control/rapdhg/verify). Defaults are the paper's instance.
+# rAPDHG with two restart periods on the condensed quadcopter MPC (paper Sec. 6.4;
+# control/rapdhg/verify). Defaults are the paper's instance (archived run:
+# control/rapdhg/verify/results/run_001, whose pdhg variant the paper does not use).
 name: rapdhg
 dir: control/rapdhg/verify
-variants: [R12, R6, pdhg]
-# Each variant: the method and its restart period (ignored by plain PDHG).
+variants: [R12, R6]
+k_max: 75              # the horizon the paper plots; sets schedule.k_max
+# Each variant: the method and its restart period ("pdhg", plain PDHG, also exists).
 methods:
   R12: {method: rapdhg, restart: 12}
   R6: {method: rapdhg, restart: 6}
-  pdhg: {method: pdhg, restart: 12}
 problem:
   dt: 0.1
   horizon: 5           # predicted states; 4 inputs each, so 4 * horizon variables

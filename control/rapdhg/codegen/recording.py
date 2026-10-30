@@ -118,22 +118,22 @@ def make_build(problem: RapdhgProblem, boxes: ParameterBoxes) -> Callable[..., A
 
     def build(taux, tth, tau, eta, g1, g2, d1, d2, m1, m2) -> Recording:
         v = Verifier(method="simulator", obbt_solver=None)
-        cost = v.add_param(n, lb=cost_box.lb, ub=cost_box.ub)
-        rhs = v.add_param(m, lb=rhs_box.lb, ub=rhs_box.ub)
+        cost = v.parameter(n, lb=cost_box.lb, ub=cost_box.ub)
+        rhs = v.parameter(m, lb=rhs_box.lb, ub=rhs_box.ub)
 
-        x = v.add_iterate(n, lb=np.zeros(n), ub=np.zeros(n))
-        y = v.add_iterate(m, lb=np.zeros(m), ub=np.zeros(m))
-        xbar = v.add_iterate(n, lb=np.zeros(n), ub=np.zeros(n))
-        ybar = v.add_iterate(m, lb=np.zeros(m), ub=np.zeros(m))
-        x_prev = v.add_iterate(n, lb=np.zeros(n), ub=np.zeros(n))
-        xmd = v.add_iterate(n, lb=np.zeros(n), ub=np.zeros(n))
+        x = v.iterate(n, lb=np.zeros(n), ub=np.zeros(n))
+        y = v.iterate(m, lb=np.zeros(m), ub=np.zeros(m))
+        xbar = v.iterate(n, lb=np.zeros(n), ub=np.zeros(n))
+        ybar = v.iterate(m, lb=np.zeros(m), ub=np.zeros(m))
+        x_prev = v.iterate(n, lb=np.zeros(n), ub=np.zeros(n))
+        xmd = v.iterate(n, lb=np.zeros(n), ub=np.zeros(n))
 
         # Dual step.  tau G (theta (x - x_prev) + x) - tau h, with the product
         # tau * theta carried by its own table.
-        y_new = v.step.relu(y + (taux * G) @ x - (tth * G) @ x_prev - tau * rhs)
+        y_new = v.relu(y + (taux * G) @ x - (tth * G) @ x_prev - tau * rhs)
 
         # Primal step, materialized so Q is applied once; see the module docstring.
-        x_new = v.step.satlin(
+        x_new = v.satlin(
             x - (eta * Q) @ xmd - eta * cost - (eta * Gt) @ y_new,
             l=big_lo,
             u=big_hi,

@@ -1,0 +1,142 @@
+{
+  "fom": {
+    "wall_s": 79.75993883307092,
+    "fom_options": {
+      "rho": 1.0
+    },
+    "termination": {
+      "kind": "objective",
+      "max_iters": 4000,
+      "tol": 0.0001,
+      "check_termination": 25
+    },
+    "auto_equilibrate": true,
+    "code_optimization": false,
+    "out_dir": "cpg_n1000_fom_rep3/c/solver_code",
+    "verified": true
+  },
+  "fom_opt": {
+    "wall_s": 2239.547604209045,
+    "fom_options": {
+      "rho": 1.0
+    },
+    "termination": {
+      "kind": "objective",
+      "max_iters": 4000,
+      "tol": 0.0001,
+      "check_termination": 25
+    },
+    "auto_equilibrate": true,
+    "code_optimization": true,
+    "out_dir": "cpg_n1000_fom_opt_rep3/c/solver_code",
+    "verified": true,
+    "optimization_kept": true,
+    "optimize": {
+      "success": true,
+      "turns_used": 4,
+      "truncated": false
+    },
+    "rule_friction": [
+      {
+        "round": 1,
+        "idea": "Store the 3000\u00d7101 dense tail block of L in float32 to halve the bandwidth of the two dominant sweeps",
+        "rule": "changes the factorization's numeric data, so the solve would no longer be the same factorization applied in float64",
+        "expected_gain": "~1.5x on ls_ftail/ls_btail, ~25% overall"
+      },
+      {
+        "round": 1,
+        "idea": "Fold the factorization's permutation into the right-hand-side assembly (`fom_apply_t0_state` writing directly in permuted order) to drop the gather/scatter passes",
+        "rule": "`fom_apply_*` must keep its fixed signature and apply exactly M, and the solver cannot see the permutation",
+        "expected_gain": "~2\u20133 us per iteration (~2%)"
+      },
+      {
+        "round": 1,
+        "idea": "Fuse the `t0` right-hand-side assembly into the forward solve, reading the `t0_state` coefficients inside `fom_lin_solve_t0`",
+        "rule": "`fom_linsolve.c` may not read matrix data, and `fom_lin_solve_t0` must take `b` as input",
+        "expected_gain": "unknown, small (~3%)"
+      },
+      {
+        "round": 2,
+        "idea": "Storing the dense factor tail in float32 to halve its memory traffic",
+        "rule": "must solve the same system by applying that factorization (precision change)",
+        "expected_gain": "~15% of solve time"
+      },
+      {
+        "round": 2,
+        "idea": "Computing the triple multipliers a1, a2 at run time from L_DATA instead of a static table",
+        "rule": "division-free target constraint (needs a ratio)",
+        "expected_gain": "none (static table used instead)"
+      },
+      {
+        "round": 2,
+        "idea": "Replacing the 4000-entry selection-row copy loop in `fom_solver.c` with a memcpy",
+        "rule": "unknown whether a contiguity check on the `FOM_SELROWS_*` tables is allowed",
+        "expected_gain": "~1%"
+      },
+      {
+        "round": 3,
+        "idea": "Store the 101\u00d7999 dense tail block in float32 to halve L2 traffic in ls_ftail/ls_btail",
+        "rule": "target precision (float64 dtype) and the \"apply that factorization exactly\" rule",
+        "expected_gain": "~8-10% of solve"
+      },
+      {
+        "round": 3,
+        "idea": "Split the tail passes across cores",
+        "rule": "embedded target constraints (single-threaded, no runtime)",
+        "expected_gain": "~15%"
+      },
+      {
+        "round": 3,
+        "idea": "Skip or cheapen the objective evaluation (17.7%)",
+        "rule": "fom_objective is fixed and must be called exactly where specified",
+        "expected_gain": "up to ~15%"
+      },
+      {
+        "round": 4,
+        "idea": "Store the 101x999 tail block in float32 to halve L2 traffic in the two hottest regions",
+        "rule": "the factorization must be applied exactly (verify's tight tolerance on `fom_lin_solve_t0`)",
+        "expected_gain": "about 10% of the solve"
+      },
+      {
+        "round": 4,
+        "idea": "Fold DT^T through the dense 101-block solve into DT, so the forward and backward tail passes merge",
+        "rule": "never form or use a matrix inverse",
+        "expected_gain": "about 10%"
+      },
+      {
+        "round": 4,
+        "idea": "Fuse the bias memcpy and the t0_state product into one pass in the solver",
+        "rule": "`fom_solver.c` may not read matrix data, and `fom_apply_*` must accumulate into `out`",
+        "expected_gain": "about 1%"
+      },
+      {
+        "round": 4,
+        "idea": "Speed up or amortize the objective (19% of the solve)",
+        "rule": "`fom_objective.c` is fixed, and it must be called exactly where it is now",
+        "expected_gain": "up to 15%"
+      },
+      {
+        "round": 4,
+        "idea": "Hardcode the constant diagonal coefficients of su_state, su_t_t0 and t1_state (-0.6, 1.6, 1000, -1) to drop the value loads",
+        "rule": "literals are allowed only in `fom_apply_t0_p_p0`, `fom_apply_t1_p_p1`, `fom_apply_t1_t_t0` and `fom_apply_su_t_t1`",
+        "expected_gain": "about 1-2%"
+      }
+    ],
+    "timing": {
+      "python_us": 162517.22897868603,
+      "c_initial_us": 57330.2,
+      "c_final_us": 8594.450644
+    }
+  },
+  "sizes": {
+    "n": 2100,
+    "n_eq": 101,
+    "n_ineq": 4000,
+    "nnz_P": 1100,
+    "nnz_A": 107100,
+    "param_dependent": [
+      "q",
+      "u_ineq"
+    ]
+  }
+}

@@ -37,8 +37,16 @@ OUT = Path(__file__).parent / "out"
 #: slower than it is.  With the tilt bound the controller needs a few thousand
 #: iterations to respect it on the figure eight, so the grid runs to 2.5 ms;
 #: at 0.13 us an iteration the optimized solver reaches about 19,000 there,
-#: and the tables are extended to 32768 after generation.
-MAX_ITERS = 32768
+#: and the tables are extended after generation.  The rerun's optimized solvers
+#: reach 0.066 us an iteration, about 38,000 iterations at 2.5 ms, so the tables
+#: are 65536 long.
+MAX_ITERS = 65536
+
+
+def rep_out(rep: int = 1) -> Path:
+    """Output folder of repetition ``rep`` of the agent runs: ``out/`` for the
+    first, ``out/reps/rep<k>/`` for the others."""
+    return OUT if rep == 1 else OUT / "reps" / f"rep{rep}"
 
 #: Absolute agreement required of the generated solver during ``make verify``,
 #: raised from the generator's 1e-6 default.  Not a weakening of the check: the
@@ -84,6 +92,7 @@ def build(
     force_boxes: bool = False,
     max_iters: int = MAX_ITERS,
     reference=None,
+    rep: int = 1,
     **kwargs,
 ) -> Study:
     """Everything the shared pipeline needs to generate, time, and fly rAPDHG.
@@ -121,7 +130,7 @@ def build(
         name="rapdhg_condensed",
         problem=problem,
         ref=ref,
-        out=OUT,
+        out=rep_out(rep),
         recording=ScheduledRecording(
             build=recording.make_build(problem, boxes),
             schedules=tables,

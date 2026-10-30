@@ -40,11 +40,11 @@ def build(variant: str, cfg) -> VariantSetup:
 
     if variant == "ista":
         v = Verifier(method="simulator", obbt_solver=None)
-        x = v.add_param(problem.p, lb=lb, ub=ub)
-        u0 = v.add_iterate(problem.n, lb=s0, ub=s0)
+        x = v.parameter(problem.p, lb=lb, ub=ub)
+        u0 = v.iterate(problem.n, lb=s0, ub=s0)
         u, iterates = u0, []
         for _ in range(3):
-            u = v.step.soft_threshold(u - eta * D.T @ (D @ u - x), lambd=thr)
+            u = v.soft_threshold(u - eta * D.T @ (D @ u - x), lambd=thr)
             iterates.append(u)
         recording = Recording(
             verifier=v, next_state=iterates[0], state=[u0], params=[x], iterates=iterates
@@ -60,11 +60,11 @@ def build(variant: str, cfg) -> VariantSetup:
 
         def build_fn(gamma: float) -> BuildRecording:
             v = Verifier(method="simulator", obbt_solver=None)
-            x = v.add_param(problem.p, lb=lb, ub=ub)
-            prev = v.add_iterate(problem.n, lb=s0, ub=s0)
-            cur = v.add_iterate(problem.n, lb=s0, ub=s0)
+            x = v.parameter(problem.p, lb=lb, ub=ub)
+            prev = v.iterate(problem.n, lb=s0, ub=s0)
+            cur = v.iterate(problem.n, lb=s0, ub=s0)
             w = (1.0 + gamma) * cur - gamma * prev
-            nxt = v.step.soft_threshold(w - eta * D.T @ (D @ w - x), lambd=thr)
+            nxt = v.soft_threshold(w - eta * D.T @ (D @ w - x), lambd=thr)
             return BuildRecording(verifier=v, next_state=[cur, nxt], state=[prev, cur], params=[x])
 
         recording = ScheduledRecording(build=build_fn, schedules={"gamma": gam})

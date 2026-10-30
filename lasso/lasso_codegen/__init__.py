@@ -1,1 +1,1 @@
-"""ISTA/FISTA Lasso backend experiments for the FOMTools paper."""
+"""The paper's large-scale Lasso GPU experiment: generated OpenMP and CUDA solvers."""

@@ -1,59 +1,139 @@
 {
   "experiment": "network_schedule",
   "arm": "unrolled",
+  "rep": 1,
   "variant": "ruiz_momentum",
   "iterations": 50,
   "overrides": [
     "experiment=network",
     "experiment.problem.ns=20",
     "experiment.problem.nd=30",
+    "experiment.problem.edge_prob=1.0",
+    "experiment.problem.seed=20",
+    "experiment.problem.gain_spread=100.0",
+    "experiment.problem.cost_range=[1.0,10.0]",
+    "experiment.problem.capacity_range=[2.0,6.0]",
     "experiment.problem.supply=4",
-    "experiment.problem.warm_start=center"
+    "experiment.problem.x_lb=-6.0",
+    "experiment.problem.x_ub=-4.0",
+    "experiment.problem.warm_start=center",
+    "experiment.problem.ruiz_iters=30",
+    "experiment.problem.eta_scale=0.5"
   ],
-  "numpy_us": 649.1249660030007,
-  "translated_us": 113.0188,
-  "optimized_us": 60.0834,
-  "speedup_translation": 5.743513167747319,
-  "speedup_optimization": 1.8810320321419893,
-  "speedup_total": 10.803732245562015,
+  "numpy_us": 672.6456340402365,
+  "translated_us": 99.1558,
+  "optimized_us": 40.6776,
+  "speedup_translation": 6.783724542994323,
+  "speedup_optimization": 2.437602021751529,
+  "speedup_total": 16.53602066100843,
   "optimization_kept": true,
   "optimization_notes": "",
+  "optimization_rounds": [
+    {
+      "index": 1,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 99.841,
+      "us_after": 56.102,
+      "gain": 0.43808655762662635,
+      "agent_wall_s": 329.1522318748757,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 2,
+      "changed": true,
+      "correct": true,
+      "kept": true,
+      "us_before": 55.6972,
+      "us_after": 41.0744,
+      "gain": 0.2625410254016361,
+      "agent_wall_s": 301.1502653339412,
+      "truncated": false,
+      "stop_reason": null
+    },
+    {
+      "index": 3,
+      "changed": false,
+      "correct": true,
+      "kept": false,
+      "us_before": null,
+      "us_after": null,
+      "gain": null,
+      "agent_wall_s": 208.85522829182446,
+      "truncated": false,
+      "stop_reason": "the round left the sources unchanged"
+    }
+  ],
+  "rule_friction": [
+    {
+      "round": 2,
+      "idea": "Fold each 600-row step's `t0_c` bias copy and clip activation into the fused product loop, so the step is one pass instead of three (memcpy, fused, clip)",
+      "rule": "`fom_ops.c` has no `fom_step_<block>` entry point for these blocks, and fused routines must only accumulate products into `out`",
+      "expected_gain": "about 1\u20133 us"
+    },
+    {
+      "round": 2,
+      "idea": "Store the strided 30-row matrices (`t7_t_t2`, `t10_t_t5`, ...) transposed, for contiguous vector loads",
+      "rule": "building the derived layout needs setup-time work from matrix data, but `fom_setup` must not call ops and the transposed copy would have to live outside the checked routine (or be inlined as a literal table)",
+      "expected_gain": "unknown, small"
+    },
+    {
+      "round": 3,
+      "idea": "Fuse the 600-row bias copy, the fused product and the clip activation into one pass per step (no `fom_step_<block>` routine exists here)",
+      "rule": "activations can't go inside `fom_ops.c` without a step routine; `fom_solver.c` can't hold product loops",
+      "expected_gain": "about 5\u201310%"
+    },
+    {
+      "round": 3,
+      "idea": "Merge each `t(3k)` and `t(3k+1)` product, which both read the same 600-vector `t(3k-1)`, into one pass over it",
+      "rule": "a fused routine covers one output block and may read only its members' data",
+      "expected_gain": "unknown, likely a few percent"
+    },
+    {
+      "round": 3,
+      "idea": "Pre-transpose the stride-30 `t7`-style values at setup so the 30-row products read contiguous memory",
+      "rule": "`fom_setup` must not read `FOM_MAT_*` data of multiplied matrices, and `fom_ops.c` has no setup hook",
+      "expected_gain": "unknown, likely small"
+    }
+  ],
   "max_abs_dev": {
     "translated": 5.35682609381638e-15,
-    "optimized": 5.329070518200751e-15
+    "optimized": 6.217248937900877e-15
   },
   "timing_rounds": {
     "numpy": [
-      711.9369984138757,
-      653.4169951919466,
-      649.1249660030007,
-      651.708513032645,
-      645.1250228565186,
-      645.8749994635582,
-      643.7704723794013
+      680.7289319112897,
+      663.7084297835827,
+      657.250639051199,
+      650.9580416604877,
+      672.6456340402365,
+      673.9165401086211,
+      674.3335397914052
     ],
     "translated": [
-      110.6884,
-      112.7104,
-      113.0188,
-      113.0858,
-      112.2732,
-      113.7882,
-      113.9122
+      97.8728,
+      99.9152,
+      100.8374,
+      101.6626,
+      97.7114,
+      99.1558,
+      98.9634
     ],
     "optimized": [
-      60.4976,
-      59.0894,
-      59.8622,
-      60.3824,
-      60.6068,
-      59.8376,
-      60.0834
+      40.6776,
+      40.3754,
+      40.6772,
+      40.8536,
+      42.1128,
+      41.2862,
+      39.9608
     ]
   },
   "size": {
     "ir": {
-      "oracle_vs_numpy_max_rel": 1.4078414447602164e-15,
+      "oracle_vs_numpy_max_rel": 1.396984055726076e-15,
       "unrolled": true,
       "body_steps": 149,
       "coefficient_blocks": 217,
@@ -62,19 +142,19 @@
       "schedules": []
     },
     "translated": {
-      "solver_c_lines": 779,
-      "data_c_bytes": 43043,
-      "library_bytes": 1458544
+      "solver_c_lines": 439,
+      "data_c_bytes": 4114798,
+      "library_bytes": 2122736
     },
     "optimized": {
-      "solver_c_lines": 460,
-      "data_c_bytes": 43043,
-      "library_bytes": 2406016
+      "solver_c_lines": 446,
+      "data_c_bytes": 4114798,
+      "library_bytes": 2436560
     }
   },
   "agent_wall_s": {
-    "translation": 39.9933021068573,
-    "code_optimization": 113.96727275848389
+    "translation": 179.96172976493835,
+    "code_optimization": 936.1435182094574
   },
   "agent_budgets_s": {
     "translation": 600,
@@ -87,15 +167,17 @@
     "eta": 0.09268607528845305
   },
   "machine": {
-    "cpu": "Apple M5",
-    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
-    "compiler": "Apple clang version 17.0.0 (clang-1700.6.3.2)",
+    "cpu": "Apple M4 Pro",
+    "os": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
     "python": "3.13.11",
     "numpy": "2.5.3",
-    "fomtools_commit": "33cb15e",
-    "fomtools_branch": "vr/cvxpygen_features",
-    "fomtools_path": "/Users/vranjan/Research/2026/fomtools/fomtools"
+    "fomtools_version": "0.0.4.dev22+g25b3f7327",
+    "fomtools_commit": "25b3f73",
+    "fomtools_dirty": false,
+    "fomtools_branch": "",
+    "fomtools_path": "/Users/bs37/Documents/projects/fomtools/fomtools"
   },
-  "started_utc": "2026-10-15T00:09:04+00:00",
-  "finished_utc": "2026-10-15T00:11:55+00:00"
+  "started_utc": "2026-10-22T22:41:49+00:00",
+  "finished_utc": "2026-10-22T23:01:24+00:00"
 }

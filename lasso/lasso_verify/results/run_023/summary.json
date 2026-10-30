@@ -1,0 +1,26 @@
+{
+  "fista": {
+    "k_max": 20,
+    "hours_total": 5.634116145372391,
+    "hours_mip": 5.632949968425819,
+    "max_num_vars": 3276,
+    "max_num_bin_vars": 2100,
+    "statuses": {
+      "OPTIMAL": 20
+    },
+    "time_limited_K": [],
+    "max_gap": 0.04995992483757857
+  },
+  "ista": {
+    "k_max": 20,
+    "hours_total": 1.3317208443747626,
+    "hours_mip": 1.3308969901078025,
+    "max_num_vars": 3276,
+    "max_num_bin_vars": 2100,
+    "statuses": {
+      "OPTIMAL": 20
+    },
+    "time_limited_K": [],
+    "max_gap": 0.04100853899994392
+  }
+}
