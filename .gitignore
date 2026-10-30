@@ -43,9 +43,9 @@ portfolio/portfolio_cvxpygen/out_factor/
 !control/rapdhg/codegen/results/**/figures_figure8_flight.pdf
 **/.hydra/hydra.yaml
 **/.hydra/overrides.yaml
-**/results/run_*/overrides*.txt
-**/results/run_*/*/problem.json
-**/results/run_*/*/manifest.json
+# Verification runs: the paper's runs are tracked; a new run stays untracked until it is
+# added on purpose (git add -f <folder>/results/run_NNN/...), since tracked files ignore this.
+**/results/run_*/
 codegen_timings/logs/
 codegen_timings/**/check.json
 codegen_timings/*/*/emitted/

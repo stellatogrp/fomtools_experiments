@@ -77,8 +77,9 @@ times by independent agent runs (`--reps 1 2 3`, the default), and the tables re
 median with the range. Everything is resumable: a finished piece is skipped unless
 `--force`. The repository tracks code, configs, and the summaries the paper exporters read
 (per-K bounds, timings, agent reports). Generated code, logs, and figures stay untracked;
-those of the paper rerun are in the `paper-rerun-outputs` release. Each folder's README has
-the details.
+those of the paper rerun are in the `paper-rerun-outputs` release. New verification runs
+(`results/run_NNN/`) are ignored too; to make one the paper's run, add its summaries with
+`git add -f`. Each folder's README has the details.
 
 **Verification** (Sections 6.2-6.4; Gurobi, one Slurm array task per variant on Princeton's
 della, `conf/cluster/della.yaml`). With no overrides the configs are the paper's instances
