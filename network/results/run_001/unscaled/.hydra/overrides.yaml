@@ -1,6 +1,0 @@
-- experiment=network
-- run_dir=/nfs/sloanlab007/projects/pdopt_proj/vranjan/fomtools_experiments/network/results/run_001
-- variant_index=0
-- experiment.problem.ns=10
-- experiment.problem.nd=15
-- label=15x20 / n10 / 10x15 / h5

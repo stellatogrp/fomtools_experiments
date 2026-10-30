@@ -1,6 +1,0 @@
-- experiment=lasso
-- run_dir=/nfs/sloanlab007/projects/pdopt_proj/vranjan/fomtools_experiments/lasso/lasso_verify/results/run_001
-- variant_index=1
-- experiment.problem.m=15
-- experiment.problem.n=20
-- label=15x20 / n10 / 10x15 / h5

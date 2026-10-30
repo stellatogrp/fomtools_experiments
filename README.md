@@ -65,8 +65,8 @@ run against a local fomtools checkout instead, clone it next to this repository 
 - **Code generation** needs a C compiler (and CMake for the CVXPYgen benchmark), the CUDA
   toolkit for GPU targets, and a coding agent. Set `FOMTOOLS_CODEGEN_AGENT=1` to let the
   scripts call the agent. The paper uses Claude Opus 5.5 through the Claude Agent SDK.
-  Scripts that are run without the agent reuse the solvers already checked in or under
-  `out/`.
+  Scripts that are run without the agent reuse solvers generated earlier, or those of the
+  `paper-rerun-outputs` release unpacked at the repository root.
 
 ## Reproducing the paper
 
@@ -75,8 +75,10 @@ unless a line says `cd`. Code generation needs `FOMTOOLS_CODEGEN_AGENT=1` (the p
 Claude Opus 5.5: `ANTHROPIC_MODEL=claude-opus-5-5`); each generated solver is produced three
 times by independent agent runs (`--reps 1 2 3`, the default), and the tables report the
 median with the range. Everything is resumable: a finished piece is skipped unless
-`--force`. Generated code goes to untracked `out/` folders; results, logs and reports are
-tracked. Each folder's README has the details.
+`--force`. The repository tracks code, configs, and the summaries the paper exporters read
+(per-K bounds, timings, agent reports). Generated code, logs, and figures stay untracked;
+those of the paper rerun are in the `paper-rerun-outputs` release. Each folder's README has
+the details.
 
 **Verification** (Sections 6.2-6.4; Gurobi, one Slurm array task per variant on Princeton's
 della, `conf/cluster/della.yaml`). With no overrides the configs are the paper's instances

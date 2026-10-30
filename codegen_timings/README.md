@@ -47,13 +47,17 @@ the fomtools commit recorded in its `timing.json`).
 
 ```
 <exp>/<variant>/                 repetition 1 (repetition k: <exp>/<variant>/reps/rep<k>/)
-  check.json     pre-flight checks
-  emitted/       translation phase: the full generated tree, agent_translation.log
-  optimized/     code optimization phase on a copy: OPTIMIZATIONS.md, agent_code_optimization.log
+  check.json     pre-flight checks (untracked)
+  emitted/       translation phase: the full generated tree, agent_translation.log (untracked)
+  optimized/     code optimization phase on a copy; only OPTIMIZATIONS.md is tracked
   timing.json    NumPy / translated / optimized us per solve, speedups, max |C - NumPy|,
                  agent wall time, optimization rounds, what the rules blocked
                  (rule_friction), machine (CPU, compiler, versions, fomtools commit)
 ```
+
+The repository tracks `timing.json` and `OPTIMIZATIONS.md` of every repetition. The
+generated solvers and agent logs of the paper rerun are in the `paper-rerun-outputs`
+release.
 
 ## Timing protocol
 

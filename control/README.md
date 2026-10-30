@@ -6,7 +6,7 @@ folder:
 
 | result | where |
 |---|---|
-| worst-case KKT residual of rAPDHG, restart periods 12 and 6, horizon 5 | `rapdhg/verify/results/run_001` |
+| worst-case KKT residual of rAPDHG, restart periods 12 and 6, horizon 5 | `rapdhg/verify/results/run_002` |
 | generated C solvers for that verified instance | `../codegen_timings/rapdhg/` |
 | closed-loop figure-eight flight at 40 us per sampling instant | `rapdhg/codegen/` |
 

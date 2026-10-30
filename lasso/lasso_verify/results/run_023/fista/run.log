@@ -1,6 +1,0 @@
-[2026-10-23 17:53:02,807][fomtools.canonicalizers.obbt_handler][INFO] - bound tightening failed: OBBT model not solved to optimality
-[2026-10-23 17:53:02,808][fomtools.canonicalizers.obbt_handler][INFO] - i = 6, sense=maximize
-[2026-10-25 02:00:17,440][fomtools.canonicalizers.obbt_handler][INFO] - bound tightening failed: OBBT model not solved to optimality
-[2026-10-25 02:00:17,442][fomtools.canonicalizers.obbt_handler][INFO] - i = 6, sense=maximize
-[2026-10-25 16:09:01,988][fomtools.canonicalizers.obbt_handler][INFO] - OBBT: LP for entry 6 (maximize) ended with status 3; solved from scratch
-[2026-10-25 18:48:20,712][fomtools.canonicalizers.obbt_handler][INFO] - OBBT: LP for entry 14 (minimize) ended with status 3; solved from scratch

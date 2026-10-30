@@ -1,3 +1,0 @@
-CHECK ista K=200 cupy vs scipy: max abs diff 2.665e-15
-CHECK ista K=200 scipy vs FOMTools reference: max abs diff 2.665e-15
-CHECK_OK ista

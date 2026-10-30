@@ -1,3 +1,0 @@
-schedule.budget_hours=12
-solver.time_limit=7200
-solver.retry_factor=0
