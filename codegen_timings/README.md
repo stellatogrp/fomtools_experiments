@@ -56,7 +56,7 @@ the fomtools commit recorded in its `timing.json`).
 ```
 
 The repository tracks `timing.json` and `OPTIMIZATIONS.md` of every repetition. The
-generated solvers and agent logs of the paper rerun are in the `paper-rerun-outputs`
+generated solvers and agent logs of the paper rerun are in the outputs archive of the latest
 release.
 
 ## Timing protocol

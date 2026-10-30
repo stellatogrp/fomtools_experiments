@@ -15,7 +15,7 @@ $r = D w - x$ as its own step, so the extracted iteration multiplies by $D$ and
 $D^\top$ separately, as a hand-written solver would; the precomputed
 $I - \eta D^\top D$ would be 34% dense, with 212 times the nonzeros of $D$.
 
-`results/rect10k40k_dense_sepA/` (in the `paper-rerun-outputs` release) is the archived
+`results/rect10k40k_dense_sepA/` (in the outputs archive of the latest release) is the archived
 run behind the earlier paper draft (fomtools `b41c10a`), the reference for the rerun. Its FISTA momentum was one iteration early (coefficients
 $\gamma_1, \gamma_2, \dots$ where the paper's eq. (8) has $0, \gamma_1, \dots$), in the
 generated solvers and the baselines alike. This pipeline uses eq. (8), and its gate

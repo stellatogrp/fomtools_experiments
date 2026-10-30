@@ -66,7 +66,7 @@ run against a local fomtools checkout instead, clone it next to this repository 
   toolkit for GPU targets, and a coding agent. Set `FOMTOOLS_CODEGEN_AGENT=1` to let the
   scripts call the agent. The paper uses Claude Opus 5.5 through the Claude Agent SDK.
   Scripts that are run without the agent reuse solvers generated earlier, or those of the
-  `paper-rerun-outputs` release unpacked at the repository root.
+  outputs archive of the latest release unpacked at the repository root.
 
 ## Reproducing the paper
 
@@ -77,7 +77,7 @@ times by independent agent runs (`--reps 1 2 3`, the default), and the tables re
 median with the range. Everything is resumable: a finished piece is skipped unless
 `--force`. The repository tracks code, configs, and the summaries the paper exporters read
 (per-K bounds, timings, agent reports). Generated code, logs, and figures stay untracked;
-those of the paper rerun are in the `paper-rerun-outputs` release. New verification runs
+those of the paper's runs are in the outputs archive of the latest release (see Releases below). New verification runs
 (`results/run_NNN/`) are ignored too; to make one the paper's run, add its summaries with
 `git add -f`. Each folder's README has the details.
 
@@ -156,3 +156,30 @@ uv run python -m codegen_timings.paper_csv [--write]
 | [`portfolio/`](portfolio/) | `portfolio_cvxpygen/`, the CVXPYgen comparison |
 | [`codegen_timings/`](codegen_timings/) | generated C solvers for the verified instances, with timings |
 | [`plots/`](plots/) | figure, KL-bound, and paper-data scripts with their outputs |
+
+## Releases
+
+The repository tracks code, configs, and the summaries the paper reads. Each release adds
+the outputs behind them as `fomtools_experiments_outputs.tar.zst`: generated solvers,
+agent logs, figures, and the full verification run folders. To make one:
+
+1. Merge the results into `main` (squash merge, so outputs never enter the history).
+2. From a checkout that has the outputs on disk, pack the paper's runs and every result
+   folder, without builds and caches:
+
+   ```bash
+   tar --exclude='__pycache__' --exclude='build' --exclude='test' --exclude='*_bin' \
+       --exclude='*.so' --exclude='*.dylib' --exclude='*.dSYM' --exclude='*.o' -cf - \
+       codegen_timings control/rapdhg/codegen/results lasso/lasso_codegen/results \
+       portfolio/portfolio_cvxpygen/results_factor plots \
+       lasso/lasso_verify/results/run_023 network/results/run_006 \
+       control/rapdhg/verify/results/run_002 \
+     | zstd -19 -o fomtools_experiments_outputs.tar.zst
+   ```
+
+   Replace the three run folders with the runs the paper uses (`FOMEXP_RUNS`).
+3. Create the release on `main` with the archive:
+   `gh release create <tag> --target main fomtools_experiments_outputs.tar.zst`.
+
+To unpack a release at the repository root:
+`zstd -dc fomtools_experiments_outputs.tar.zst | tar -xf -`.

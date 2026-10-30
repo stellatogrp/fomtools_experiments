@@ -36,7 +36,7 @@ codegen_timings/**/build/
 portfolio/portfolio_cvxpygen/out_factor/
 *draft*.cache/
 # Outputs stay out of the repository; only the summaries the paper exporters read are
-# tracked. The full outputs of the paper rerun are in the paper-rerun-outputs release.
+# tracked. The full outputs of the paper rerun are in the outputs archive of the latest release.
 *.log
 *.png
 *.pdf
